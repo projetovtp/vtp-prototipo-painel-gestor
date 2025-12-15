@@ -9912,7 +9912,7 @@ app.post("/webhook", async (req, res) => {
       "marcar"
     ];
 
-   // ------------------------------------------------------
+ // ------------------------------------------------------
 // 1) MENSAGENS DE TEXTO (oi, menu, números, etc.)
 // ------------------------------------------------------
 if (msgType === "text") {
@@ -9928,6 +9928,34 @@ if (msgType === "text") {
 
   // Pega a sessão do usuário
   const session = getSession(waId);
+
+  // --------------------------------------------------
+  // 1.0 - Se estamos aguardando CPF para "Meus agendamentos"
+  // --------------------------------------------------
+  if (session.state === "AGUARDANDO_CPF_MEUS_AGENDAMENTOS") {
+    const cpfSomenteNumeros = (textoNormalizado || "").replace(/\D/g, "");
+
+    // validação simples: 11 dígitos
+    if (cpfSomenteNumeros.length !== 11) {
+      await callWhatsAppAPI(
+        buildTextMessage(
+          waId,
+          "CPF inválido. Digite *apenas os 11 números* do CPF (sem pontos e traço)."
+        )
+      );
+      return res.sendStatus(200);
+    }
+
+    await enviarResumoAgendamentos(waId, cpfSomenteNumeros);
+
+    // limpa estado para não ficar preso
+    session.state = null;
+
+    return res.sendStatus(200);
+  }
+
+  // ...continua seu código normal daqui pra baixo...
+
 
   // Gatilhos de saudação / menu / agendamento
   const gatilhosSaudacao = [
@@ -10199,15 +10227,19 @@ if (msgType === "text") {
 
     // 2.5 - Meus agendamentos (mantém como já estava)
     if (buttonId === "BTN_MEUS_AGENDAMENTOS") {
-      await callWhatsAppAPI(
-        buildTextMessage(
-          waId,
-          "Digite seu CPF (apenas números) para consultar seus agendamentos:"
-        )
-      );
-      // aqui você já tem a lógica de depois ler o CPF e chamar enviarResumoAgendamentos(...)
-      return res.sendStatus(200);
-    }
+  const session = getSession(waId);
+  session.state = "AGUARDANDO_CPF_MEUS_AGENDAMENTOS"; // 👈 marca que agora esperamos CPF
+
+  await callWhatsAppAPI(
+    buildTextMessage(
+      waId,
+      "Digite seu CPF (apenas números) para consultar seus agendamentos:"
+    )
+  );
+
+  return res.sendStatus(200);
+}
+
 
     // se for algum outro botão que você já trata em outro lugar, mantém aqui
   } catch (err) {
