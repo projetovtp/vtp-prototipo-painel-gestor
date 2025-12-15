@@ -1,0 +1,245 @@
+.gf-container {
+  padding: 18px;
+}
+
+.gf-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-bottom: 14px;
+}
+
+.gf-title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 800;
+}
+
+.gf-subtitle {
+  margin: 4px 0 0;
+  opacity: 0.8;
+}
+
+.gf-filtros {
+  display: grid;
+  grid-template-columns: 160px 160px 180px 1fr;
+  gap: 12px;
+  align-items: end;
+  padding: 12px;
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 12px;
+  margin-bottom: 12px;
+}
+
+.gf-filtro-item label {
+  display: block;
+  font-size: 12px;
+  opacity: 0.8;
+  margin-bottom: 6px;
+}
+
+.gf-filtro-item input,
+.gf-filtro-item select {
+  width: 100%;
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(0,0,0,0.25);
+  color: inherit;
+  outline: none;
+}
+
+.gf-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.gf-btn {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.14);
+  background: rgba(255,255,255,0.06);
+  color: inherit;
+  cursor: pointer;
+}
+
+.gf-btn:hover {
+  background: rgba(255,255,255,0.10);
+}
+
+.gf-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.gf-btn-primary {
+  background: rgba(0, 160, 255, 0.18);
+  border-color: rgba(0, 160, 255, 0.35);
+}
+
+.gf-error {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 80, 80, 0.35);
+  background: rgba(255, 80, 80, 0.10);
+  margin-bottom: 12px;
+}
+
+.gf-cards {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.gf-card {
+  padding: 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.04);
+}
+
+.gf-card-label {
+  font-size: 12px;
+  opacity: 0.85;
+  margin-bottom: 6px;
+}
+
+.gf-card-value {
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.gf-card-hint {
+  margin-top: 6px;
+  font-size: 12px;
+  opacity: 0.75;
+}
+
+.gf-table-wrap {
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.03);
+}
+
+.gf-table-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.gf-table-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.gf-table-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.gf-table-controls label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  opacity: 0.9;
+}
+
+.gf-table-controls select {
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(0,0,0,0.25);
+  color: inherit;
+}
+
+.gf-pager {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.gf-table {
+  display: grid;
+  gap: 8px;
+}
+
+.gf-row {
+  display: grid;
+  grid-template-columns: 120px 110px 110px 110px 110px 90px 110px;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(0,0,0,0.18);
+  align-items: center;
+}
+
+.gf-head {
+  background: rgba(255,255,255,0.06);
+  font-size: 12px;
+  opacity: 0.9;
+  font-weight: 700;
+}
+
+.gf-empty {
+  display: block;
+  padding: 14px;
+  text-align: center;
+  opacity: 0.75;
+}
+
+.gf-mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 12px;
+  opacity: 0.95;
+}
+
+.gf-pill {
+  display: inline-block;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  border: 1px solid rgba(255,255,255,0.18);
+  background: rgba(255,255,255,0.06);
+}
+
+.gf-pill.ok {
+  border-color: rgba(0, 255, 120, 0.35);
+  background: rgba(0, 255, 120, 0.10);
+}
+
+.gf-pill.warn {
+  border-color: rgba(255, 180, 0, 0.35);
+  background: rgba(255, 180, 0, 0.10);
+}
+
+.gf-pill.neutral {
+  border-color: rgba(180, 180, 255, 0.25);
+  background: rgba(180, 180, 255, 0.08);
+}
+
+@media (max-width: 1100px) {
+  .gf-cards {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .gf-filtros {
+    grid-template-columns: 1fr 1fr;
+  }
+  .gf-actions {
+    justify-content: flex-start;
+  }
+  .gf-row {
+    grid-template-columns: 1fr;
+  }
+  .gf-head {
+    display: none;
+  }
+}

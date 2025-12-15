@@ -1,0 +1,551 @@
+/* Estilo global simples */
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+}
+
+body {
+  background-color: #f5f5f5;
+}
+
+/* Layout base */
+
+.layout-root {
+  display: flex;
+  min-height: 100vh;
+}
+
+.layout-sidebar {
+  width: 220px;
+  background-color: #ffffff;
+  border-right: 1px solid #e0e0e0;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+}
+
+.layout-logo {
+  margin-bottom: 24px;
+}
+
+.logo-main {
+  display: block;
+  font-weight: 700;
+  font-size: 20px;
+  color: #1c7c54; /* verdinho VaiTerPlay */
+}
+
+.logo-tag {
+  font-size: 12px;
+  color: #888;
+}
+
+.layout-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.menu-link {
+  padding: 8px 10px;
+  border-radius: 6px;
+  text-decoration: none;
+  color: #444;
+  font-size: 14px;
+}
+
+.menu-link.active {
+  background-color: #1c7c54;
+  color: white;
+}
+
+.menu-link:hover {
+  background-color: #eaeaea;
+}
+
+.layout-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.layout-header {
+  padding: 16px 24px;
+  background-color: #ffffff;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.layout-content {
+  padding: 24px;
+}
+/* ---------- Cartões e formulários ---------- */
+
+.card {
+  background-color: #ffffff;
+  border-radius: 8px;
+  padding: 20px 24px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+  margin-top: 16px;
+}
+
+.card h3 {
+  margin-bottom: 16px;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px 24px;
+}
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-field-full {
+  grid-column: 1 / -1;
+}
+
+.form-field label {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.form-field input,
+.form-field textarea {
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid #cccccc;
+  font-size: 14px;
+}
+
+.form-field input:focus,
+.form-field textarea:focus {
+  outline: none;
+  border-color: #1c7c54;
+  box-shadow: 0 0 0 1px rgba(28, 124, 84, 0.2);
+}
+
+.form-field small {
+  font-size: 12px;
+  color: #666666;
+}
+
+.form-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.btn-primary,
+.btn-outlined {
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 14px;
+  cursor: pointer;
+  border: none;
+}
+
+.btn-primary {
+  background-color: #1c7c54;
+  color: #ffffff;
+}
+
+.btn-primary:hover {
+  background-color: #155b3e;
+}
+
+.btn-outlined {
+  background-color: #ffffff;
+  color: #333333;
+  border: 1px solid #cccccc;
+}
+
+.btn-outlined:hover {
+  background-color: #f2f2f2;
+}
+
+.form-message {
+  grid-column: 1 / -1;
+  margin-top: 8px;
+  font-size: 13px;
+  color: #1c7c54;
+}
+.quadra-name-preview {
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px dashed #999999;
+  background-color: #fafafa;
+  font-size: 14px;
+}
+.photo-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+  margin-top: 8px;
+}
+
+.photo-slot {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.photo-label {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.photo-preview {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: 6px;
+  border: 1px solid #cccccc;
+}
+
+.photo-tip {
+  display: block;
+  margin-top: 8px;
+  font-size: 12px;
+  color: #666666;
+}
+
+/* =========================
+   QUADRAS - LISTAGEM (GestorQuadrasListPage)
+   ========================== */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* cabeçalho da página (título + botão nova quadra) */
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.page-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: #222;
+}
+
+/* wrapper geral por empresa */
+.quadras-por-empresa-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* bloco de cada empresa */
+.empresa-bloco {
+  margin-bottom: 16px;
+}
+
+.empresa-header {
+  margin-bottom: 8px;
+}
+
+.empresa-nome {
+  font-size: 18px;
+  font-weight: 700;
+  color: #1c7c54;
+}
+
+.empresa-endereco {
+  font-size: 13px;
+  color: #666;
+}
+
+/* grid de cards de quadra */
+.quadras-grid {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr);
+  gap: 12px;
+}
+
+/* card da quadra */
+.quadra-card {
+  background-color: #ffffff;
+  border-radius: 10px;
+  padding: 14px 16px;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.04);
+  border: 1px solid #e5e5e5;
+}
+
+/* cabeçalho do card (nome + status) */
+.quadra-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 8px;
+  gap: 8px;
+}
+
+.quadra-nome {
+  font-size: 15px;
+  font-weight: 700;
+  color: #222;
+}
+
+.quadra-material {
+  display: block;
+  font-size: 12px;
+  color: #777;
+}
+
+/* badge de status */
+.quadra-status-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: 999px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.quadra-status-ativa {
+  background-color: #e3f5ec;
+  color: #1c7c54;
+}
+
+.quadra-status-inativa {
+  background-color: #fbeaea;
+  color: #c0392b;
+}
+
+.quadra-status-manutencao {
+  background-color: #fff4e0;
+  color: #c27c1c;
+}
+
+/* textos internos */
+.quadra-detalhes {
+  font-size: 13px;
+  color: #444;
+  margin-bottom: 10px;
+}
+
+.quadra-detalhes p + p {
+  margin-top: 4px;
+}
+
+/* área dos botões */
+.quadra-acoes {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* botões específicos dessa tela */
+.btn-secondary,
+.btn-secondary-outline,
+.btn-danger {
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+
+.btn-secondary {
+  background-color: #f4f4f4;
+  color: #333;
+  border-color: #d0d0d0;
+}
+
+.btn-secondary:hover {
+  background-color: #e8e8e8;
+}
+
+.btn-secondary-outline {
+  background-color: #ffffff;
+  color: #1c7c54;
+  border-color: #1c7c54;
+}
+
+.btn-secondary-outline:hover {
+  background-color: #e3f5ec;
+}
+
+.btn-danger {
+  background-color: #e74c3c;
+  border-color: #e74c3c;
+  color: #ffffff;
+}
+
+.btn-danger:hover {
+  background-color: #c0392b;
+}
+body {
+  background: rgb(245, 243, 243) !important;
+}
+/* =========================
+   ESTILOS DA PÁGINA DE RESERVAS
+   ========================== */
+
+/* Remove padding do card da tabela para ficar "full width" */
+.no-padding-card {
+  padding: 0;
+  overflow: hidden; /* Para bordas arredondadas funcionarem na tabela */
+}
+
+.filters-card {
+  margin-bottom: 16px;
+}
+
+/* Tabela Personalizada */
+.tabela-reservas {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.tabela-reservas th {
+  background-color: #f9f9f9;
+  color: #666;
+  font-weight: 600;
+  text-align: left;
+  padding: 14px 16px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.tabela-reservas td {
+  padding: 14px 16px;
+  border-bottom: 1px solid #f0f0f0;
+  color: #333;
+  vertical-align: middle;
+}
+
+.tabela-reservas tr:last-child td {
+  border-bottom: none;
+}
+
+.tabela-reservas tr:hover {
+  background-color: #fcfcfc;
+}
+
+/* Detalhes menores dentro da célula */
+.reserva-detalhe-menor {
+  font-size: 13px;
+  color: #1c7c54;
+  font-weight: 500;
+}
+
+.reserva-data-hora {
+  font-size: 12px;
+  color: #777;
+}
+
+/* Badges de Status (Pequenas etiquetas coloridas) */
+.status-badge {
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.status-badge-verde {
+  background-color: #e6fffa;
+  color: #047857;
+  border: 1px solid #ccfbf1;
+}
+
+.status-badge-amarelo {
+  background-color: #fffbeb;
+  color: #b45309;
+  border: 1px solid #fef3c7;
+}
+
+.status-badge-vermelho {
+  background-color: #fef2f2;
+  color: #b91c1c;
+  border: 1px solid #fee2e2;
+}
+
+/* Botões de ícone simples na tabela */
+.btn-icon {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
+  padding: 4px;
+  opacity: 0.7;
+  transition: opacity 0.2s;
+}
+
+.btn-icon:hover {
+  opacity: 1;
+  background-color: #f0f0f0;
+  border-radius: 4px;
+}
+/* =========================
+   ADMIN - Compatibilidade com menu-item (mesma cara do Gestor)
+   ========================== */
+
+/* AdminLayout usa "menu-item", GestorLayout usa "menu-link".
+   Vamos padronizar os dois para ficarem iguais. */
+
+.menu-item,
+.menu-link {
+  padding: 8px 10px;
+  border-radius: 6px;
+  text-decoration: none;
+  color: #444;
+  font-size: 14px;
+  background: transparent;
+  border: none; /* pra button.menu-item (Sair) ficar igual */
+  cursor: pointer; /* melhora UX no button */
+  display: block; /* link e button ocuparem largura toda */
+  text-align: left;
+}
+
+.menu-item.active,
+.menu-link.active {
+  background-color: #1c7c54;
+  color: white;
+}
+
+.menu-item:hover,
+.menu-link:hover {
+  background-color: #eaeaea;
+}
+
+/* Mantém o active com prioridade mesmo no hover */
+.menu-item.active:hover,
+.menu-link.active:hover {
+  background-color: #155b3e;
+  color: #fff;
+}
+
+/* Ajuste visual do sidebar para ficar mais “pro” nos dois painéis */
+.layout-sidebar {
+  width: 220px;
+  background-color: #ffffff;
+  border-right: 1px solid #e0e0e0;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Deixa o menu “respirar” igual */
+.layout-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}

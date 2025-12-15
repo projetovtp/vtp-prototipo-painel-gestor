@@ -1,0 +1,82 @@
+.quadras-container {
+  padding: 20px;
+}
+
+/* Linha de cabeçalho: título + botão de nova quadra */
+.quadras-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 18px;
+}
+
+.quadras-header-row h1 {
+  margin: 0;
+}
+
+.btn-nova-quadra {
+  padding: 10px 16px;
+  border-radius: 8px;
+  border: none;
+  background: #00b894;
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.btn-nova-quadra:hover {
+  background: #019070;
+}
+
+.quadras-grid {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+}
+
+.quadra-card {
+  background: #fff;
+  border-radius: 12px;
+  padding: 14px;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.15);
+  transition: 0.2s;
+}
+
+.quadra-card:hover {
+  transform: scale(1.02);
+}
+
+.quadra-foto {
+  width: 100%;
+  height: 150px;
+  object-fit: cover;
+  border-radius: 10px;
+  margin-bottom: 10px;
+}
+
+.quadra-nome {
+  font-size: 17px;
+  margin: 6px 0;
+}
+
+.quadra-complexo,
+.quadra-status {
+  margin: 4px 0;
+  font-size: 14px;
+}
+
+.btn-editar {
+  margin-top: 10px;
+  width: 100%;
+  padding: 10px;
+  background: #0066ff;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.btn-editar:hover {
+  background: #004ad1;
+}

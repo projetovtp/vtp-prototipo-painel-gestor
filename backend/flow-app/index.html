@@ -1,0 +1,927 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <title>VaiTerPlay - Flow Web App</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      * {
+        box-sizing: border-box;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+      body {
+        margin: 0;
+        padding: 0;
+        background: #0f172a;
+        color: #f9fafb;
+      }
+      .app-container {
+        max-width: 480px;
+        margin: 0 auto;
+        min-height: 100vh;
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      .card {
+        background: #020617;
+        border-radius: 16px;
+        padding: 16px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+        border: 1px solid #1f2937;
+      }
+      .header-logo {
+        width: 120px;
+        height: auto;
+        margin: 0 auto 12px auto;
+        display: block;
+      }
+      h1 {
+        font-size: 20px;
+        margin: 0 0 8px 0;
+        text-align: center;
+      }
+      h2 {
+        font-size: 18px;
+        margin: 0 0 8px 0;
+      }
+      p {
+        font-size: 14px;
+        margin: 0 0 8px 0;
+        color: #e5e7eb;
+      }
+      .btn {
+        width: 100%;
+        padding: 10px 14px;
+        border-radius: 999px;
+        border: none;
+        background: #22c55e;
+        color: #022c22;
+        font-weight: 600;
+        font-size: 14px;
+        cursor: pointer;
+        margin-top: 8px;
+      }
+      .btn.secondary {
+        background: #0b1120;
+        color: #e5e7eb;
+        border: 1px solid #1f2937;
+      }
+      .btn.danger {
+        background: #b91c1c;
+        color: #fee2e2;
+      }
+      .btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      .field {
+        margin-bottom: 10px;
+      }
+      .field label {
+        display: block;
+        font-size: 13px;
+        margin-bottom: 4px;
+        color: #9ca3af;
+      }
+      .field input,
+      .field select {
+        width: 100%;
+        padding: 8px 10px;
+        border-radius: 8px;
+        border: 1px solid #1f2937;
+        background: #020617;
+        color: #f9fafb;
+        font-size: 14px;
+      }
+      .horario-list {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        margin-top: 8px;
+      }
+      .horario-item {
+        padding: 8px 10px;
+        border-radius: 10px;
+        border: 1px solid #1f2937;
+        background: #020617;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        cursor: pointer;
+        font-size: 14px;
+      }
+      .horario-item.selected {
+        border-color: #22c55e;
+        background: #022c22;
+      }
+      .quadra-list {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        margin-top: 8px;
+      }
+      .quadra-item {
+        padding: 10px 12px;
+        border-radius: 12px;
+        border: 1px solid #1f2937;
+        background: #020617;
+        display: flex;
+        gap: 10px;
+        cursor: pointer;
+      }
+      .quadra-thumb {
+        width: 56px;
+        height: 56px;
+        border-radius: 12px;
+        background: #020617;
+        object-fit: cover;
+        border: 1px solid #1f2937;
+      }
+      .quadra-info {
+        flex: 1;
+      }
+      .badge {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 999px;
+        font-size: 11px;
+        background: #0f172a;
+        color: #9ca3af;
+        border: 1px solid #1f2937;
+      }
+      .small-text {
+        font-size: 12px;
+        color: #9ca3af;
+      }
+      .check-row {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+        color: #e5e7eb;
+      }
+      .qr-container {
+        text-align: center;
+        margin-top: 8px;
+      }
+      .qr-image {
+        width: 220px;
+        height: 220px;
+        border-radius: 16px;
+        background: #0b1120;
+        margin: 0 auto 8px auto;
+        display: block;
+      }
+      .code-box {
+        margin-top: 8px;
+        padding: 8px;
+        border-radius: 8px;
+        background: #020617;
+        border: 1px dashed #374151;
+        font-size: 12px;
+        word-break: break-all;
+      }
+      .tag {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 999px;
+        font-size: 11px;
+        border: 1px solid #1f2937;
+        background: #020617;
+        color: #9ca3af;
+        margin-right: 4px;
+        margin-top: 4px;
+      }
+      .booking-card {
+        padding: 10px 12px;
+        border-radius: 12px;
+        border: 1px solid #1f2937;
+        background: #020617;
+        margin-bottom: 8px;
+        cursor: pointer;
+      }
+      .booking-card h3 {
+        margin: 0 0 4px 0;
+        font-size: 14px;
+      }
+      .status-pill {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 999px;
+        font-size: 11px;
+      }
+      .status-paid {
+        background: #022c22;
+        color: #bbf7d0;
+        border: 1px solid #16a34a;
+      }
+      .status-pending {
+        background: #1e293b;
+        color: #e5e7eb;
+        border: 1px solid #334155;
+      }
+      .footer-note {
+        text-align: center;
+        font-size: 11px;
+        color: #6b7280;
+        margin-top: auto;
+        padding: 8px 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+
+    <!-- React + ReactDOM + Babel (para usar JSX sem build) -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <script type="text/babel">
+      const { useState, useEffect } = React;
+
+      const API_BASE_URL = ""; // relativo ao backend
+
+      function useQuery() {
+        const [params] = useState(() => new URLSearchParams(window.location.search));
+        return params;
+      }
+
+      function formatDateBR(isoDate) {
+        if (!isoDate) return "";
+        const [y, m, d] = isoDate.split("-");
+        return `${d}/${m}/${y}`;
+      }
+
+      function App() {
+        const query = useQuery();
+        const initialMode = query.get("mode") || "agendar"; // agendar | meus-agendamentos
+
+        const [mode, setMode] = useState(initialMode);
+        const [screen, setScreen] = useState(
+          initialMode === "meus-agendamentos" ? "cpfMeusAgendamentos" : "quadrasList"
+        );
+
+        const [quadras, setQuadras] = useState([]);
+        const [quadrasLoading, setQuadrasLoading] = useState(false);
+        const [quadrasError, setQuadrasError] = useState("");
+
+        const [selectedQuadra, setSelectedQuadra] = useState(null);
+        const [horarios, setHorarios] = useState([]);
+        const [horariosLoading, setHorariosLoading] = useState(false);
+
+        const [form, setForm] = useState({
+          data: "",
+          horarioId: "",
+          nome: "",
+          cpf: "",
+          termos: false
+        });
+
+        const [pixInfo, setPixInfo] = useState(null);
+        const [pixLoading, setPixLoading] = useState(false);
+        const [pixError, setPixError] = useState("");
+
+        const [cpfConsulta, setCpfConsulta] = useState("");
+        const [agendamentos, setAgendamentos] = useState([]);
+        const [agendamentosLoading, setAgendamentosLoading] = useState(false);
+        const [agendamentoSelecionado, setAgendamentoSelecionado] = useState(null);
+        const [agendamentosError, setAgendamentosError] = useState("");
+
+        useEffect(() => {
+          if (screen === "quadrasList") {
+            carregarQuadras();
+          }
+        }, [screen]);
+
+        async function carregarQuadras() {
+          try {
+            setQuadrasLoading(true);
+            setQuadrasError("");
+            const res = await fetch(API_BASE_URL + "/api/quadras");
+            const json = await res.json();
+            if (!json.ok) throw new Error(json.error || "Erro ao carregar quadras");
+            setQuadras(json.data || []);
+          } catch (err) {
+            console.error(err);
+            setQuadrasError("Não foi possível carregar as quadras.");
+          } finally {
+            setQuadrasLoading(false);
+          }
+        }
+
+        async function carregarHorarios(quadraId) {
+          try {
+            setHorariosLoading(true);
+            const res = await fetch(API_BASE_URL + "/api/quadras/" + quadraId + "/horarios");
+            const json = await res.json();
+            if (!json.ok) throw new Error(json.error || "Erro ao carregar horários");
+            setHorarios(json.data || []);
+          } catch (err) {
+            console.error(err);
+            alert("Erro ao carregar horários dessa quadra.");
+          } finally {
+            setHorariosLoading(false);
+          }
+        }
+
+        function handleSelectQuadra(q) {
+          setSelectedQuadra(q);
+          setScreen("quadraDetail");
+        }
+
+        function handleAgendarQuadra() {
+          if (!selectedQuadra) return;
+          if (!form.data) {
+            const hoje = new Date();
+            const y = hoje.getFullYear();
+            const m = String(hoje.getMonth() + 1).padStart(2, "0");
+            const d = String(hoje.getDate()).padStart(2, "0");
+            setForm((f) => ({ ...f, data: `${y}-${m}-${d}` }));
+          }
+          carregarHorarios(selectedQuadra.id);
+          setScreen("dateTime");
+        }
+
+        function handleChangeForm(field, value) {
+          setForm((prev) => ({ ...prev, [field]: value }));
+        }
+
+        function handleIrCadastro() {
+          if (!form.data) {
+            alert("Escolha a data do jogo.");
+            return;
+          }
+          if (!form.horarioId) {
+            alert("Escolha um horário disponível.");
+            return;
+          }
+          setScreen("cadastro");
+        }
+
+        function handleIrReview() {
+          if (!form.nome.trim()) {
+            alert("Preencha seu nome completo.");
+            return;
+          }
+          if (!form.cpf.trim()) {
+            alert("Preencha seu CPF.");
+            return;
+          }
+          if (!form.termos) {
+            alert("Você precisa aceitar os termos para continuar.");
+            return;
+          }
+          setScreen("review");
+        }
+
+        async function handleGerarPix() {
+          if (!selectedQuadra || !form.data || !form.horarioId) {
+            alert("Dados incompletos. Volte e revise o agendamento.");
+            return;
+          }
+          setPixLoading(true);
+          setPixError("");
+          try {
+            const body = {
+              quadra_id: selectedQuadra.id,
+              data_agendamento: form.data,
+              horario_id: form.horarioId,
+              nome_completo: form.nome,
+              cpf: form.cpf,
+              celular: null,
+              email: null,
+              waId: null
+            };
+            const res = await fetch(API_BASE_URL + "/api/agendamentos/criar-pix", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(body)
+            });
+            const json = await res.json();
+            if (!json.ok) throw new Error(json.error || "Erro ao gerar PIX.");
+            setPixInfo(json);
+            setScreen("pix");
+          } catch (err) {
+            console.error(err);
+            setPixError("Não foi possível gerar o PIX. Tente novamente.");
+          } finally {
+            setPixLoading(false);
+          }
+        }
+
+        async function handleBuscarAgendamentos() {
+          if (!cpfConsulta.trim()) {
+            alert("Informe o CPF.");
+            return;
+          }
+          setAgendamentosLoading(true);
+          setAgendamentosError("");
+          setAgendamentoSelecionado(null);
+          try {
+            const res = await fetch(
+              API_BASE_URL + "/api/agendamentos?cpf=" + encodeURIComponent(cpfConsulta.trim())
+            );
+            const json = await res.json();
+            if (!json.ok) throw new Error(json.error || "Erro ao buscar agendamentos");
+            setAgendamentos(json.data || []);
+          } catch (err) {
+            console.error(err);
+            setAgendamentosError("Não foi possível buscar agendamentos.");
+          } finally {
+            setAgendamentosLoading(false);
+          }
+        }
+
+        function renderHeader() {
+          return (
+            <div className="card">
+              <img
+                src="https://viwmjgaxztmiehyzknko.supabase.co/storage/v1/object/public/vtpbuckets/logo-vaiterplay.png"
+                alt="VaiTerPlay"
+                className="header-logo"
+              />
+              <h1>VaiTerPlay</h1>
+              <p style={{ textAlign: "center", fontSize: "13px" }}>
+                Agende sua quadra em poucos toques, com pagamento via PIX e tudo salvo no seu CPF.
+              </p>
+            </div>
+          );
+        }
+
+        function renderQuadrasList() {
+          return (
+            <div className="card">
+              <h2>Escolha a quadra</h2>
+              <p>Selecione onde você quer jogar. Essas opções vêm do painel do gestor.</p>
+              {quadrasLoading && <p>Carregando quadras...</p>}
+              {quadrasError && <p style={{ color: "#f97373" }}>{quadrasError}</p>}
+              {!quadrasLoading && quadras.length === 0 && (
+                <p>Nenhuma quadra cadastrada ainda.</p>
+              )}
+
+              <div className="quadra-list">
+                {quadras.map((q) => (
+                  <div
+                    key={q.id}
+                    className="quadra-item"
+                    onClick={() => handleSelectQuadra(q)}
+                  >
+                    <img
+                      className="quadra-thumb"
+                      src={
+                        q.url_icone ||
+                        q.url_imagem_header ||
+                        "https://via.placeholder.com/80x80?text=Quadra"
+                      }
+                      alt={q.nome}
+                    />
+                    <div className="quadra-info">
+                      <strong style={{ fontSize: "14px" }}>{q.nome}</strong>
+                      <p className="small-text">
+                        {q.endereco_resumido || q.endereco_completo || "Endereço a definir"}
+                      </p>
+                      <span className="badge">Toque para ver detalhes</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        }
+
+        function renderQuadraDetail() {
+          if (!selectedQuadra) return null;
+          const q = selectedQuadra;
+          return (
+            <div className="card">
+              <h2>{q.nome}</h2>
+              {q.url_imagem_header && (
+                <img
+                  src={q.url_imagem_header}
+                  alt={q.nome}
+                  style={{
+                    width: "100%",
+                    borderRadius: "16px",
+                    marginBottom: "8px",
+                    maxHeight: "200px",
+                    objectFit: "cover"
+                  }}
+                />
+              )}
+              <p>{q.informacoes || "Quadra preparada para o seu jogo, com estrutura completa."}</p>
+              <p className="small-text">
+                {q.endereco_completo || q.endereco_resumido || "Endereço não informado."}
+              </p>
+              <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                {q.link_google_maps && (
+                  <button
+                    className="btn secondary"
+                    style={{ flex: 1 }}
+                    onClick={() => window.open(q.link_google_maps, "_blank")}
+                  >
+                    Abrir no Maps
+                  </button>
+                )}
+              </div>
+              <button className="btn" onClick={handleAgendarQuadra}>
+                Agendar quadra
+              </button>
+              <button
+                className="btn secondary"
+                onClick={() => {
+                  setSelectedQuadra(null);
+                  setScreen("quadrasList");
+                }}
+              >
+                Voltar para lista
+              </button>
+            </div>
+          );
+        }
+
+        function renderDateTime() {
+          if (!selectedQuadra) return null;
+          return (
+            <div className="card">
+              <h2>Data e horário</h2>
+              <p>Escolha a data e um dos horários liberados para essa quadra.</p>
+
+              <div className="field">
+                <label>Data do jogo</label>
+                <input
+                  type="date"
+                  value={form.data}
+                  onChange={(e) => handleChangeForm("data", e.target.value)}
+                />
+                <div className="small-text">
+                  Formato brasileiro (o celular já mostra no padrão local).
+                </div>
+              </div>
+
+              <div className="field">
+                <label>Horários disponíveis</label>
+                {horariosLoading && <p>Carregando horários...</p>}
+                {!horariosLoading && horarios.length === 0 && (
+                  <p className="small-text">Nenhum horário configurado para essa quadra.</p>
+                )}
+                <div className="horario-list">
+                  {horarios.map((h) => {
+                    const label = `${h.hora_inicio?.slice(0, 5)} - ${h.hora_fim?.slice(
+                      0,
+                      5
+                    )} | R$ ${Number(h.valor || 0).toFixed(2)}`;
+                    const selected = form.horarioId === h.id;
+                    return (
+                      <div
+                        key={h.id}
+                        className={
+                          "horario-item" + (selected ? " selected" : "")
+                        }
+                        onClick={() => handleChangeForm("horarioId", h.id)}
+                      >
+                        <span>{label}</span>
+                        {selected && <span>✔</span>}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <button className="btn" onClick={handleIrCadastro}>
+                Continuar
+              </button>
+              <button
+                className="btn secondary"
+                onClick={() => {
+                  setScreen("quadraDetail");
+                }}
+              >
+                Voltar
+              </button>
+            </div>
+          );
+        }
+
+        function renderCadastro() {
+          return (
+            <div className="card">
+              <h2>Seus dados</h2>
+              <p>Usamos o CPF para localizar seus agendamentos depois.</p>
+
+              <div className="field">
+                <label>Nome completo *</label>
+                <input
+                  type="text"
+                  value={form.nome}
+                  onChange={(e) => handleChangeForm("nome", e.target.value)}
+                  placeholder="Ex: Bruno Martins"
+                />
+              </div>
+
+              <div className="field">
+                <label>CPF *</label>
+                <input
+                  type="text"
+                  value={form.cpf}
+                  onChange={(e) => handleChangeForm("cpf", e.target.value)}
+                  placeholder="000.000.000-00"
+                />
+              </div>
+
+              <div className="field">
+                <div className="check-row">
+                  <input
+                    id="termos"
+                    type="checkbox"
+                    checked={form.termos}
+                    onChange={(e) => handleChangeForm("termos", e.target.checked)}
+                  />
+                  <label htmlFor="termos">
+                    Eu li e concordo com os termos de uso da quadra.
+                  </label>
+                </div>
+                <div className="small-text">
+                  <a
+                    href="#"
+                    style={{ color: "#60a5fa", textDecoration: "none" }}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      alert(
+                        "Aqui você pode abrir um link com os termos completos (PDF ou página web)."
+                      );
+                    }}
+                  >
+                    Saiba mais sobre os termos
+                  </a>
+                </div>
+              </div>
+
+              <button className="btn" onClick={handleIrReview}>
+                Continuar
+              </button>
+              <button
+                className="btn secondary"
+                onClick={() => setScreen("dateTime")}
+              >
+                Voltar
+              </button>
+            </div>
+          );
+        }
+
+        function renderReview() {
+          const q = selectedQuadra;
+          const regra = horarios.find((h) => h.id === form.horarioId);
+          return (
+            <div className="card">
+              <h2>Revisar dados</h2>
+              <p>Confira tudo antes de gerar o pagamento PIX.</p>
+
+              <div className="code-box">
+                <strong>Quadra</strong>
+                <br />
+                {q ? q.nome : "-"}
+                <br />
+                <span className="small-text">
+                  {q
+                    ? q.endereco_resumido || q.endereco_completo || "Endereço a definir"
+                    : ""}
+                </span>
+                <br />
+                <br />
+                <strong>Data e horário</strong>
+                <br />
+                {form.data ? formatDateBR(form.data) : "-"}{" "}
+                {regra ? `às ${regra.hora_inicio?.slice(0, 5)}` : ""}
+                <br />
+                {regra ? `Valor: R$ ${Number(regra.valor || 0).toFixed(2)}` : ""}
+                <br />
+                <br />
+                <strong>Seus dados</strong>
+                <br />
+                Nome: {form.nome || "-"}
+                <br />
+                CPF: {form.cpf || "-"}
+              </div>
+
+              {pixError && <p style={{ color: "#f97373" }}>{pixError}</p>}
+
+              <button className="btn" onClick={handleGerarPix} disabled={pixLoading}>
+                {pixLoading ? "Gerando PIX..." : "Confirmar e gerar PIX"}
+              </button>
+              <button
+                className="btn secondary"
+                onClick={() => setScreen("cadastro")}
+              >
+                Voltar
+              </button>
+            </div>
+          );
+        }
+
+        function renderPix() {
+          if (!pixInfo) return null;
+          const { pix } = pixInfo;
+          return (
+            <div className="card">
+              <h2>Pagamento via PIX</h2>
+              <p>
+                Escaneie o QR Code abaixo no app do seu banco ou copie o código PIX.
+                Assim que o pagamento for compensado, você recebe a confirmação no WhatsApp.
+              </p>
+
+              <div className="qr-container">
+                {pix && pix.qr_code_base64 ? (
+                  <img
+                    className="qr-image"
+                    src={`data:image/png;base64,${pix.qr_code_base64}`}
+                    alt="QR Code PIX"
+                  />
+                ) : (
+                  <div
+                    className="qr-image"
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: "12px",
+                      color: "#64748b"
+                    }}
+                  >
+                    QR Code não disponível.
+                  </div>
+                )}
+              </div>
+
+              <div className="field">
+                <label>PIX copia e cola</label>
+                <div className="code-box">
+                  {pix && pix.qr_code ? pix.qr_code : "Código não disponível."}
+                </div>
+              </div>
+
+              <p className="small-text">
+                Depois de pagar, você pode fechar essa tela. O VaiTerPlay vai
+                te enviar a confirmação da reserva direto no WhatsApp.
+              </p>
+            </div>
+          );
+        }
+
+        function renderCpfMeusAgendamentos() {
+          return (
+            <div className="card">
+              <h2>Meus agendamentos</h2>
+              <p>Digite o CPF usado nas reservas para ver seus jogos.</p>
+              <div className="field">
+                <label>CPF</label>
+                <input
+                  type="text"
+                  value={cpfConsulta}
+                  onChange={(e) => setCpfConsulta(e.target.value)}
+                  placeholder="000.000.000-00"
+                />
+              </div>
+              {agendamentosError && (
+                <p style={{ color: "#f97373" }}>{agendamentosError}</p>
+              )}
+              <button
+                className="btn"
+                onClick={handleBuscarAgendamentos}
+                disabled={agendamentosLoading}
+              >
+                {agendamentosLoading ? "Buscando..." : "Buscar agendamentos"}
+              </button>
+            </div>
+          );
+        }
+
+        function renderListaAgendamentos() {
+          return (
+            <div className="card">
+              <h2>Resultados</h2>
+              {agendamentos.length === 0 ? (
+                <p className="small-text">
+                  Nenhum agendamento encontrado para esse CPF.
+                </p>
+              ) : (
+                <>
+                  <p className="small-text">
+                    Toque em um agendamento para ver o recibo.
+                  </p>
+                  {agendamentos.map((a) => (
+                    <div
+                      key={a.id}
+                      className="booking-card"
+                      onClick={() => setAgendamentoSelecionado(a)}
+                    >
+                      <h3>{a.quadra_nome || "Quadra"}</h3>
+                      <p className="small-text">
+                        Data: {a.data || "-"} às {a.hora || "-"}
+                      </p>
+                      <p className="small-text">
+                        Valor: R$ {Number(a.preco_total || 0).toFixed(2)}
+                      </p>
+                      <span
+                        className={
+                          "status-pill " +
+                          (a.status === "paid" ? "status-paid" : "status-pending")
+                        }
+                      >
+                        {a.status === "paid" ? "Pago" : "Pendente"}
+                      </span>
+                    </div>
+                  ))}
+                </>
+              )}
+              <button
+                className="btn secondary"
+                onClick={() => setScreen("cpfMeusAgendamentos")}
+              >
+                Buscar outro CPF
+              </button>
+            </div>
+          );
+        }
+
+        function renderRecibo() {
+          const a = agendamentoSelecionado;
+          if (!a) return null;
+          return (
+            <div className="card">
+              <h2>Recibo do agendamento</h2>
+              <div className="code-box">
+                <strong>Quadra:</strong> {a.quadra_nome || "-"}
+                <br />
+                <strong>Data:</strong> {a.data || "-"}
+                <br />
+                <strong>Hora:</strong> {a.hora || "-"}
+                <br />
+                <strong>Valor:</strong> R$ {Number(a.preco_total || 0).toFixed(2)}
+                <br />
+                <strong>Status:</strong>{" "}
+                {a.status === "paid" ? "✅ Pago" : "⏳ Pendente"}
+              </div>
+              <p className="small-text">
+                Esse recibo é baseado nas informações salvas no banco de dados do VaiTerPlay.
+              </p>
+              <button
+                className="btn secondary"
+                onClick={() => setAgendamentoSelecionado(null)}
+              >
+                Voltar para lista
+              </button>
+            </div>
+          );
+        }
+
+        return (
+          <div className="app-container">
+            {renderHeader()}
+
+            {mode === "agendar" && screen === "quadrasList" && renderQuadrasList()}
+            {mode === "agendar" && screen === "quadraDetail" && renderQuadraDetail()}
+            {mode === "agendar" && screen === "dateTime" && renderDateTime()}
+            {mode === "agendar" && screen === "cadastro" && renderCadastro()}
+            {mode === "agendar" && screen === "review" && renderReview()}
+            {mode === "agendar" && screen === "pix" && renderPix()}
+
+            {mode === "meus-agendamentos" &&
+              screen === "cpfMeusAgendamentos" &&
+              renderCpfMeusAgendamentos()}
+            {mode === "meus-agendamentos" &&
+              screen === "listaAgendamentos" &&
+              renderListaAgendamentos()}
+            {mode === "meus-agendamentos" &&
+              screen === "recibo" &&
+              renderRecibo()}
+
+            {mode === "meus-agendamentos" && screen === "listaAgendamentos" && (
+              <div style={{ display: "none" }}></div>
+            )}
+
+            {mode === "meus-agendamentos" && agendamentos.length > 0 && !agendamentoSelecionado
+              ? setScreen("listaAgendamentos")
+              : null}
+
+            {mode === "meus-agendamentos" &&
+              agendamentos.length > 0 &&
+              agendamentoSelecionado &&
+              screen !== "recibo"
+              ? setScreen("recibo")
+              : null}
+
+            <div className="footer-note">
+              VaiTerPlay • Seu jogo, na hora certa.
+            </div>
+          </div>
+        );
+      }
+
+      ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+    </script>
+  </body>
+</html>
