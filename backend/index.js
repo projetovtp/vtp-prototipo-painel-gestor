@@ -232,18 +232,19 @@ const mpPayment = new mercadopago.Payment(mpClient);
 // -----------------------------------------
 // 3. App Express
 // -----------------------------------------
-// -----------------------------------------
-// 3. App Express
-// -----------------------------------------
 const app = express();
 
 app.use(
   cors({
-    origin: "http://localhost:5173", // frontend Vite
+    origin: [
+      "http://localhost:5173",          // frontend Vite (local)
+      "https://vaiterplay.netlify.app", // frontend Netlify (produção)
+    ],
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
+
 
 // Vamos parsear JSON normalmente em TODAS as rotas
 // e, ao mesmo tempo, guardar o rawBody para validar
