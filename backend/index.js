@@ -8308,9 +8308,10 @@ você receberá uma mensagem automática de confirmação aqui no WhatsApp.`;
 
 async function enviarResumoAgendamentos(waId, cpfBruto) {
   try {
-    // CPF para consulta: SOMENTE números
+    // 1. Tratamento do CPF (Deixa apenas números)
     const cpf = String(cpfBruto || "").replace(/\D/g, "");
 
+    // Validação básica de tamanho
     if (cpf.length !== 11) {
       await callWhatsAppAPI(
         buildTextMessage(waId, "CPF inválido. Digite os *11 números* (sem pontos e traço).")
@@ -8318,65 +8319,70 @@ async function enviarResumoAgendamentos(waId, cpfBruto) {
       return;
     }
 
-   const hoje = new Date();
-hoje.setHours(0,0,0,0);
+    // 2. Definição das Datas (Hoje, -60 dias e +60 dias)
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0); // Zera o horário para evitar problemas de fuso
 
-const inicio = new Date(hoje);
-inicio.setDate(inicio.getDate() - 60);
+    // Data de Início (-60 dias)
+    const inicio = new Date(hoje);
+    inicio.setDate(inicio.getDate() - 60);
 
-const fim = new Date(hoje);
-fim.setDate(fim.getDate() + 60);
+    // Data Final (+60 dias)
+    const fim = new Date(hoje);
+    fim.setDate(fim.getDate() + 60);
 
-const formatISODate = (d) => {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-};
+    // Função interna para formatar YYYY-MM-DD
+    const formatISODate = (d) => {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, "0");
+      const day = String(d.getDate()).padStart(2, "0");
+      return `${y}-${m}-${day}`;
+    };
 
-const inicioStr = formatISODate(inicio);
-const fimStr = formatISODate(fim);
+    const inicioStr = formatISODate(inicio);
+    const fimStr = formatISODate(fim);
+    const hojeStr = formatISODate(hoje); // Criei esta variável para o log funcionar se precisar
 
+    // 3. Logs de Debug (AGORA CORRIGIDOS)
+    console.log("[MEUS AG] cpfBruto =", cpfBruto);
+    console.log("[MEUS AG] cpf normalizado =", cpf);
+    console.log("[MEUS AG] Buscando entre:", inicioStr, "e", fimStr);
 
-
-console.log("[MEUS AG] cpfBruto =", cpfBruto);
-console.log("[MEUS AG] cpf normalizado =", cpf);
-
-console.log("[MEUS AG] hojeStr =", hojeStr);
-console.log("[MEUS AG] daqui60Str =", daqui60Str);
-
+    // 4. Consulta ao Supabase
     const { data, error } = await supabase
       .from("reservas")
       .select("id, data, hora, status, quadras ( id, tipo, material, modalidade )")
       .eq("user_cpf", cpf)
-      .gte("data", inicioStr)
-      .lte("data", fimStr)
-      .order("data", { ascending: true });
-
+      .gte("data", inicioStr) // Maior ou igual a 60 dias atrás
+      .lte("data", fimStr)    // Menor ou igual a 60 dias na frente
+      .order("data", { ascending: true }); // Ordena do mais antigo para o mais novo
 
     if (error) {
       throw error;
     }
 
+    // 5. Verificação se encontrou algo
     if (!data || data.length === 0) {
       await callWhatsAppAPI(
         buildTextMessage(
           waId,
-          "Não encontramos agendamentos nos últimos ou próximos 60 dias."
+          "Não encontramos agendamentos para este CPF nos últimos ou próximos 60 dias."
         )
       );
       return;
     }
 
-    let mensagem =
-      "📆 *Seus agendamentos (últimos e próximos 60 dias)*\n\n";
+    // 6. Montagem da Mensagem de Resposta
+    let mensagem = "📆 *Seus agendamentos (período de 120 dias)*\n\n";
 
     data.forEach((r) => {
-      const quadraNome = buildNomeQuadraDinamico(r.quadras || null);
+      // Garante que não quebre se a quadra tiver sido deletada
+      const quadraNome = r.quadras ? buildNomeQuadraDinamico(r.quadras) : "Quadra não identificada";
+      
+      // Formata a data para BR (DD/MM/YYYY) para ficar bonito no zap
+      const dataFormatadaBR = r.data.split('-').reverse().join('/');
 
-      mensagem += `• ID: ${r.id} | Quadra: ${quadraNome} | Data: ${r.data} | Hora: ${
-        r.hora
-      }\n  Status: ${
+      mensagem += `• ID: ${r.id}\n  Quadra: ${quadraNome}\n  Data: ${dataFormatadaBR} às ${r.hora}\n  Status: ${
         r.status === "paid" ? "✅ Pago" : "⏳ Pendente"
       }\n\n`;
     });
@@ -8384,10 +8390,11 @@ console.log("[MEUS AG] daqui60Str =", daqui60Str);
     mensagem += 'Precisa cancelar? Responda "cancelar [ID reserva]".';
 
     await callWhatsAppAPI(buildTextMessage(waId, mensagem));
+
   } catch (err) {
     console.error("[FUNÇÃO] Erro em enviarResumoAgendamentos:", err);
     await callWhatsAppAPI(
-      buildTextMessage(waId, "Erro interno. Nossa equipe foi notificada.")
+      buildTextMessage(waId, "Ocorreu um erro ao buscar seus agendamentos. Tente novamente mais tarde.")
     );
   }
 }
