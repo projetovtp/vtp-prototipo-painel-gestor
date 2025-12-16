@@ -8387,7 +8387,7 @@ async function enviarResumoAgendamentos(waId, cpfBruto) {
         `  ${descricao}\n\n`;
     });
 
-    mensagem += 'Precisa cancelar? Responda "cancelar [ID reserva]".';
+    //mensagem += 'Precisa cancelar? Responda "cancelar [ID reserva]".';
 
     await callWhatsAppAPI(buildTextMessage(waId, mensagem));
   } catch (err) {
