@@ -1076,30 +1076,23 @@ export default function AdminReservasPage() {
   };
 
   return (
-    <div className="page">
-      <div className="page-header" style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-  <div>
-    <h1 className="page-title">Reservas (Admin)</h1>
-    <p style={{ marginTop: 6, color: "#666", fontSize: 13 }}>
-      Tela principal é o clone do Gestor (Cinema). Use “Avançado” para pesquisa global em tabela.
-    </p>
-  </div>
-        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-          <button className="btn btn-outline-secondary" onClick={carregarBases} disabled={carregandoBases}>
-            {carregandoBases ? "Recarregando..." : "Recarregar bases"}
-          </button>
-          <button
-            className="btn btn-success"
-            onClick={() => setModalCriarAberto(true)}
-            disabled={!quadraId}
-            title={!quadraId ? "Selecione uma quadra para criar reserva" : "Criar reserva"}
-          >
-            + Criar reserva (painel)
-          </button>
-        </div>
-      </div>
+   <div className="page">
+  <div
+    className="page-header"
+    style={{ display: "flex", justifyContent: "space-between", gap: 12 }}
+  >
+    <div>
+      <h1 className="page-title">Reservas (Admin)</h1>
+      <p style={{ marginTop: 6, color: "#666", fontSize: 13 }}>
+        Tela principal é o clone do Gestor (Cinema). Use “Avançado” para pesquisa global em tabela.
+      </p>
+    </div>
 
-      {erroBases && <div className="alert alert-danger">{erroBases}</div>}
+    {/* ✅ REMOVIDO: botões "Recarregar bases" e "+ Criar reserva (painel)" */}
+  </div>
+
+  {erroBases && <div className="alert alert-danger">{erroBases}</div>}
+
 
      {/* FILTROS (Cinema) */}
 <div className="card" style={{ padding: 14 }}>
