@@ -571,18 +571,20 @@ const empresasGlobal = useMemo(() => {
           <button className="btn btn-outline-secondary" onClick={carregarBases} disabled={carregando}>
             Recarregar bases
           </button>
-          <button
-            className="btn btn-success"
-            onClick={() => {
-  setSlotSelecionado(null);
-  setModalCriar(true);
-}}
+          {modo === "cinema" && (
+  <button
+    className="btn btn-success"
+    onClick={() => {
+      setSlotSelecionado(null);
+      setModalCriar(true);
+    }}
+    disabled={!quadraId}
+    title={!quadraId ? "Selecione uma quadra para criar reserva" : "Criar reserva"}
+  >
+    + Criar reserva (painel)
+  </button>
+)}
 
-            disabled={!quadraId}
-            title={!quadraId ? "Selecione uma quadra para criar reserva" : "Criar reserva"}
-          >
-            + Criar reserva (painel)
-          </button>
         </div>
       </div>
 

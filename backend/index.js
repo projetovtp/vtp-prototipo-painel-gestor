@@ -146,6 +146,39 @@ const upload = multer({
     files: 3
   }
 });
+// =====================================================
+// 2.1) HELPERS — Normalização de status (1x no topo)
+// Padrão oficial do projeto: pending | paid | canceled
+// Aceita legados: pendente/pago/cancelado (pt-BR) e variantes
+// =====================================================
+function normalizeReservaStatus(input) {
+  const v = String(input || "").trim().toLowerCase();
+
+  if (!v) return "pending";
+
+  // Legados PT-BR / variações comuns
+  if (v === "pendente" || v === "pending") return "pending";
+  if (v === "pago" || v === "paid") return "paid";
+  if (v === "cancelado" || v === "canceled" || v === "cancelled") return "canceled";
+
+  // Outras variações (se algum dia aparecer algo diferente, cai em pending por segurança)
+  if (v.includes("pend")) return "pending";
+  if (v.includes("paid") || v.includes("pago")) return "paid";
+  if (v.includes("cancel")) return "canceled";
+
+  // fallback seguro
+  return "pending";
+}
+
+function isReservaBloqueante(status) {
+  const st = normalizeReservaStatus(status);
+  return st === "pending" || st === "paid";
+}
+
+function isReservaCancelada(status) {
+  return normalizeReservaStatus(status) === "canceled";
+}
+
 
 // ---------------------------------------------------------
 // FUNÇÃO AUXILIAR: baixa imagem (Supabase) e converte em Base64
@@ -1686,7 +1719,8 @@ app.delete(
           .from("reservas")
           .select("id, status")
           .in("quadra_id", quadraIds)
-          .neq("status", "canceled")
+          .not("status", "in", '("canceled","cancelado")')
+
           .limit(1);
 
         if (eR) {
@@ -5203,7 +5237,8 @@ app.get(
         .eq("quadra_id", quadraId)
         .gte("data", dataInicioISO)
         .lte("data", dataFimISO)
-        .in("status", ["pending", "paid"]);
+        .in("status", ["pending", "paid", "pendente", "pago"]);
+
 
       if (errReservas) {
         console.error("[AGENDA/SLOTS][GET] Erro ao buscar reservas:", errReservas);
@@ -5852,7 +5887,8 @@ app.get(
         .eq("quadra_id", quadraId)
         .gte("data", dataInicioISO)
         .lte("data", dataFimISO)
-        .in("status", ["pending", "paid"]);
+        .in("status", ["pending", "paid", "pendente", "pago"]);
+
 
       if (reservasError) {
         console.error("[AGENDA/SLOTS] Erro ao buscar reservas:", reservasError);
@@ -6209,18 +6245,30 @@ app.get(
             let reservaPrincipal = null;
             let bloqueioPrincipal = null;
 
-            // 7.1) Verifica se há reserva nesse slot (qualquer status ≠ cancelado)
-            const reservasSlot = reservasPorChave[chave] || [];
-            if (reservasSlot.length > 0) {
-              // Por padrão, usamos a primeira reserva encontrada
-              // (você pode ajustar depois se quiser priorizar algum status)
-              reservaPrincipal = reservasSlot[0];
-              if (
-                String(reservaPrincipal.status).toLowerCase() !== "cancelado"
-              ) {
-                status = "RESERVADA";
-              }
-            }
+            // 7.1) Verifica se há reserva nesse slot
+// ✅ Regra: só BLOQUEIA o horário se a reserva estiver pending ou paid
+const reservasSlot = reservasPorChave[chave] || [];
+
+if (reservasSlot.length > 0) {
+  // Se houver mais de 1 por algum bug, prioriza paid > pending > canceled
+  const prioridade = { paid: 2, pending: 1, canceled: 0 };
+
+  reservasSlot.sort((a, b) => {
+    const sa = normalizeReservaStatus(a?.status);
+    const sb = normalizeReservaStatus(b?.status);
+    return (prioridade[sb] ?? 0) - (prioridade[sa] ?? 0);
+  });
+
+  reservaPrincipal = reservasSlot[0];
+
+  if (isReservaBloqueante(reservaPrincipal?.status)) {
+    status = "RESERVADA";
+  } else {
+    // canceled NÃO bloqueia: mantém DISPONIVEL (salvo bloqueio manual)
+    // status permanece como estava (normalmente "DISPONIVEL")
+  }
+}
+
 
             // 7.2) Se ainda não estiver RESERVADA, verifica bloqueios
             if (status === "LIVRE" && bloqueiosDoDia.length > 0) {
@@ -6449,7 +6497,8 @@ app.get(
         .eq("quadra_id", quadraId)
         .gte("data", fromISO)
         .lte("data", toISO)
-        .in("status", ["pending", "paid"]);
+        .in("status", ["pending", "paid", "pendente", "pago"]);
+
 
       if (reservasError) {
         console.error(
@@ -8221,7 +8270,8 @@ async function criarAgendamento({
     .eq("quadra_id", id_quadra)
     .eq("data", data_agendamento)
     .eq("hora", regra.hora_inicio)
-    .in("status", ["pending", "paid"]);
+    .in("status", ["pending", "paid", "pendente", "pago"]);
+
 
   if (erroCheck) {
     console.error("[SUPA] Erro ao checar conflito de horário:", erroCheck);
@@ -9042,39 +9092,60 @@ app.get("/img", async (req, res) => {
 app.post("/mp-webhook", async (req, res) => {
   try {
     console.log("[MP WEBHOOK] body recebido:", JSON.stringify(req.body, null, 2));
+    console.log("[MP WEBHOOK] query recebida:", JSON.stringify(req.query || {}, null, 2));
 
-    const { type, action, data } = req.body || {};
+    // Mercado Pago pode variar: { type, action, data: {id} } | ou query topic/id | ou body id/resource
+    const body = req.body || {};
+    const type = (body.type || req.query.type || req.query.topic || "").toString().toLowerCase();
+    const action = (body.action || "").toString().toLowerCase();
 
-    // Mercado Pago costuma enviar type: "payment" e data: { id: "<payment_id>" }
-    const paymentId = data?.id || data?.["id"];
+    // tenta pegar o paymentId por várias chaves comuns
+    const paymentId =
+      body?.data?.id ||
+      body?.data?.["id"] ||
+      body?.id ||
+      req.query?.data_id ||
+      req.query?.["data.id"] ||
+      req.query?.id ||
+      null;
 
-    if (type !== "payment" || !paymentId) {
-      console.log("[MP WEBHOOK] Evento ignorado (type diferente ou sem paymentId).");
+    // se não for evento de pagamento, ignora (idempotente)
+    const isPaymentEvent =
+      type === "payment" ||
+      type === "payments" ||
+      action.includes("payment") ||
+      // em alguns cenários o MP manda topic=payment
+      req.query?.topic === "payment" ||
+      req.query?.type === "payment";
+
+    if (!isPaymentEvent || !paymentId) {
+      console.log("[MP WEBHOOK] Evento ignorado (não é payment ou sem paymentId).", { type, action, paymentId });
       return res.sendStatus(200);
     }
 
-    // 1) Busca o pagamento completo no MP para ver o status
+    // 1) Busca o pagamento completo no MP para ver o status real
     const payment = await mpPayment.get({ id: paymentId });
-    const p = payment.response || payment;
+    const p = payment?.response || payment;
 
     console.log("[MP WEBHOOK] Pagamento recuperado:", {
-      id: p.id,
-      status: p.status,
-      status_detail: p.status_detail
+      id: p?.id,
+      status: p?.status,
+      status_detail: p?.status_detail,
     });
 
     // Nos interessa apenas quando estiver realmente aprovado
-    if (p.status !== "approved") {
-      console.log("[MP WEBHOOK] Pagamento ainda não aprovado. Status:", p.status);
+    if (String(p?.status || "").toLowerCase() !== "approved") {
+      console.log("[MP WEBHOOK] Pagamento ainda não aprovado. Status:", p?.status);
       return res.sendStatus(200);
     }
 
     // 2) Atualiza a reserva correspondente no Supabase para "paid"
-    const { data: reservaAtualizada, error } = await supabase
+    // IMPORTANTE: usar maybeSingle pra não gerar erro quando não encontrar (webhook duplicado)
+    const { data: reservaAtualizada, error: updErr } = await supabase
       .from("reservas")
       .update({
         status: "paid",
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
       })
       .eq("id_transacao_pix", String(p.id))
       .neq("status", "paid") // ✅ evita reprocessar (idempotência na reserva)
@@ -9096,11 +9167,11 @@ app.post("/mp-webhook", async (req, res) => {
         )
         `
       )
-      .single();
+      .maybeSingle();
 
-    if (error) {
-      console.error("[MP WEBHOOK] Erro ao atualizar reserva no Supabase:", error);
-      return res.sendStatus(200); // não dá erro pro MP, senão ele fica re-tentando sem parar
+    if (updErr) {
+      console.error("[MP WEBHOOK] Erro ao atualizar reserva no Supabase:", updErr);
+      return res.sendStatus(200); // não dá erro pro MP, senão ele re-tenta sem parar
     }
 
     if (!reservaAtualizada) {
@@ -9111,9 +9182,9 @@ app.post("/mp-webhook", async (req, res) => {
       return res.sendStatus(200);
     }
 
-    // 2.1) Cria/atualiza registro financeiro em pagamentos (idempotente)
+    // 2.1) Cria/atualiza registro financeiro em pagamentos (idempotente por mp_payment_id)
     try {
-      const round2 = (v) => Math.round((Number(v) + Number.EPSILON) * 100) / 100;
+      const round2 = (v) => Math.round((Number(v || 0) + Number.EPSILON) * 100) / 100;
 
       const total = Number(reservaAtualizada.preco_total || 0);
 
@@ -9141,14 +9212,9 @@ app.post("/mp-webhook", async (req, res) => {
             .from("gestores")
             .select("taxa_plataforma_global")
             .eq("id", gestorId)
-            .single();
+            .maybeSingle();
 
-          if (
-            !gErr &&
-            g &&
-            g.taxa_plataforma_global !== null &&
-            g.taxa_plataforma_global !== undefined
-          ) {
+          if (!gErr && g && g.taxa_plataforma_global !== null && g.taxa_plataforma_global !== undefined) {
             const n = Number(g.taxa_plataforma_global);
             taxaPercent = Number.isFinite(n) ? n : 0;
           }
@@ -9163,14 +9229,9 @@ app.post("/mp-webhook", async (req, res) => {
               .from("empresas")
               .select("taxa_plataforma")
               .eq("id", empresaId)
-              .single();
+              .maybeSingle();
 
-            if (
-              !empErr &&
-              emp &&
-              emp.taxa_plataforma !== null &&
-              emp.taxa_plataforma !== undefined
-            ) {
+            if (!empErr && emp && emp.taxa_plataforma !== null && emp.taxa_plataforma !== undefined) {
               const n = Number(emp.taxa_plataforma);
               taxaPercent = Number.isFinite(n) ? n : 0;
             }
@@ -9183,56 +9244,33 @@ app.post("/mp-webhook", async (req, res) => {
 
       // Pega QR/Payload se existirem (nem sempre vem)
       const mpQr = p?.point_of_interaction?.transaction_data?.qr_code || null;
-      const mpPayload =
-        p?.point_of_interaction?.transaction_data?.qr_code_base64 || null;
+      const mpPayload = p?.point_of_interaction?.transaction_data?.qr_code_base64 || null;
 
-      // Idempotência: se já existe pagamento pra esse mp_payment_id, não duplica
-      const { data: jaExiste, error: jaErr } = await supabase
+      // ✅ Upsert por mp_payment_id = idempotência real
+      const { error: upsertErr } = await supabase
         .from("pagamentos")
-        .select("id")
-        .eq("mp_payment_id", String(p.id))
-        .maybeSingle();
+        .upsert(
+          [
+            {
+              reserva_id: reservaAtualizada.id,
+              valor_total: total,
+              taxa_plataforma: taxaValor,
+              valor_liquido_gestor: liquido,
+              status: "paid",
+              meio_pagamento: "pix",
+              mp_payment_id: String(p.id),
+              mp_qr_code: mpQr,
+              mp_payload: mpPayload,
+              updated_at: new Date().toISOString(),
+            },
+          ],
+          { onConflict: "mp_payment_id" }
+        );
 
-      if (jaErr) {
-        console.warn("[MP WEBHOOK] Aviso ao checar pagamento existente:", jaErr);
-      }
-
-      if (!jaExiste) {
-        const { error: insErr } = await supabase.from("pagamentos").insert([
-          {
-            reserva_id: reservaAtualizada.id,
-            valor_total: total,
-            taxa_plataforma: taxaValor,
-            valor_liquido_gestor: liquido,
-            status: "paid",
-            meio_pagamento: "pix",
-            mp_payment_id: String(p.id),
-            mp_qr_code: mpQr,
-            mp_payload: mpPayload
-          }
-        ]);
-
-        if (insErr) {
-          console.error("[MP WEBHOOK] Erro ao inserir em pagamentos:", insErr);
-        } else {
-          console.log(
-            "[MP WEBHOOK] Pagamento registrado em pagamentos para reserva",
-            reservaAtualizada.id
-          );
-        }
+      if (upsertErr) {
+        console.error("[MP WEBHOOK] Erro ao upsert em pagamentos:", upsertErr);
       } else {
-        // Se já existe, garante status paid (caso webhook duplicado/atrasado)
-        const { error: updErr } = await supabase
-          .from("pagamentos")
-          .update({
-            status: "paid",
-            updated_at: new Date().toISOString()
-          })
-          .eq("mp_payment_id", String(p.id));
-
-        if (updErr) {
-          console.warn("[MP WEBHOOK] Aviso ao atualizar pagamento existente:", updErr);
-        }
+        console.log("[MP WEBHOOK] Pagamento registrado/atualizado em pagamentos para reserva", reservaAtualizada.id);
       }
     } catch (e) {
       console.error("[MP WEBHOOK] Falha inesperada ao registrar pagamentos:", e);
@@ -9244,23 +9282,13 @@ app.post("/mp-webhook", async (req, res) => {
     const horaReserva = reservaAtualizada.hora;
 
     // 3) Envia confirmação automática para o cliente no WhatsApp
+    // (Só vai disparar 1x, porque só cai aqui quando a reserva foi efetivamente alterada pra paid)
     if (telefone) {
-      const msgConfirmacao = `✅ *Pagamento confirmado!*
-
-Sua reserva foi aprovada com sucesso.
-
-Quadra: ${nomeQuadra}
-Data: ${dataReserva}
-Hora: ${horaReserva}
-
-Obrigado por usar o VaiTerPlay!`;
+      const msgConfirmacao = `✅ *Pagamento confirmado!*\n\nSua reserva foi aprovada com sucesso.\n\nQuadra: ${nomeQuadra}\nData: ${dataReserva}\nHora: ${horaReserva}\n\nObrigado por usar o VaiTerPlay!`;
 
       await callWhatsAppAPI(buildTextMessage(telefone, msgConfirmacao));
     } else {
-      console.warn(
-        "[MP WEBHOOK] Reserva atualizada, mas sem telefone cadastrado:",
-        reservaAtualizada
-      );
+      console.warn("[MP WEBHOOK] Reserva atualizada, mas sem telefone cadastrado:", reservaAtualizada);
     }
 
     return res.sendStatus(200);
@@ -9270,6 +9298,7 @@ Obrigado por usar o VaiTerPlay!`;
     return res.sendStatus(200);
   }
 });
+
 
 
 // ===== BLOCO J - FLOW DATA ENTRYPOINT (/flow-data: decrypt, ping, roteamento básico) =====
@@ -12361,6 +12390,261 @@ app.get("/gestor/reservas/grade", autenticarPainel, async (req, res) => {
   }
 });
 // -----------------------------------------
+// ADMIN - SLOTS DAS RESERVAS (VISUALIZAÇÃO ESTILO CINEMA)
+// -----------------------------------------
+// GET /admin/reservas/grade
+// Query params:
+//   - quadraId (obrigatório)
+//   - dataInicio (opcional: AAAA-MM-DD ou DD/MM/AAAA; default: hoje)
+//   - dataFim    (opcional: AAAA-MM-DD ou DD/MM/AAAA; default: dataInicio + 6 dias)
+//   - filtro     (opcional: "disponivel" | "reservada" | "bloqueado" | "todas"; default: "todas")
+// Retorno: slots por dia/hora com status: DISPONIVEL | RESERVADO | BLOQUEADO
+// -----------------------------------------
+app.get(
+  "/admin/reservas/grade",
+  autenticarPainel,
+  garantirAdmin,
+  async (req, res) => {
+    try {
+      const { quadraId, dataInicio, dataFim, filtro } = req.query || {};
+
+      if (!quadraId) {
+        return res.status(400).json({
+          error: "Parâmetro quadraId é obrigatório em /admin/reservas/grade",
+        });
+      }
+
+      // 1) Trata datas (reaproveita o mesmo parser do sistema)
+      const hoje = new Date();
+      let dtInicio =
+        dataInicio && String(dataInicio).trim()
+          ? parseDataAgendamentoBr(String(dataInicio))
+          : hoje;
+
+      if (!dtInicio || Number.isNaN(dtInicio.getTime())) {
+        return res.status(400).json({
+          error:
+            "dataInicio inválida. Use AAAA-MM-DD ou DD/MM/AAAA em /admin/reservas/grade.",
+        });
+      }
+
+      let dtFim;
+      if (dataFim && String(dataFim).trim()) {
+        dtFim = parseDataAgendamentoBr(String(dataFim));
+        if (!dtFim || Number.isNaN(dtFim.getTime())) {
+          return res.status(400).json({
+            error:
+              "dataFim inválida. Use AAAA-MM-DD ou DD/MM/AAAA em /admin/reservas/grade.",
+          });
+        }
+      } else {
+        dtFim = new Date(dtInicio);
+        dtFim.setDate(dtFim.getDate() + 6);
+      }
+
+      // garante dtInicio <= dtFim
+      if (dtFim.getTime() < dtInicio.getTime()) {
+        const tmp = dtInicio;
+        dtInicio = dtFim;
+        dtFim = tmp;
+      }
+
+      // limita range (31 dias)
+      const MS_DIA = 24 * 60 * 60 * 1000;
+      const diffDias = Math.round((dtFim - dtInicio) / MS_DIA);
+      if (diffDias > 31) {
+        return res.status(400).json({
+          error:
+            "Intervalo máximo permitido em /admin/reservas/grade é de 31 dias.",
+        });
+      }
+
+      const dtInicioISO = formatDateISO(dtInicio); // helper já existe no seu index
+      const dtFimISO = formatDateISO(dtFim);
+
+      // 2) Busca reservas do período (paid/pending bloqueiam, canceled não bloqueia)
+      const { data: reservas, error: errR } = await supabase
+        .from("reservas")
+        .select(
+          `
+          id,
+          quadra_id,
+          data,
+          hora,
+          status,
+          origem,
+          cpf,
+          phone,
+          nome_cliente,
+          preco_total
+        `
+        )
+        .eq("quadra_id", quadraId)
+        .gte("data", dtInicioISO)
+        .lte("data", dtFimISO);
+
+      if (errR) {
+        console.error("[ADMIN/RESERVAS/GRADE] Erro ao buscar reservas:", errR);
+        return res.status(500).json({
+          error: "Erro ao buscar reservas em /admin/reservas/grade",
+          detail: errR.message,
+        });
+      }
+
+      // 3) Busca bloqueios do período
+      const { data: bloqueios, error: errB } = await supabase
+        .from("bloqueios_quadra")
+        .select("id, quadra_id, data, hora_inicio, hora_fim")
+        .eq("quadra_id", quadraId)
+        .gte("data", dtInicioISO)
+        .lte("data", dtFimISO);
+
+      if (errB) {
+        console.error("[ADMIN/RESERVAS/GRADE] Erro ao buscar bloqueios:", errB);
+        return res.status(500).json({
+          error: "Erro ao buscar bloqueios em /admin/reservas/grade",
+          detail: errB.message,
+        });
+      }
+
+      // 4) Busca regras de horários/preços (agenda)
+      const { data: regras, error: errA } = await supabase
+        .from("regras_horarios")
+        .select("id, quadra_id, dia_semana, hora_inicio, hora_fim, preco_hora")
+        .eq("quadra_id", quadraId);
+
+      if (errA) {
+        console.error("[ADMIN/RESERVAS/GRADE] Erro ao buscar agenda:", errA);
+        return res.status(500).json({
+          error: "Erro ao buscar agenda em /admin/reservas/grade",
+          detail: errA.message,
+        });
+      }
+
+      // 5) Monta mapas rápidos
+      const mapReservas = new Map();
+      (reservas || []).forEach((r) => {
+        // chave = dataISO + "|" + hora
+        const dataISO = String(r.data || "").slice(0, 10);
+        const hora = String(r.hora || "");
+        if (!dataISO || !hora) return;
+
+        // paid/pending bloqueiam; canceled não
+        const st = String(r.status || "").toLowerCase();
+        if (st === "canceled") return;
+
+        mapReservas.set(`${dataISO}|${hora}`, r);
+      });
+
+      const bloqueadoNoHorario = (dataISO, horaStr) => {
+        const horaMin = String(horaStr || "").slice(0, 5);
+        for (const b of bloqueios || []) {
+          const d = String(b.data || "").slice(0, 10);
+          if (d !== dataISO) continue;
+
+          const hi = String(b.hora_inicio || "").slice(0, 5);
+          const hf = String(b.hora_fim || "").slice(0, 5);
+
+          // intervalo [hi, hf) — mesmo padrão do restante do sistema
+          if (horaMin >= hi && horaMin < hf) return true;
+        }
+        return false;
+      };
+
+      const diaSemanaIndex = (dateObj) => {
+        // JS: 0=Dom .. 6=Sáb  | seu banco normalmente usa 0..6 também
+        return dateObj.getDay();
+      };
+
+      const rangeDias = [];
+      for (let d = new Date(dtInicio); d <= dtFim; d = new Date(d.getTime() + MS_DIA)) {
+        rangeDias.push(new Date(d));
+      }
+
+      // 6) Gera grade: para cada dia, slots pelas regras
+      const filtroNorm = String(filtro || "todas").toLowerCase();
+
+      const grade = rangeDias.map((dia) => {
+        const dataISO = formatDateISO(dia);
+        const dow = diaSemanaIndex(dia);
+
+        const regrasDia = (regras || []).filter(
+          (r) => Number(r.dia_semana) === Number(dow)
+        );
+
+        const slots = [];
+
+        // para cada regra, cria slots de 1h em 1h
+        for (const rg of regrasDia) {
+          const hi = String(rg.hora_inicio || "").slice(0, 5);
+          const hf = String(rg.hora_fim || "").slice(0, 5);
+          if (!hi || !hf) continue;
+
+          const [h1, m1] = hi.split(":").map(Number);
+          const [h2, m2] = hf.split(":").map(Number);
+
+          // converte para minutos
+          let ini = h1 * 60 + (m1 || 0);
+          const fim = h2 * 60 + (m2 || 0);
+
+          while (ini < fim) {
+            const hIni = String(Math.floor(ini / 60)).padStart(2, "0");
+            const mIni = String(ini % 60).padStart(2, "0");
+            const horaSlot = `${hIni}:${mIni}`;
+
+            const reserva = mapReservas.get(`${dataISO}|${horaSlot}`) || null;
+            const bloqueado = bloqueadoNoHorario(dataISO, horaSlot);
+
+            let statusSlot = "DISPONIVEL";
+            if (bloqueado) statusSlot = "BLOQUEADO";
+            else if (reserva) statusSlot = "RESERVADO";
+
+            const slotObj = {
+              data: dataISO,
+              hora: horaSlot,
+              preco_hora: rg.preco_hora ?? 0,
+              status: statusSlot,
+              reserva: reserva
+                ? {
+                    id: reserva.id,
+                    status: reserva.status,
+                    origem: reserva.origem,
+                    cpf: reserva.cpf,
+                    phone: reserva.phone,
+                    nome_cliente: reserva.nome_cliente,
+                    preco_total: reserva.preco_total,
+                  }
+                : null,
+            };
+
+            // aplica filtro
+            if (filtroNorm === "todas") slots.push(slotObj);
+            else if (filtroNorm === "disponivel" && statusSlot === "DISPONIVEL")
+              slots.push(slotObj);
+            else if (filtroNorm === "reservada" && statusSlot === "RESERVADO")
+              slots.push(slotObj);
+            else if (filtroNorm === "bloqueado" && statusSlot === "BLOQUEADO")
+              slots.push(slotObj);
+
+            ini += 60; // 1h
+          }
+        }
+
+        return { data: dataISO, dia_semana: dow, slots };
+      });
+
+      return res.status(200).json({ grade });
+    } catch (err) {
+      console.error("[ADMIN/RESERVAS/GRADE] Erro inesperado:", err);
+      return res.status(500).json({
+        error: "Erro inesperado em /admin/reservas/grade",
+        detail: err.message,
+      });
+    }
+  }
+);
+
+// -----------------------------------------
 // CRUD de Reservas via Painel do Gestor
 // -----------------------------------------
 
@@ -12444,7 +12728,8 @@ app.post("/gestor/reservas", autenticarPainel, async (req, res) => {
       .eq("quadra_id", quadraId)
       .eq("data", data)
       .eq("hora", hora)
-      .in("status", ["pending", "paid"]);
+      .in("status", ["pending", "paid", "pendente", "pago"]);
+
 
     if (erroConflito) {
       console.error(
@@ -12928,8 +13213,9 @@ app.patch(
       // 2) Marcar como cancelada
       const { data: reservaCancelada, error: erroUpdate } = await supabase
         .from("reservas")
-        .update({
-          status: "cancelled"
+.update({
+  status: "canceled",
+  updated_at: new Date().toISOString(),
         })
         .eq("id", reservaId)
         .select("*")
@@ -12966,17 +13252,17 @@ app.patch(
 
 // -----------------------------------------
 // DELETE /gestor/reservas/:id  → cancelar reserva (soft delete)
-// - Marca status = "cancelled"
-// - Se existir pagamento "paid" vinculado → marca pagamento/repasse como "cancelled"
-// - Libera o horário na agenda (pois slots só consideram pending/paid)
+// - PADRÃO: status reservas = pending|paid|canceled
+// - Cancela pagamento/repasses vinculados (se existirem) -> status="canceled"
+// - Libera o horário na agenda (slots só consideram pending/paid como ocupando)
 // -----------------------------------------
 app.delete("/gestor/reservas/:id", autenticarPainel, async (req, res) => {
   try {
-    const gestorId = req.user.id;
-    const { id: reservaId } = req.params;
+    const gestorId = req.user?.id;
+    const reservaId = req.params?.id;
 
     if (!gestorId) {
-      return res.status(400).json({
+      return res.status(401).json({
         error: "Token inválido em /gestor/reservas/:id (DELETE).",
       });
     }
@@ -12985,6 +13271,27 @@ app.delete("/gestor/reservas/:id", autenticarPainel, async (req, res) => {
       return res.status(400).json({
         error: "Parâmetro id é obrigatório em /gestor/reservas/:id (DELETE).",
       });
+    }
+
+    // ==========================================================
+    // Helpers locais (não dependem de nada externo)
+    // ==========================================================
+    function normalizeReservaStatus(s) {
+      const v = String(s || "").toLowerCase().trim();
+      if (!v) return "pending";
+
+      // PT antigos
+      if (v === "pendente") return "pending";
+      if (v === "pago") return "paid";
+      if (v === "cancelado") return "canceled";
+
+      // EN antigo
+      if (v === "cancelled") return "canceled";
+
+      if (v === "pending" || v === "paid" || v === "canceled") return v;
+
+      // fallback conservador: ocupa
+      return "pending";
     }
 
     // 1) Busca reserva
@@ -13009,10 +13316,7 @@ app.delete("/gestor/reservas/:id", autenticarPainel, async (req, res) => {
       .single();
 
     if (reservaError) {
-      console.error(
-        "[GESTOR/RESERVAS][DEL/:id] Erro ao buscar reserva:",
-        reservaError
-      );
+      console.error("[GESTOR/RESERVAS][DEL/:id] Erro ao buscar reserva:", reservaError);
       return res.status(500).json({
         error: "Erro ao buscar reserva em /gestor/reservas/:id (DELETE).",
       });
@@ -13028,74 +13332,64 @@ app.delete("/gestor/reservas/:id", autenticarPainel, async (req, res) => {
     try {
       await validarQuadraDoGestor(reserva.quadra_id, gestorId);
     } catch (errValid) {
-      console.error(
-        "[GESTOR/RESERVAS][DEL/:id] Quadra não pertence ao gestor:",
-        errValid
-      );
+      console.error("[GESTOR/RESERVAS][DEL/:id] Quadra não pertence ao gestor:", errValid);
       return res.status(403).json({
         error: "Reserva não pertence a uma quadra deste gestor.",
       });
     }
 
-    // 3) Se já estiver cancelada, evita operação repetida
-    if (reserva.status === "cancelled") {
+    // 3) Se já estiver cancelada (canceled), evita operação repetida
+    if (normalizeReservaStatus(reserva.status) === "canceled") {
       return res.status(409).json({
         error: "RESERVA_JA_CANCELADA",
-        detalhe: "Esta reserva já está com status cancelled.",
+        detalhe: "Esta reserva já está com status canceled.",
       });
     }
 
     // ==========================================================
-    // 3.1) Se houver pagamento vinculado e estiver "paid", cancelar
+    // 3.1) Se houver pagamento vinculado e estiver paid, cancelar
+    //      e cancelar repasses vinculados (se existirem)
     // ==========================================================
-    // OBS: este bloco é defensivo: se a sua tabela/coluna não existir,
-    // não derruba o cancelamento da reserva — apenas loga.
     let pagamentoVinculado = null;
     let repassesAfetados = [];
 
     try {
       const { data: pag, error: pagError } = await supabase
         .from("pagamentos")
-        .select("id,status,reserva_id")
+        .select("id,status,reserva_id,mp_payment_id")
         .eq("reserva_id", reservaId)
         .maybeSingle();
 
       if (pagError) {
-        console.warn(
-          "[GESTOR/RESERVAS][DEL/:id] Aviso ao buscar pagamento vinculado:",
-          pagError
-        );
+        console.warn("[GESTOR/RESERVAS][DEL/:id] Aviso ao buscar pagamento vinculado:", pagError);
       } else if (pag) {
         pagamentoVinculado = pag;
 
-        const statusPag = (pag.status || "").toString().toLowerCase().trim();
+        const statusPag = String(pag.status || "").toLowerCase().trim();
         const ehPaid = statusPag === "paid";
 
         if (ehPaid) {
-          // 1) Marca pagamento como cancelled
+          // 1) Marca pagamento como canceled
           const { error: updPagErr } = await supabase
             .from("pagamentos")
-            .update({ status: "cancelled" })
+            .update({
+              status: "canceled",
+              updated_at: new Date().toISOString(),
+            })
             .eq("id", pag.id);
 
           if (updPagErr) {
-            console.warn(
-              "[GESTOR/RESERVAS][DEL/:id] Aviso ao cancelar pagamento:",
-              updPagErr
-            );
+            console.warn("[GESTOR/RESERVAS][DEL/:id] Aviso ao cancelar pagamento:", updPagErr);
           }
 
-          // 2) Descobre repasses ligados a esse pagamento e marca como cancelled
+          // 2) Descobre repasses ligados a esse pagamento e marca como canceled
           const { data: links, error: linksErr } = await supabase
             .from("repasses_pagamentos")
             .select("repasse_id,pagamento_id")
             .eq("pagamento_id", pag.id);
 
           if (linksErr) {
-            console.warn(
-              "[GESTOR/RESERVAS][DEL/:id] Aviso ao buscar repasses_pagamentos:",
-              linksErr
-            );
+            console.warn("[GESTOR/RESERVAS][DEL/:id] Aviso ao buscar repasses_pagamentos:", linksErr);
           } else {
             const repasseIds = (links || [])
               .map((x) => x.repasse_id)
@@ -13106,14 +13400,14 @@ app.delete("/gestor/reservas/:id", autenticarPainel, async (req, res) => {
             if (repasseIds.length) {
               const { error: updRepErr } = await supabase
                 .from("repasses")
-                .update({ status: "cancelled" })
+                .update({
+                  status: "canceled",
+                  updated_at: new Date().toISOString(),
+                })
                 .in("id", repasseIds);
 
               if (updRepErr) {
-                console.warn(
-                  "[GESTOR/RESERVAS][DEL/:id] Aviso ao cancelar repasse(s):",
-                  updRepErr
-                );
+                console.warn("[GESTOR/RESERVAS][DEL/:id] Aviso ao cancelar repasse(s):", updRepErr);
               }
             }
           }
@@ -13126,11 +13420,15 @@ app.delete("/gestor/reservas/:id", autenticarPainel, async (req, res) => {
       );
     }
 
-    // 4) Atualiza reserva para status "cancelled" (soft delete)
+    // 4) Atualiza reserva para status "canceled" (soft delete)
     const { data: reservaAtualizada, error: updateError } = await supabase
       .from("reservas")
-      .update({ status: "cancelled" })
+      .update({
+        status: "canceled",
+        updated_at: new Date().toISOString(),
+      })
       .eq("id", reservaId)
+      .neq("status", "canceled") // idempotência
       .select(
         `
         id,
@@ -13142,16 +13440,14 @@ app.delete("/gestor/reservas/:id", autenticarPainel, async (req, res) => {
         pago_via_pix,
         user_cpf,
         phone,
-        usuario_id
+        usuario_id,
+        origem
       `
       )
       .single();
 
     if (updateError) {
-      console.error(
-        "[GESTOR/RESERVAS][DEL/:id] Erro ao cancelar reserva:",
-        updateError
-      );
+      console.error("[GESTOR/RESERVAS][DEL/:id] Erro ao cancelar reserva:", updateError);
       return res.status(500).json({
         error: "Erro ao cancelar reserva em /gestor/reservas/:id (DELETE).",
       });
@@ -13161,7 +13457,11 @@ app.delete("/gestor/reservas/:id", autenticarPainel, async (req, res) => {
       message: "Reserva cancelada com sucesso.",
       reserva: reservaAtualizada,
       pagamento: pagamentoVinculado
-        ? { id: pagamentoVinculado.id, status_anterior: pagamentoVinculado.status }
+        ? {
+            id: pagamentoVinculado.id,
+            mp_payment_id: pagamentoVinculado.mp_payment_id || null,
+            status_anterior: pagamentoVinculado.status,
+          }
         : null,
       repasses_afetados: repassesAfetados,
     });
@@ -13172,6 +13472,7 @@ app.delete("/gestor/reservas/:id", autenticarPainel, async (req, res) => {
     });
   }
 });
+
 // ==========================================================
 // ADMIN — RESERVAS (GLOBAL)
 // - Admin enxerga tudo
@@ -13501,12 +13802,14 @@ app.delete("/admin/reservas/:id", autenticarPainel, garantirAdmin, async (req, r
     const { data: atualizado, error } = await supabase
       .from("reservas")
       .update({
-        status: "canceled",
-        updated_at: new Date().toISOString()
-      })
-      .eq("id", reservaId)
-      .select("id, status")
-      .single();
+  status: "canceled",
+  updated_at: new Date().toISOString(),
+})
+.eq("id", reservaId)
+.neq("status", "canceled") // ✅ não reprocessa se já estava cancelada
+.select("id, status")
+.maybeSingle();
+
 
     if (error) {
       console.error("[ADMIN/RESERVAS][DELETE] Erro:", error);
@@ -15770,11 +16073,13 @@ cron.schedule("* * * * *", async () => {
     // Atualiza todas as reservas pendentes criadas antes do limite
     const { data, error } = await supabase
       .from("reservas")
-      .update({
-        status: "cancelled",
-    })
-      .eq("status", "pending")
-      .lt("created_at", limiteISO)
+.update({
+  status: "canceled",
+  updated_at: new Date().toISOString(),
+})
+.in("status", ["pending", "pendente"]) // compat legado (se existir)
+.lt("created_at", limiteISO)
+
       .select("id");
 
     if (error) {
@@ -15821,9 +16126,12 @@ app.get("/teste-cron", async (req, res) => {
   // Tenta efetivar o cancelamento (UPDATE)
   const { data: atualizados, error: errUpdate } = await supabase
     .from("reservas")
-    .update({ status: "cancelled" })
-    .eq("status", "pending")
-    .lt("created_at", limiteISO)
+.update({
+  status: "canceled",
+  updated_at: new Date().toISOString(),
+})
+.in("status", ["pending", "pendente"])
+.lt("created_at", limiteISO)
     .select();
 
   if (errUpdate) {
