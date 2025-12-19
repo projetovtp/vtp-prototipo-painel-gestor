@@ -4,7 +4,8 @@ import api from "../../services/api";
 import { useAuth } from "../../context/AuthContext";
 
 // Reaproveita os MESMOS componentes do Gestor (clone total)
-import AgendaCinemaView from "../../components/agenda/AgendaCinemaView";
+import AgendaCinemaView from "../../components/gestor/AgendaCinemaView";
+
 import AgendaFiltersBar from "../../components/agenda/AgendaFiltersBar";
 import AgendaRegrasBox from "../../components/agenda/AgendaRegrasBox";
 import AgendaBloqueiosBox from "../../components/agenda/AgendaBloqueiosBox";
