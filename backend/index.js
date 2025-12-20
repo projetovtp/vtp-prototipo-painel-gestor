@@ -11966,7 +11966,7 @@ app.get(
 });
 
 // -----------------------------------------
-// Helper: Dashboard Gestor - visão geral
+// Helper: Dashboard Gestor - visão geral (PIX real + repasses)
 // -----------------------------------------
 async function buildGestorDashboardOverview(params) {
   const { gestorId, from, to } = params || {};
@@ -11975,23 +11975,24 @@ async function buildGestorDashboardOverview(params) {
     throw new Error("gestorId é obrigatório para o dashboard do gestor");
   }
 
-  // Se não vierem datas, assume últimos 7 dias
+  // Período padrão: mês atual
   const hoje = new Date();
-  const seteDiasAtras = new Date();
-  seteDiasAtras.setDate(hoje.getDate() - 6);
+  const yyyy = hoje.getFullYear();
+  const mm = String(hoje.getMonth() + 1).padStart(2, "0");
+
+  const defaultFrom = `${yyyy}-${mm}-01`;
+  const defaultTo = new Date(yyyy, hoje.getMonth() + 1, 0).toISOString().slice(0, 10);
 
   const fromStr =
-    typeof from === "string" && from.length >= 10
-      ? from.slice(0, 10)
-      : seteDiasAtras.toISOString().slice(0, 10);
+    typeof from === "string" && from.length >= 10 ? from.slice(0, 10) : defaultFrom;
 
   const toStr =
-    typeof to === "string" && to.length >= 10
-      ? to.slice(0, 10)
-      : hoje.toISOString().slice(0, 10);
+    typeof to === "string" && to.length >= 10 ? to.slice(0, 10) : defaultTo;
 
-  // Busca reservas SOMENTE das quadras desse gestor
-  let query = supabase
+  // -----------------------------
+  // 1) Reservas (para contagens)
+  // -----------------------------
+  const { data: reservas, error: errRes } = await supabase
     .from("reservas")
     .select(
       `
@@ -12000,6 +12001,7 @@ async function buildGestorDashboardOverview(params) {
       hora,
       status,
       preco_total,
+      origem,
       user_cpf,
       phone,
       quadras:quadras!inner (
@@ -12015,11 +12017,9 @@ async function buildGestorDashboardOverview(params) {
     .lte("data", toStr)
     .eq("quadras.gestor_id", gestorId);
 
-  const { data: reservas, error } = await query;
-
-  if (error) {
-    console.error("[DASHBOARD GESTOR] Erro ao buscar reservas:", error);
-    throw error;
+  if (errRes) {
+    console.error("[DASHBOARD GESTOR] Erro ao buscar reservas:", errRes);
+    throw errRes;
   }
 
   const reservasList = reservas || [];
@@ -12028,84 +12028,63 @@ async function buildGestorDashboardOverview(params) {
   let reservasPagas = 0;
   let reservasPendentes = 0;
   let reservasCanceladas = 0;
-  let receitaBruta = 0;
 
   const porDia = new Map(); // dia -> { criadas, pagas }
-  const porQuadra = new Map(); // quadra_id -> { quadra_id, quadra_nome, reservas_pagas, receita_bruta }
+  const porQuadraReservas = new Map(); // quadra_id -> { quadra_id, quadra_nome, total_reservas, pagas, pendentes, canceladas }
 
   for (const r of reservasList) {
     totalReservas += 1;
-    const status = r.status || "unknown";
-    const valor = Number(r.preco_total || 0);
+
+    const st = String(r.status || "").toLowerCase().trim();
     const dia = typeof r.data === "string" ? r.data.slice(0, 10) : null;
 
-    if (status === "paid") {
-      reservasPagas += 1;
-      receitaBruta += valor;
-    } else if (status === "pending") {
-      reservasPendentes += 1;
-    } else if (status === "cancelled" || status === "canceled") {
-      reservasCanceladas += 1;
-    }
+    if (st === "paid") reservasPagas += 1;
+    else if (st === "pending") reservasPendentes += 1;
+    else if (st === "cancelled" || st === "canceled") reservasCanceladas += 1;
 
-    // por dia
     if (dia) {
-      if (!porDia.has(dia)) {
-        porDia.set(dia, { criadas: 0, pagas: 0 });
-      }
+      if (!porDia.has(dia)) porDia.set(dia, { criadas: 0, pagas: 0 });
       const infoDia = porDia.get(dia);
       infoDia.criadas += 1;
-      if (status === "paid") {
-        infoDia.pagas += 1;
-      }
+      if (st === "paid") infoDia.pagas += 1;
     }
 
-    // por quadra (apenas pagas contam para receita)
-    const quadra = r.quadras;
-    const quadraId = quadra && quadra.id;
-    const quadraNome = buildNomeQuadraDinamico(quadra); // 🔥 NOME DINÂMICO (tipo + material + modalidade)
-
+    const quadra = r.quadras || null;
+    const quadraId = quadra?.id || null;
     if (quadraId) {
-      if (!porQuadra.has(quadraId)) {
-        porQuadra.set(quadraId, {
+      if (!porQuadraReservas.has(quadraId)) {
+        porQuadraReservas.set(quadraId, {
           quadra_id: quadraId,
-          quadra_nome: quadraNome,
-          reservas_pagas: 0,
-          receita_bruta: 0
+          quadra_nome: buildNomeQuadraDinamico(quadra),
+          total_reservas: 0,
+          pagas: 0,
+          pendentes: 0,
+          canceladas: 0
         });
       }
-      const infoQuadra = porQuadra.get(quadraId);
-      if (status === "paid") {
-        infoQuadra.reservas_pagas += 1;
-        infoQuadra.receita_bruta += valor;
-      }
+      const row = porQuadraReservas.get(quadraId);
+      row.total_reservas += 1;
+      if (st === "paid") row.pagas += 1;
+      else if (st === "pending") row.pendentes += 1;
+      else if (st === "cancelled" || st === "canceled") row.canceladas += 1;
     }
   }
 
   const labels = buildDateArray(fromStr, toStr);
   const reservasCriadas = [];
   const reservasPagasArray = [];
-
-  for (const dia of labels) {
-    const info = porDia.get(dia) || { criadas: 0, pagas: 0 };
+  for (const d of labels) {
+    const info = porDia.get(d) || { criadas: 0, pagas: 0 };
     reservasCriadas.push(info.criadas);
     reservasPagasArray.push(info.pagas);
   }
-
-  const vendasPorQuadra = Array.from(porQuadra.values()).sort(
-    (a, b) => b.reservas_pagas - a.reservas_pagas
-  );
 
   const ultimasReservas = reservasList
     .slice()
     .sort((a, b) => {
       const da = String(a.data || "");
       const db = String(b.data || "");
-      if (da === db) {
-        const ha = String(a.hora || "");
-        const hb = String(b.hora || "");
-        return hb.localeCompare(ha);
-      }
+      if (da === db) return String(b.hora || "").localeCompare(String(a.hora || ""));
       return db.localeCompare(da);
     })
     .slice(0, 20)
@@ -12115,32 +12094,180 @@ async function buildGestorDashboardOverview(params) {
       hora: r.hora,
       status: r.status,
       preco_total: Number(r.preco_total || 0),
+      origem: r.origem || null,
       quadra_nome: buildNomeQuadraDinamico(r.quadras || null),
       user_cpf: r.user_cpf,
       phone: r.phone
     }));
 
+  // -----------------------------
+  // 2) PIX real (pagamentos)
+  // - faturamento do dashboard do gestor = SOMENTE pagamentos pagos
+  // -----------------------------
+  const fromDateTime = `${fromStr}T00:00:00`;
+  const toDateTime = `${toStr}T23:59:59`;
+
+  const { data: pagamentos, error: errPag } = await supabase
+    .from("pagamentos")
+    .select("*")
+    .gte("created_at", fromDateTime)
+    .lte("created_at", toDateTime);
+
+  if (errPag) {
+    console.error("[DASHBOARD GESTOR] Erro ao buscar pagamentos:", errPag);
+    throw errPag;
+  }
+
+  const pagamentosList = pagamentos || [];
+
+  // Puxa reservas/quadras dos pagamentos para filtrar só do gestor
+  const reservaIdsPag = Array.from(
+    new Set(
+      pagamentosList
+        .map((p) => p.reserva_id)
+        .filter((id) => typeof id === "string" && id.length > 0)
+    )
+  );
+
+  let reservasPagList = [];
+  if (reservaIdsPag.length > 0) {
+    const { data: rr, error: errR2 } = await supabase
+      .from("reservas")
+      .select("id, quadra_id, data, hora, preco_total, status")
+      .in("id", reservaIdsPag);
+
+    if (errR2) throw errR2;
+    reservasPagList = rr || [];
+  }
+
+  const reservasPagMap = new Map();
+  for (const r of reservasPagList) reservasPagMap.set(r.id, r);
+
+  const quadraIdsPag = Array.from(
+    new Set(
+      reservasPagList
+        .map((r) => r.quadra_id)
+        .filter((id) => typeof id === "string" && id.length > 0)
+    )
+  );
+
+  let quadrasPagList = [];
+  if (quadraIdsPag.length > 0) {
+    const { data: qq, error: errQ2 } = await supabase
+      .from("quadras")
+      .select("id, tipo, material, modalidade, gestor_id")
+      .in("id", quadraIdsPag);
+
+    if (errQ2) throw errQ2;
+    quadrasPagList = qq || [];
+  }
+
+  const quadrasPagMap = new Map();
+  for (const q of quadrasPagList) quadrasPagMap.set(q.id, q);
+
+  // Filtra pagamentos que são do gestor
+  const pagamentosDoGestor = pagamentosList.filter((p) => {
+    const r = reservasPagMap.get(p.reserva_id);
+    if (!r) return false;
+    const q = quadrasPagMap.get(r.quadra_id);
+    if (!q) return false;
+    return String(q.gestor_id) === String(gestorId);
+  });
+
+  const pagamentosPagos = (pagamentosDoGestor || []).filter((p) => isPagamentoPago(p.status));
+  const pagamentosPendentes = (pagamentosDoGestor || []).filter(
+    (p) => !isPagamentoPago(p.status) && !isPagamentoCancelado(p.status)
+  );
+
+  let pixRecebidoValor = 0;
+  for (const p of pagamentosPagos) pixRecebidoValor += Number(p.valor_total || 0);
+
+  // Top quadras por faturamento (PIX pago)
+  const porQuadraFaturamento = new Map();
+  for (const p of pagamentosPagos) {
+    const r = reservasPagMap.get(p.reserva_id);
+    if (!r) continue;
+    const q = quadrasPagMap.get(r.quadra_id);
+    if (!q) continue;
+
+    const key = q.id;
+    if (!porQuadraFaturamento.has(key)) {
+      porQuadraFaturamento.set(key, {
+        quadra_id: q.id,
+        quadra_nome: buildNomeQuadraDinamico(q),
+        reservas_pagas: 0,
+        faturamento: 0
+      });
+    }
+    const row = porQuadraFaturamento.get(key);
+    row.reservas_pagas += 1;
+    row.faturamento += Number(p.valor_total || 0);
+  }
+
+  const vendasPorQuadra = Array.from(porQuadraFaturamento.values()).sort(
+    (a, b) => b.faturamento - a.faturamento
+  );
+
+  // -----------------------------
+  // 3) Repasses (gestor)
+  // -----------------------------
+  const { data: repasses, error: errRep } = await supabase
+    .from("repasses")
+    .select("*")
+    .eq("gestor_id", gestorId)
+    .order("created_at", { ascending: false });
+
+  if (errRep) {
+    console.error("[DASHBOARD GESTOR] Erro ao buscar repasses:", errRep);
+    throw errRep;
+  }
+
+  const repassesList = repasses || [];
+
+  // Soma repasses do mês (pela competencia YYYY-MM)
+  const competenciaMes = fromStr.slice(0, 7); // "YYYY-MM"
+  let repassesPendentesValor = 0;
+  let repassesPagosValor = 0;
+
+  for (const r of repassesList) {
+    const comp = String(r.competencia || "").slice(0, 7);
+    if (comp !== competenciaMes) continue;
+
+    const st = String(r.status || "").toLowerCase().trim();
+    const liq = Number(r.valor_total_liquido || 0);
+
+    if (st === "pago" || st === "paid") repassesPagosValor += liq;
+    else repassesPendentesValor += liq;
+  }
+
   return {
-    period: {
-      from: fromStr,
-      to: toStr
-    },
+    period: { from: fromStr, to: toStr },
     kpis: {
       total_reservas: totalReservas,
       reservas_pagas: reservasPagas,
       reservas_pendentes: reservasPendentes,
       reservas_canceladas: reservasCanceladas,
-      receita_bruta: receitaBruta
+
+      pix_recebidos_qtd: pagamentosPagos.length,
+      pix_recebidos_valor: pixRecebidoValor,
+      pix_pendentes_qtd: pagamentosPendentes.length,
+
+      repasses_pendentes_valor: repassesPendentesValor,
+      repasses_pagos_valor: repassesPagosValor
     },
     utilizacao_canal: {
       labels,
       reservas_criadas: reservasCriadas,
       reservas_pagas: reservasPagasArray
     },
+    reservas_por_quadra: Array.from(porQuadraReservas.values()).sort(
+      (a, b) => b.total_reservas - a.total_reservas
+    ),
     vendas_por_quadra: vendasPorQuadra,
     ultimas_reservas: ultimasReservas
   };
 }
+
 
 // -----------------------------------------
 // Rota: Dashboard Gestor - visão geral
