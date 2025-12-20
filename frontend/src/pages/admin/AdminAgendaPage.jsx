@@ -603,11 +603,6 @@ function AdminAgendaPage() {
     <div className="page">
       <div className="page-header">
         <h1 className="page-title">Agenda das Quadras (Admin)</h1>
-
-        {/* 🔹 Botão para abrir a tela de edição organizada */}
-        <Link to="/admin/agenda/editar" className="btn-outlined">
-          Editar agenda
-        </Link>
       </div>
 
       <p style={{ marginBottom: 16 }}>

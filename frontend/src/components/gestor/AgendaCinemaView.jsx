@@ -107,7 +107,7 @@ function AgendaCinemaView({ empresaId, quadraId }) {
 
   return (
     <div className="card" style={{ marginTop: 16 }}>
-      <h3>Visão geral da agenda (estilo cinema)</h3>
+      <h3>Visão geral da agenda</h3>
 
       {!quadraId && (
         <p style={{ marginTop: 8, fontSize: 13, color: "#666" }}>
