@@ -5248,6 +5248,102 @@ app.get(
       }
 
       const reservasList = reservas || [];
+        // -----------------------------
+  // EXTRA (Admin Dashboard): métricas por quadra + diagnósticos
+  // -----------------------------
+
+  // 1) Reservas por quadra (paid/pending/canceled + valores)
+  const reservasPorQuadra = new Map();
+
+  for (const r of reservasList) {
+    const quadraId = r?.quadra_id || r?.quadras?.id || null;
+    if (!quadraId) continue;
+
+    const status = (r?.status_norm || r?.status || "").toString().trim().toLowerCase();
+    const valor = Number(r?.valor || r?.valor_total || 0) || 0;
+
+    const quadraNome = typeof buildNomeQuadraDinamico === "function"
+      ? buildNomeQuadraDinamico(r.quadras || null)
+      : (r?.quadras?.nome || r?.quadras?.id || quadraId);
+
+    if (!reservasPorQuadra.has(quadraId)) {
+      reservasPorQuadra.set(quadraId, {
+        quadra_id: quadraId,
+        quadra_nome: quadraNome,
+        total: 0,
+        paid: 0,
+        pending: 0,
+        canceled: 0,
+        receita_total: 0,
+        receita_paga: 0,
+      });
+    }
+
+    const info = reservasPorQuadra.get(quadraId);
+    info.total += 1;
+    info.receita_total += valor;
+
+    if (status === "paid") {
+      info.paid += 1;
+      info.receita_paga += valor;
+    } else if (status === "pending") {
+      info.pending += 1;
+    } else if (status === "canceled" || status === "cancelled") {
+      info.canceled += 1;
+    }
+  }
+
+  const reservas_por_quadra_status = Array.from(reservasPorQuadra.values())
+    .sort((a, b) => (b.pending - a.pending) || (b.paid - a.paid) || (b.total - a.total))
+    .slice(0, 30);
+
+  // 2) Quadras sem regras de horário (diagnóstico)
+  // OBS: aqui eu faço de forma segura: se der erro, não quebra o dashboard
+  let quadras_sem_regras = [];
+  try {
+    const { data: quadrasAll, error: errQ } = await supabase
+      .from("quadras")
+      .select("id, empresa_id, tipo, material, modalidade, status, ativo");
+
+    if (errQ) throw errQ;
+
+    const { data: regrasAll, error: errR } = await supabase
+      .from("regras_horarios")
+      .select("id, quadra_id, ativo");
+
+    if (errR) throw errR;
+
+    const regrasAtivasPorQuadra = new Set(
+      (regrasAll || [])
+        .filter((r) => r && r.quadra_id && (r.ativo === true || r.ativo === 1))
+        .map((r) => r.quadra_id)
+    );
+
+    const listaQuadras = quadrasAll || [];
+    const sem = [];
+    for (const q of listaQuadras) {
+      if (!q?.id) continue;
+      if (!regrasAtivasPorQuadra.has(q.id)) {
+        // nome dinâmico (igual você usa no resto do sistema)
+        const nome = typeof buildNomeQuadraDinamico === "function"
+          ? buildNomeQuadraDinamico(q)
+          : `${q.modalidade || "Modalidade"} - ${q.material || "Material"} (${q.tipo || "Tipo"})`;
+
+        sem.push({
+          quadra_id: q.id,
+          empresa_id: q.empresa_id || null,
+          quadra_nome: nome,
+          status: q.status ?? null,
+          ativo: q.ativo ?? null,
+        });
+      }
+    }
+
+    quadras_sem_regras = sem.slice(0, 50);
+  } catch (e) {
+    console.warn("[ADMIN/DASH] Falha ao calcular quadras_sem_regras:", e?.message || e);
+    quadras_sem_regras = [];
+  }
 
       // Mapa chave "YYYY-MM-DD|HH:MM" -> reserva
       const reservasPorChave = new Map();
@@ -11694,6 +11790,104 @@ async function buildAdminDashboardOverview(params) {
 
   const reservasList = reservas || [];
 
+    // -----------------------------
+  // EXTRA (Admin Dashboard): métricas por quadra + diagnósticos
+  // -----------------------------
+
+  // 1) Reservas por quadra (paid/pending/canceled + valores)
+  const reservasPorQuadra = new Map();
+
+  for (const r of reservasList) {
+    const quadraId = r?.quadra_id || r?.quadras?.id || null;
+    if (!quadraId) continue;
+
+    const status = (r?.status_norm || r?.status || "").toString().trim().toLowerCase();
+    const valor = Number(r?.valor || r?.valor_total || 0) || 0;
+
+    const quadraNome = typeof buildNomeQuadraDinamico === "function"
+      ? buildNomeQuadraDinamico(r.quadras || null)
+      : (r?.quadras?.nome || r?.quadras?.id || quadraId);
+
+    if (!reservasPorQuadra.has(quadraId)) {
+      reservasPorQuadra.set(quadraId, {
+        quadra_id: quadraId,
+        quadra_nome: quadraNome,
+        total: 0,
+        paid: 0,
+        pending: 0,
+        canceled: 0,
+        receita_total: 0,
+        receita_paga: 0,
+      });
+    }
+
+    const info = reservasPorQuadra.get(quadraId);
+    info.total += 1;
+    info.receita_total += valor;
+
+    if (status === "paid") {
+      info.paid += 1;
+      info.receita_paga += valor;
+    } else if (status === "pending") {
+      info.pending += 1;
+    } else if (status === "canceled" || status === "cancelled") {
+      info.canceled += 1;
+    }
+  }
+
+  const reservas_por_quadra_status = Array.from(reservasPorQuadra.values())
+    .sort((a, b) => (b.pending - a.pending) || (b.paid - a.paid) || (b.total - a.total))
+    .slice(0, 30);
+
+  // 2) Quadras sem regras de horário (diagnóstico)
+  // OBS: aqui eu faço de forma segura: se der erro, não quebra o dashboard
+  let quadras_sem_regras = [];
+  try {
+    const { data: quadrasAll, error: errQ } = await supabase
+      .from("quadras")
+      .select("id, empresa_id, tipo, material, modalidade, status, ativo");
+
+    if (errQ) throw errQ;
+
+    const { data: regrasAll, error: errR } = await supabase
+      .from("regras_horarios")
+      .select("id, quadra_id, ativo");
+
+    if (errR) throw errR;
+
+    const regrasAtivasPorQuadra = new Set(
+      (regrasAll || [])
+        .filter((r) => r && r.quadra_id && (r.ativo === true || r.ativo === 1))
+        .map((r) => r.quadra_id)
+    );
+
+    const listaQuadras = quadrasAll || [];
+    const sem = [];
+    for (const q of listaQuadras) {
+      if (!q?.id) continue;
+      if (!regrasAtivasPorQuadra.has(q.id)) {
+        // nome dinâmico (igual você usa no resto do sistema)
+        const nome = typeof buildNomeQuadraDinamico === "function"
+          ? buildNomeQuadraDinamico(q)
+          : `${q.modalidade || "Modalidade"} - ${q.material || "Material"} (${q.tipo || "Tipo"})`;
+
+        sem.push({
+          quadra_id: q.id,
+          empresa_id: q.empresa_id || null,
+          quadra_nome: nome,
+          status: q.status ?? null,
+          ativo: q.ativo ?? null,
+        });
+      }
+    }
+
+    quadras_sem_regras = sem.slice(0, 50);
+  } catch (e) {
+    console.warn("[ADMIN/DASH] Falha ao calcular quadras_sem_regras:", e?.message || e);
+    quadras_sem_regras = [];
+  }
+
+
   // 2) KPIs gerais
   let totalReservas = 0;
   let reservasPagas = 0;
@@ -11812,7 +12006,10 @@ async function buildAdminDashboardOverview(params) {
       reservas_pagas: reservasPagasArray
     },
     vendas_por_quadra: vendasPorQuadra,
-    ultimas_reservas: ultimasReservas
+    ultimas_reservas: ultimasReservas,
+    reservas_por_quadra_status,
+    quadras_sem_regras,
+
   };
 }
 
