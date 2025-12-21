@@ -8,7 +8,6 @@ console.log("[BOOT] CWD atual:", process.cwd());
 require("dotenv").config();
 const cors = require("cors");
 const express = require("express");
-const axios = require("axios");
 const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
