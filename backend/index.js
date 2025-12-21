@@ -342,6 +342,8 @@ app.use(
     credentials: true,
   })
 );
+app.get("/", (req, res) => res.status(200).send("OK"));
+app.get("/ping", (req, res) => res.status(200).json({ ok: true }));
 
 // Vamos parsear JSON normalmente em TODAS as rotas
 // e, ao mesmo tempo, guardar o rawBody para validar
