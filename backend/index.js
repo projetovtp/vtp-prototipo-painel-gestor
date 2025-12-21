@@ -333,12 +333,18 @@ app.use(
   cors({
     origin: [
       "http://localhost:5173",          // frontend Vite (local)
-      "https://vaiterplay.netlify.app", // frontend Netlify (produção)
+      "https://vaiterplay.netlify.app", // frontend Netlify (produção antiga)
+      "https://vaiterplay.com.br",      // domínio novo
+      "https://www.vaiterplay.com.br",  // domínio novo com www
     ],
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
+    credentials: true,
   })
 );
+
+// garante preflight em todas as rotas
+app.options("*", cors());
 
 
 // Vamos parsear JSON normalmente em TODAS as rotas
