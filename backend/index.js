@@ -90,23 +90,67 @@ function validarSenhaMedia(senha) {
  * Envio de email: deixe pronto pra plugar provedor.
  * No DEV, a gente só imprime o link no console pra você testar.
  */
-async function enviarEmail(to, subject, html) {
-  const dev = String(process.env.EMAIL_DEV_MODE || "1") === "1";
-  if (dev) {
-    console.log("\n[EMAIL_DEV_MODE=1] Email NÃO enviado de verdade.");
-    console.log("Para:", to);
-    console.log("Assunto:", subject);
-    console.log("Conteúdo (HTML):\n", html);
-    console.log();
-    return;
+// ==================================================
+// EMAIL (Resend) — envio real + fallback DEV MODE
+// Variáveis .env:
+//   RESEND_API_KEY=re_...
+//   MAIL_FROM_EMAIL=onboarding@resend.dev (ou o permitido no painel Resend)
+//   MAIL_FROM_NAME=VaiTerPlay
+//   EMAIL_DEV_MODE=1 (dev) | 0 (prod)
+// ==================================================
+async function enviarEmail(toEmail, subject, html) {
+  const devMode = String(process.env.EMAIL_DEV_MODE || "1") === "1";
+
+  if (devMode) {
+    console.log("[EMAIL DEV_MODE=1] Simulando envio de email.");
+    console.log("  To:", toEmail);
+    console.log("  Subject:", subject);
+    return true;
   }
 
-  // Aqui você pluga Resend/SendGrid/SMTP.
-  // Se quiser, eu te passo o bloco do Resend (bem simples).
-  throw new Error(
-    "Envio de email real não configurado. Defina EMAIL_DEV_MODE=1 para testar sem email."
-  );
+  const apiKey = String(process.env.RESEND_API_KEY || "").trim();
+  const fromEmail = String(process.env.MAIL_FROM_EMAIL || "").trim();
+  const fromName = String(process.env.MAIL_FROM_NAME || "VaiTerPlay").trim();
+
+  if (!apiKey) {
+    console.error("[EMAIL] RESEND_API_KEY ausente no .env");
+    return false;
+  }
+  if (!fromEmail) {
+    console.error("[EMAIL] MAIL_FROM_EMAIL ausente no .env");
+    return false;
+  }
+  if (!toEmail) {
+    console.error("[EMAIL] Destinatário vazio (toEmail)");
+    return false;
+  }
+
+  try {
+    const payload = {
+      from: `${fromName} <${fromEmail}>`,
+      to: [toEmail],
+      subject,
+      html,
+    };
+
+    const resp = await axios.post("https://api.resend.com/emails", payload, {
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      timeout: 15000,
+    });
+
+    console.log("[EMAIL] Resend enviado com sucesso:", resp.status);
+    return true;
+  } catch (err) {
+    const status = err?.response?.status;
+    const data = err?.response?.data;
+    console.error("[EMAIL] Falha ao enviar via Resend.", { status, data });
+    return false;
+  }
 }
+
 
 function getFrontendBaseUrl() {
   return (
