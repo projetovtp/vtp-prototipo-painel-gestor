@@ -343,10 +343,6 @@ app.use(
   })
 );
 
-// garante preflight em todas as rotas
-app.options("*", cors());
-
-
 // Vamos parsear JSON normalmente em TODAS as rotas
 // e, ao mesmo tempo, guardar o rawBody para validar
 // a assinatura do /webhook.
