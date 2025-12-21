@@ -144,11 +144,17 @@ async function enviarEmail(toEmail, subject, html) {
     console.log("[EMAIL] Resend enviado com sucesso:", resp.status);
     return true;
   } catch (err) {
-    const status = err?.response?.status;
-    const data = err?.response?.data;
-    console.error("[EMAIL] Falha ao enviar via Resend.", { status, data });
-    return false;
-  }
+  console.error("[EMAIL] Falha ao enviar via Resend (detalhes):", {
+    message: err?.message,
+    code: err?.code,
+    name: err?.name,
+    stack: err?.stack,
+    status: err?.response?.status,
+    data: err?.response?.data,
+  });
+  return false;
+}
+
 }
 
 
