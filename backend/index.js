@@ -8305,12 +8305,18 @@ app.get("/gestor/financeiro/pagamentos", authPainel, permitirTipos("GESTOR"), as
 
 
 // ==========================================================
-// (3) GESTOR — LISTA DE REPASSES
+// (3) GESTOR — LISTA DE REPASSES  [SCHEMA B]
 // GET /gestor/financeiro/repasses?ano=2025&mes=12&status=pendente|pago
+// - Schema B: competencia (date) + valor_total_bruto/taxa/liquido
 // ==========================================================
-app.get("/gestor/financeiro/repasses", authPainel, async (req, res) => {
+app.get("/gestor/financeiro/repasses", authPainel, permitirTipos("GESTOR"), async (req, res) => {
   try {
-    const gestorId = req.user.id;
+    // ✅ PADRÃO DO SEU PROJETO: authPainel -> req.usuarioPainel
+    const gestorId = req.usuarioPainel?.id;
+
+    if (!gestorId) {
+      return res.status(401).json({ error: "Usuário não autenticado." });
+    }
 
     let q = supabase
       .from("repasses")
@@ -8318,37 +8324,72 @@ app.get("/gestor/financeiro/repasses", authPainel, async (req, res) => {
         `
         id,
         gestor_id,
-        competencia_mes,
-        competencia_ano,
-        total_bruto,
-        total_taxa,
-        total_liquido,
+        competencia,
+        valor_total_bruto,
+        valor_total_taxa,
+        valor_total_liquido,
         status,
         data_pagamento,
         observacao,
-        created_at
+        created_at,
+        updated_at
         `
       )
       .eq("gestor_id", gestorId)
-      .order("competencia_ano", { ascending: false })
-      .order("competencia_mes", { ascending: false });
+      .order("competencia", { ascending: false })
+      .order("created_at", { ascending: false });
 
-    if (req.query.ano) q = q.eq("competencia_ano", Number(req.query.ano));
-    if (req.query.mes) q = q.eq("competencia_mes", Number(req.query.mes));
+    // Filtros
+    const ano = req.query.ano ? Number(req.query.ano) : null;
+    const mes = req.query.mes ? Number(req.query.mes) : null;
+
+    // ✅ Se vier ano+mes, filtra pela competência do mês:
+    // competencia >= YYYY-MM-01 e < YYYY-(MM+1)-01
+    if (ano && mes) {
+      if (!Number.isFinite(ano) || !Number.isFinite(mes) || mes < 1 || mes > 12) {
+        return res.status(400).json({ error: "ano/mes inválidos." });
+      }
+
+      const mes2 = String(mes).padStart(2, "0");
+      const inicio = `${ano}-${mes2}-01`;
+
+      const prox = new Date(ano, mes, 1); // mês seguinte, dia 1
+      const fim = `${prox.getFullYear()}-${String(prox.getMonth() + 1).padStart(2, "0")}-01`;
+
+      q = q.gte("competencia", inicio).lt("competencia", fim);
+    } else if (ano || mes) {
+      // ✅ Se vier só ano OU só mês, é melhor avisar do que dar resultado errado
+      return res
+        .status(400)
+        .json({ error: "Envie ano e mes juntos (ex: ?ano=2025&mes=12) para filtrar por competência." });
+    }
+
     if (req.query.status) q = q.eq("status", String(req.query.status));
 
     const { data, error } = await q;
+
     if (error) {
       console.error("[GESTOR/FINANCEIRO] Erro ao buscar repasses:", error);
       return res.status(500).json({ error: "Erro ao buscar repasses do gestor." });
     }
 
-    return res.json({ itens: data || [] });
+    // Normaliza saída pro frontend receber sempre números
+    const itens = (data || []).map((r) => ({
+      ...r,
+      valor_total_bruto: Number(r.valor_total_bruto || 0),
+      valor_total_taxa: Number(r.valor_total_taxa || 0),
+      valor_total_liquido: Number(r.valor_total_liquido || 0),
+      competencia: r.competencia ? String(r.competencia).slice(0, 10) : null
+    }));
+
+    return res.json({ itens });
   } catch (err) {
     console.error("[GESTOR/FINANCEIRO] Erro em /gestor/financeiro/repasses:", err);
     return res.status(500).json({ error: "Erro ao listar repasses do gestor." });
   }
 });
+
+
 
 // ==========================================================
 // (4) ADMIN — RESUMO FINANCEIRO GLOBAL
@@ -8390,10 +8431,13 @@ app.get("/admin/financeiro/resumo", authPainel, async (req, res) => {
     const setRepassados = await getPagamentosIdsJaRepassados(ids);
     const pendentes_repasse = ids.filter((id) => !setRepassados.has(id)).length;
 
+    // ======================================================
+    // REPASSES (usa SEMPRE o schema real do seu banco)
     // repasses do período (por competência fica melhor, mas aqui só uma visão geral)
+    // ======================================================
     const { data: repasses, error: repErr } = await supabase
       .from("repasses")
-      .select("id, status, total_liquido")
+      .select("id, status, valor_total_liquido")
       .order("created_at", { ascending: false })
       .limit(2000);
 
@@ -8418,6 +8462,9 @@ app.get("/admin/financeiro/resumo", authPainel, async (req, res) => {
     return res.status(500).json({ error: "Erro ao calcular resumo financeiro do admin." });
   }
 });
+
+
+
 
 // ==========================================================
 // (5) ADMIN — VISÃO POR GESTOR (consolidado simples)
@@ -8519,10 +8566,8 @@ app.get("/admin/repasses/eligiveis", authPainel, async (req, res) => {
 });
 
 // ==========================================================
-// (7) ADMIN — CRIAR REPASSE (manual)
+// (7) ADMIN — CRIAR REPASSE (manual)  [SCHEMA B FINAL]
 // POST /admin/repasses
-// body: { gestor_id, competencia_mes, competencia_ano, inicio?, fim?, observacao?, vincular_todos? }
-// - Cria repasse pendente e (opcional) já vincula todos pagamentos elegíveis do período.
 // ==========================================================
 app.post("/admin/repasses", authPainel, async (req, res) => {
   try {
@@ -8530,6 +8575,7 @@ app.post("/admin/repasses", authPainel, async (req, res) => {
 
     const {
       gestor_id,
+      competencia, // "YYYY-MM-01"
       competencia_mes,
       competencia_ano,
       inicio,
@@ -8538,19 +8584,69 @@ app.post("/admin/repasses", authPainel, async (req, res) => {
       vincular_todos
     } = req.body || {};
 
-    if (!gestor_id) return res.status(400).json({ error: "gestor_id é obrigatório." });
-    if (!competencia_mes || !competencia_ano) {
-      return res.status(400).json({ error: "competencia_mes e competencia_ano são obrigatórios." });
+    if (!gestor_id) {
+      return res.status(400).json({ error: "gestor_id é obrigatório." });
     }
 
+    // ================================
+    // 1) Resolver competência (DATE)
+    // ================================
+    let competenciaDate = null;
+
+    if (competencia) {
+      const c = String(competencia).slice(0, 10);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(c)) {
+        return res.status(400).json({ error: "competencia inválida. Use YYYY-MM-01." });
+      }
+      competenciaDate = `${c.slice(0, 7)}-01`; // força dia 01
+    } else if (competencia_mes && competencia_ano) {
+      const ano = Number(competencia_ano);
+      const mes = Number(competencia_mes);
+      if (!Number.isFinite(ano) || !Number.isFinite(mes) || mes < 1 || mes > 12) {
+        return res.status(400).json({ error: "competencia_mes/competencia_ano inválidos." });
+      }
+      competenciaDate = `${ano}-${String(mes).padStart(2, "0")}-01`;
+    } else {
+      return res.status(400).json({
+        error: "Informe competencia (YYYY-MM-01) ou competencia_mes + competencia_ano."
+      });
+    }
+
+    // =========================================
+    // 2) Evitar repasse duplicado (CRÍTICO)
+    // =========================================
+    const { data: repasseExistente } = await supabase
+      .from("repasses")
+      .select("id")
+      .eq("gestor_id", gestor_id)
+      .eq("competencia", competenciaDate)
+      .maybeSingle();
+
+    if (repasseExistente) {
+      return res.status(409).json({
+        error: "Já existe repasse para este gestor nesta competência.",
+        repasse_id: repasseExistente.id
+      });
+    }
+
+    // ================================
+    // 3) Definir período de cálculo
+    // ================================
     const def = defaultPeriodo();
     const ini = parseDateISO(inicio) || def.inicio;
     const fi = parseDateISO(fim) || def.fim;
 
-    // pega elegíveis do período
+    // ================================
+    // 4) Buscar pagamentos elegíveis
+    // ================================
     const quadraIds = await getQuadraIdsDoGestor(gestor_id);
     const reservaIds = await getReservaIdsDoGestor(quadraIds, ini, fi);
-    const pagamentos = await getPagamentosByReservaIds(reservaIds, { status: "paid", limit: 2000, offset: 0 });
+
+    const pagamentos = await getPagamentosByReservaIds(reservaIds, {
+      status: "paid",
+      limit: 2000,
+      offset: 0
+    });
 
     const ids = pagamentos.map((p) => p.id);
     const setRepassados = await getPagamentosIdsJaRepassados(ids);
@@ -8560,22 +8656,23 @@ app.post("/admin/repasses", authPainel, async (req, res) => {
     const total_taxa = round2(elegiveis.reduce((a, p) => a + Number(p.taxa_plataforma || 0), 0));
     const total_liquido = round2(elegiveis.reduce((a, p) => a + Number(p.valor_liquido_gestor || 0), 0));
 
+    // ================================
+    // 5) Criar repasse (Schema B)
+    // ================================
     const { data: repasseCriado, error: repErr } = await supabase
       .from("repasses")
-      .insert([
-        {
-          gestor_id,
-          competencia_mes: Number(competencia_mes),
-          competencia_ano: Number(competencia_ano),
-          total_bruto,
-          total_taxa,
-          total_liquido,
-          status: "pendente",
-          data_pagamento: null,
-          observacao: observacao || null
-        }
-      ])
-      .select("id, gestor_id, competencia_mes, competencia_ano, total_bruto, total_taxa, total_liquido, status, data_pagamento, observacao, created_at")
+      .insert([{
+        gestor_id,
+        competencia: competenciaDate,
+        valor_total_bruto: total_bruto,
+        valor_total_taxa: total_taxa,
+        valor_total_liquido: total_liquido,
+        status: "pendente",
+        data_pagamento: null,
+        observacao: observacao || null,
+        updated_at: new Date().toISOString()
+      }])
+      .select("*")
       .single();
 
     if (repErr) {
@@ -8583,27 +8680,26 @@ app.post("/admin/repasses", authPainel, async (req, res) => {
       return res.status(500).json({ error: "Erro ao criar repasse." });
     }
 
-    // vincula automaticamente (se solicitado)
-    if (vincular_todos) {
+    // ================================
+    // 6) Vincular pagamentos (opcional)
+    // ================================
+    if (vincular_todos && elegiveis.length > 0) {
       const links = elegiveis.map((p) => ({
         repasse_id: repasseCriado.id,
         pagamento_id: p.id
       }));
 
-      if (links.length > 0) {
-        const { error: linkErr } = await supabase
-          .from("repasses_pagamentos")
-          .insert(links);
+      const { error: linkErr } = await supabase
+        .from("repasses_pagamentos")
+        .insert(links);
 
-        if (linkErr) {
-          console.error("[ADMIN/REPASSES] Erro ao vincular pagamentos ao repasse:", linkErr);
-          // não aborta o repasse; apenas informa
-          return res.json({
-            repasse: repasseCriado,
-            aviso: "Repasse criado, mas falhou ao vincular pagamentos automaticamente.",
-            qtd_elegiveis: elegiveis.length
-          });
-        }
+      if (linkErr) {
+        console.error("[ADMIN/REPASSES] Erro ao vincular pagamentos:", linkErr);
+        return res.json({
+          repasse: repasseCriado,
+          aviso: "Repasse criado, mas falhou ao vincular pagamentos automaticamente.",
+          qtd_elegiveis: elegiveis.length
+        });
       }
     }
 
@@ -8612,11 +8708,14 @@ app.post("/admin/repasses", authPainel, async (req, res) => {
       periodo: { inicio: ini, fim: fi },
       qtd_elegiveis: elegiveis.length
     });
+
   } catch (err) {
     console.error("[ADMIN/REPASSES] Erro em POST /admin/repasses:", err);
     return res.status(500).json({ error: "Erro inesperado ao criar repasse." });
   }
 });
+
+
 
 // ==========================================================
 // (8) ADMIN — VINCULAR PAGAMENTOS A UM REPASSE
@@ -8655,7 +8754,7 @@ app.post("/admin/repasses/:repasseId/vincular", authPainel, async (req, res) => 
 });
 
 // ==========================================================
-// (9) ADMIN — MARCAR REPASSE COMO PAGO (manual)
+// (9) ADMIN — MARCAR REPASSE COMO PAGO (manual)  [SCHEMA B]
 // PUT /admin/repasses/:repasseId/marcar-pago
 // body: { observacao? }
 // ==========================================================
@@ -8668,15 +8767,21 @@ app.put("/admin/repasses/:repasseId/marcar-pago", authPainel, async (req, res) =
 
     if (!repasseId) return res.status(400).json({ error: "repasseId é obrigatório." });
 
+    // SCHEMA B: data_pagamento é DATE
+    const hojeDate = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+
     const { data, error } = await supabase
       .from("repasses")
       .update({
         status: "pago",
-        data_pagamento: new Date().toISOString(),
-        observacao: observacao || null
+        data_pagamento: hojeDate,
+        observacao: observacao || null,
+        updated_at: new Date().toISOString()
       })
       .eq("id", repasseId)
-      .select("id, gestor_id, competencia_mes, competencia_ano, total_bruto, total_taxa, total_liquido, status, data_pagamento, observacao, created_at")
+      .select(
+        "id, gestor_id, competencia, valor_total_bruto, valor_total_taxa, valor_total_liquido, status, data_pagamento, observacao, created_at, updated_at"
+      )
       .single();
 
     if (error) {
@@ -8690,6 +8795,7 @@ app.put("/admin/repasses/:repasseId/marcar-pago", authPainel, async (req, res) =
     return res.status(500).json({ error: "Erro inesperado ao marcar repasse como pago." });
   }
 });
+
 // ==========================================================
 // DEBUG (DEV) — SIMULAR PAGAMENTO PIX APROVADO
 // POST /debug/financeiro/simular-pagamento
@@ -9312,52 +9418,55 @@ async function criarAgendamento({
   waId,
   cpf
 }) {
-  // 0) Normaliza CPF com fallback para o valor bruto (evita NOT NULL)
-  const cpfNormalizado = normalizarCpf(cpf) || cpf;
+// 0) Normaliza CPF (PADRÃO NOVO: salvar só números em reservas.user_cpf)
+const cpfDigits = String(cpf || "").replace(/\D/g, "");
 
-  // 1) Verificar, via SELECT, se já existe reserva para mesma quadra + data + hora (pending ou paid)
-  const { data: reservasExistentes, error: erroCheck } = await supabase
+// fallback defensivo: se vier algo estranho, não quebra o insert
+const cpfParaSalvar = cpfDigits.length === 11 ? cpfDigits : (String(cpf || "").trim() || null);
+
+// 1) Verificar, via SELECT, se já existe reserva para mesma quadra + data + hora (pending ou paid)
+const { data: reservasExistentes, error: erroCheck } = await supabase
+  .from("reservas")
+  .select("id, status")
+  .eq("quadra_id", id_quadra)
+  .eq("data", data_agendamento)
+  .eq("hora", regra.hora_inicio)
+  .in("status", ["pending", "paid", "pendente", "pago"]);
+
+if (erroCheck) {
+  console.error("[SUPA] Erro ao checar conflito de horário:", erroCheck);
+  throw erroCheck;
+}
+
+if (reservasExistentes && reservasExistentes.length > 0) {
+  const err = new Error("HORARIO_INDISPONIVEL");
+  err.code = "HORARIO_INDISPONIVEL";
+  throw err;
+}
+
+// 2) Tentar criar a reserva (sem deletar nada, confiando no índice parcial)
+try {
+  const { data, error } = await supabase
     .from("reservas")
-    .select("id, status")
-    .eq("quadra_id", id_quadra)
-    .eq("data", data_agendamento)
-    .eq("hora", regra.hora_inicio)
-    .in("status", ["pending", "paid", "pendente", "pago"]);
+    .insert([
+      {
+        usuario_id: id_usuario,
+        quadra_id: id_quadra,
+        data: data_agendamento,
+        hora: regra.hora_inicio,
+        user_cpf: cpfParaSalvar, // ✅ AGORA SALVA SÓ NÚMEROS
+        preco_total: regra.valor,
+        status: "pending",
+        phone: waId,
+        origem: "whatsapp",
+        created_at: new Date().toISOString()
+        // id_transacao_pix: será preenchido depois, quando o PIX for criado
+      }
+    ])
+    .select()
+    .single();
 
-
-  if (erroCheck) {
-    console.error("[SUPA] Erro ao checar conflito de horário:", erroCheck);
-    throw erroCheck;
-  }
-
-  if (reservasExistentes && reservasExistentes.length > 0) {
-    const err = new Error("HORARIO_INDISPONIVEL");
-    err.code = "HORARIO_INDISPONIVEL";
-    throw err;
-  }
-
-  // 2) Tentar criar a reserva (sem deletar nada, confiando no índice parcial)
-  try {
-    const { data, error } = await supabase
-      .from("reservas")
-      .insert([
-        {
-          usuario_id: id_usuario,
-          quadra_id: id_quadra,
-          data: data_agendamento,
-          hora: regra.hora_inicio,
-          user_cpf: cpfNormalizado,
-          preco_total: regra.valor,
-          status: "pending",
-          phone: waId,
-          origem: "whatsapp",
-          created_at: new Date().toISOString()
-          // id_transacao_pix: será preenchido depois, quando o PIX for criado
-        }
-      ])
-      .select()
-      .single();
-
+  
     // Se o Supabase retornou erro, tratamos aqui
     if (error) {
       // 23505 = violação de UNIQUE (índice parcial de horário ativo)
@@ -9391,29 +9500,35 @@ async function criarAgendamento({
   }
 }
 
-
 async function enviarResumoAgendamentoPendente(waId, agendamento, quadra) {
   const quadraNome = buildNomeQuadraDinamico(quadra);
 
-  const mensagem = `📋 *Reserva registrada (aguardando pagamento)*
+  // pega só HH:mm
+  const horaStr = (agendamento.hora || "").slice(0, 5);
 
-Quadra: ${quadraNome}
-Data: ${agendamento.data}
-Hora: ${agendamento.hora}
-Valor: R$ ${agendamento.preco_total.toFixed(2)}
+  // data em BR
+  const dataBr = String(agendamento.data || "").split("-").reverse().join("/");
 
-O código PIX foi enviado em outra mensagem.
-Assim que o pagamento for confirmado pelo banco/ Mercado Pago,
-você receberá uma mensagem automática de confirmação aqui no WhatsApp.`;
+  const mensagem =
+    `📋 *Reserva registrada (aguardando pagamento)*\n\n` +
+    `Quadra: ${quadraNome}\n` +
+    `Data: ${dataBr}${horaStr ? ` às ${horaStr}` : ""}\n` +
+    `Valor: R$ ${Number(agendamento.preco_total || 0).toFixed(2)}\n\n` +
+    `✅ *Importante:* esse horário fica *segurado pra você por alguns minutos*.\n` +
+    `Se o pagamento não for confirmado, o sistema libera o horário automaticamente.\n\n` +
+    `O código PIX foi enviado em outra mensagem.\n` +
+    `Assim que o pagamento for confirmado, você recebe a confirmação aqui no WhatsApp.`;
+
   await callWhatsAppAPI(buildTextMessage(waId, mensagem));
 }
+
 
 async function enviarResumoAgendamentos(waId, cpfBruto) {
   try {
     // 1. Tratamento do CPF (Deixa apenas números)
-    const cpf = String(cpfBruto || "").replace(/\D/g, "");
+    const cpfDigits = String(cpfBruto || "").replace(/\D/g, "");
 
-    if (cpf.length !== 11) {
+    if (cpfDigits.length !== 11) {
       await callWhatsAppAPI(
         buildTextMessage(
           waId,
@@ -9422,6 +9537,9 @@ async function enviarResumoAgendamentos(waId, cpfBruto) {
       );
       return;
     }
+
+    // Compatibilidade: CPF antigo formatado (ex: 123.456.789-00)
+    const cpfFormatado = typeof normalizarCpf === "function" ? normalizarCpf(cpfDigits) : null;
 
     // 2. Definição das Datas (Hoje, -60 dias e +60 dias)
     const hoje = new Date();
@@ -9443,14 +9561,22 @@ async function enviarResumoAgendamentos(waId, cpfBruto) {
     const inicioStr = formatISODate(inicio);
     const fimStr = formatISODate(fim);
 
-    // 3. Consulta ao Supabase
-    const { data, error } = await supabase
+    // 3. Consulta ao Supabase (compatível com CPF antigo e novo)
+    let query = supabase
       .from("reservas")
       .select("id, data, hora, status, quadras ( id, tipo, material, modalidade )")
-      .eq("user_cpf", cpf)
       .gte("data", inicioStr)
       .lte("data", fimStr)
       .order("data", { ascending: true });
+
+    if (cpfFormatado) {
+      // Busca tanto "12345678900" quanto "123.456.789-00"
+      query = query.or(`user_cpf.eq.${cpfDigits},user_cpf.eq.${cpfFormatado}`);
+    } else {
+      query = query.eq("user_cpf", cpfDigits);
+    }
+
+    const { data, error } = await query;
 
     if (error) throw error;
 
@@ -9478,18 +9604,19 @@ async function enviarResumoAgendamentos(waId, cpfBruto) {
         .reverse()
         .join("/");
 
-      // ✅ NOVO: descrição baseada na data/hora (passado vs futuro/hoje)
-      const descricao = getDescricaoReservaPorData(r.data, r.hora);
+      // ✅ descrição baseada na data/hora (passado vs futuro/hoje)
+      const descricao = typeof getDescricaoReservaPorData === "function"
+        ? getDescricaoReservaPorData(r.data, r.hora)
+        : "";
 
       mensagem +=
         `• ID: ${r.id}\n` +
         `  Quadra: ${quadraNome}\n` +
         `  Data: ${dataFormatadaBR} às ${r.hora}\n` +
-        `  Status: ${r.status === "paid" ? "✅ Pago" : "⏳ Pendente"}\n` +
-        `  ${descricao}\n\n`;
+        `  Status: ${String(r.status).toLowerCase() === "paid" ? "✅ Pago" : "⏳ Pendente"}\n` +
+        (descricao ? `  ${descricao}\n` : "") +
+        `\n`;
     });
-
-    //mensagem += 'Precisa cancelar? Responda "cancelar [ID reserva]".';
 
     await callWhatsAppAPI(buildTextMessage(waId, mensagem));
   } catch (err) {
@@ -9502,6 +9629,7 @@ async function enviarResumoAgendamentos(waId, cpfBruto) {
     );
   }
 }
+
 
 function parseDataHoraReservaToDate(dataISO, horaStr) {
   if (!dataISO) return null;
@@ -10836,96 +10964,198 @@ app.post("/flow-data", async (req, res) => {
       }
     }
 
-    // ---------------------------------------------
-    // CENÁRIO E: Tela 4 – DATE_TIME_SCREEN
-    // ---------------------------------------------
-    else if (currentScreen === "DATE_TIME_SCREEN") {
-      const quadraId =
-        dataIn.quadra_id ||
-        payloadIn.quadra_id ||
-        screenState.DATE_TIME_SCREEN?.data?.quadra_id ||
-        screenState.QUADRA_DETAIL_SCREEN?.data?.quadra_id ||
-        null;
+// ---------------------------------------------
+// CENÁRIO E: Tela 4 – DATE_TIME_SCREEN
+// ---------------------------------------------
+else if (currentScreen === "DATE_TIME_SCREEN") {
+  const quadraId =
+    dataIn.quadra_id ||
+    payloadIn.quadra_id ||
+    screenState.DATE_TIME_SCREEN?.data?.quadra_id ||
+    screenState.QUADRA_DETAIL_SCREEN?.data?.quadra_id ||
+    null;
 
-      const dataAgendamento =
-        dataIn.data_agendamento ||
-        payloadIn.data_agendamento ||
-        screenState.DATE_TIME_SCREEN?.data?.data_agendamento ||
-        "";
+  const dataAgendamento =
+    dataIn.data_agendamento ||
+    payloadIn.data_agendamento ||
+    screenState.DATE_TIME_SCREEN?.data?.data_agendamento ||
+    "";
 
-      const horarioId =
-        dataIn.horario_id ||
-        payloadIn.horario_id ||
-        null;
+  const horarioId =
+    dataIn.horario_id ||
+    payloadIn.horario_id ||
+    null;
+
+  console.log(
+    "[FLOW DATA] DATE_TIME_SCREEN → quadraId=",
+    quadraId,
+    "data_agendamento=",
+    dataAgendamento,
+    "horarioId=",
+    horarioId
+  );
+
+  // Constante do "horário fake" (defensivo)
+  const NO_HORARIOS_ID = "__NO_HORARIOS__";
+
+  // ✅ CORREÇÃO 1: Se o usuário VOLTOU e escolheu OUTRA quadra,
+  // a tela deve "zerar" para não mostrar horários/preços da quadra anterior.
+  const prevQuadraId = screenState.DATE_TIME_SCREEN?.data?.quadra_id || null;
+
+  if (
+    quadraId &&
+    prevQuadraId &&
+    String(prevQuadraId) !== String(quadraId)
+  ) {
+    console.log(
+      "[FLOW DATA] DATE_TIME_SCREEN → Trocou de quadra. Resetando tela (limpando data/horários)."
+    );
+
+    const horariosReset = [
+      {
+        id: NO_HORARIOS_ID,
+        title: "Selecione uma data",
+        description: "Depois toque em Buscar horários"
+      }
+    ];
+
+    responsePayload = {
+      version,
+      screen: "DATE_TIME_SCREEN",
+      data: {
+        quadra_id: String(quadraId),
+        data_agendamento: "", // zera a data para forçar novo "Buscar horários"
+        horarios: horariosReset,
+        error_message: ""
+      }
+    };
+  }
+  // 1) Usuário escolheu/alterou a DATA → buscar horários
+  // Se não tem horarioId ou se a ação for explicitamente troca de data
+  else if (action === "data_exchange" && quadraId && dataAgendamento && !horarioId) {
+    let horarios = [];
+
+    try {
+      const [anoStr, mesStr, diaStr] = String(dataAgendamento).split("-");
+      const ano = parseInt(anoStr, 10);
+      const mes = parseInt(mesStr, 10);
+      const dia = parseInt(diaStr, 10);
+
+      const dt = new Date(ano, mes - 1, dia);
+      const diaSemana = dt.getDay(); // 0=Dom ... 6=Sáb
 
       console.log(
-        "[FLOW DATA] DATE_TIME_SCREEN → quadraId=",
-        quadraId,
-        "data_agendamento=",
-        dataAgendamento,
-        "horarioId=",
-        horarioId
+        `[FLOW DATA] DATE_TIME_SCREEN → Buscando regras para diaSemana=${diaSemana}`
       );
 
-      // 1) Usuário escolheu/alterou a DATA → buscar horários
-      // Se não tem horarioId ou se a ação for explicitamente troca de data
-      if (action === "data_exchange" && quadraId && dataAgendamento && !horarioId) {
-        let horarios = [];
+      const { data: regras, error: regrasError } = await supabase
+        .from("regras_horarios")
+        .select("id, hora_inicio, hora_fim, valor")
+        .eq("id_quadra", quadraId)
+        .eq("dia_da_semana", diaSemana)
+        .order("hora_inicio", { ascending: true });
 
-        try {
-          const [anoStr, mesStr, diaStr] = String(dataAgendamento).split("-");
-          const ano = parseInt(anoStr, 10);
-          const mes = parseInt(mesStr, 10);
-          const dia = parseInt(diaStr, 10);
+      if (regrasError) {
+        console.error("[FLOW DATA] DATE_TIME_SCREEN → Erro SQL:", regrasError);
+      } else {
+        // CORREÇÃO CRÍTICA: Mapeia para 'title' e 'description'
+        horarios = (regras || []).map((r) => ({
+          id: String(r.id),
+          title: `${String(r.hora_inicio).slice(0, 5)} - ${String(r.hora_fim).slice(0, 5)}`,
+          description: `R$ ${Number(r.valor).toFixed(2)}`
+        }));
+      }
+    } catch (errDt) {
+      console.error("[FLOW DATA] Erro data:", errDt);
+    }
 
-          const dt = new Date(ano, mes - 1, dia);
-          const diaSemana = dt.getDay(); // 0=Dom ... 6=Sáb
+    console.log(
+      `[FLOW DATA] DATE_TIME_SCREEN → ${horarios.length} horários encontrados.`
+    );
 
-          console.log(
-            `[FLOW DATA] DATE_TIME_SCREEN → Buscando regras para diaSemana=${diaSemana}`
-          );
-
-          const { data: regras, error: regrasError } = await supabase
-            .from("regras_horarios")
-            .select("id, hora_inicio, hora_fim, valor")
-            .eq("id_quadra", quadraId)
-            .eq("dia_da_semana", diaSemana)
-            .order("hora_inicio", { ascending: true });
-
-          if (regrasError) {
-            console.error(
-              "[FLOW DATA] DATE_TIME_SCREEN → Erro SQL:",
-              regrasError
-            );
-          } else {
-            // CORREÇÃO CRÍTICA: Mapeia para 'title' e 'description'
-            horarios = (regras || []).map((r) => ({
-              id: String(r.id),
-              title: `${r.hora_inicio.slice(0, 5)} - ${r.hora_fim.slice(0, 5)}`,
-              description: `R$ ${Number(r.valor).toFixed(2)}`
-            }));
-          }
-        } catch (errDt) {
-          console.error("[FLOW DATA] Erro data:", errDt);
+    // ✅ FLOW DEFENSIVO: nunca devolver "horarios" vazio (Flow quebra com RadioButtonsGroup sem opções)
+    if (!Array.isArray(horarios) || horarios.length === 0) {
+      horarios = [
+        {
+          id: NO_HORARIOS_ID,
+          title: "Sem horários disponíveis",
+          description: "Escolha outra data no calendário"
         }
+      ];
+    }
 
+    responsePayload = {
+      version,
+      screen: "DATE_TIME_SCREEN",
+      data: {
+        quadra_id: String(quadraId),
+        data_agendamento: dataAgendamento,
+        horarios,
+        // Mensagem amigável (opcional; se a sua tela não exibir, não atrapalha)
+        error_message:
+          String(horarios?.[0]?.id) === NO_HORARIOS_ID
+            ? "Não há horários para essa data. Selecione outra data 🙂"
+            : ""
+      }
+    };
+  }
+  // 2) Usuário escolheu horário → Vai para CADASTRO
+  else if (action === "data_exchange" && horarioId) {
+    // ✅ Se o usuário clicou na opção "fake", não avança
+    if (String(horarioId) === NO_HORARIOS_ID) {
+      console.log("[FLOW DATA] DATE_TIME_SCREEN → Usuário clicou em NO_HORARIOS (não avança)");
+
+      responsePayload = {
+        version,
+        screen: "DATE_TIME_SCREEN",
+        data: {
+          quadra_id: quadraId ? String(quadraId) : "",
+          data_agendamento: dataAgendamento || "",
+          horarios: [
+            {
+              id: NO_HORARIOS_ID,
+              title: "Sem horários disponíveis",
+              description: "Escolha outra data no calendário"
+            }
+          ],
+          error_message: "Não há horários para essa data. Selecione outra data 🙂"
+        }
+      };
+    } else {
+      // ✅ CORREÇÃO 2: Valida se o horarioId pertence à quadra atual
+      const { data: regraOk, error: regraErr } = await supabase
+        .from("regras_horarios")
+        .select("id, id_quadra")
+        .eq("id", String(horarioId))
+        .eq("id_quadra", String(quadraId))
+        .maybeSingle();
+
+      if (regraErr || !regraOk) {
         console.log(
-          `[FLOW DATA] DATE_TIME_SCREEN → ${horarios.length} horários encontrados.`
+          "[FLOW DATA] DATE_TIME_SCREEN → horario_id não pertence à quadra atual. Bloqueando avanço.",
+          { quadraId, horarioId }
         );
 
         responsePayload = {
           version,
           screen: "DATE_TIME_SCREEN",
           data: {
-            quadra_id: String(quadraId),
-            data_agendamento: dataAgendamento,
-            horarios // Array preenchido corretamente
+            quadra_id: quadraId ? String(quadraId) : "",
+            data_agendamento: dataAgendamento || "",
+            horarios: [
+              {
+                id: NO_HORARIOS_ID,
+                title: "Horário inválido",
+                description: "Toque em Buscar horários novamente"
+              }
+            ],
+            error_message:
+              "Esse horário não é desta quadra. Toque em Buscar horários novamente 🙂"
           }
         };
-      }
-      // 2) Usuário escolheu horário → Vai para CADASTRO
-      else if (action === "data_exchange" && horarioId) {
-        console.log("[FLOW DATA] DATE_TIME_SCREEN → Avançando para CADASTRO_SCREEN");
+      } else {
+        console.log("[FLOW DATA] DATE_TIME_SCREEN → Avançando para CADASTRO_SCREEN (horário validado)");
+
         responsePayload = {
           version,
           screen: "CADASTRO_SCREEN",
@@ -10936,20 +11166,32 @@ app.post("/flow-data", async (req, res) => {
           }
         };
       }
-      // 3) Fallback (INIT/BACK)
-      else {
-        responsePayload = buildFlowResponsePayload(
-          decryptedBody,
-          "DATE_TIME_SCREEN",
-          {
-            quadra_id: quadraId ? String(quadraId) : "",
-            data_agendamento: dataAgendamento || "",
-            horarios: []
-          }
-        );
-        responsePayload.version = version;
-      }
     }
+  }
+  // 3) Fallback (INIT/BACK)
+  else {
+    // ✅ FLOW DEFENSIVO no fallback: nunca mandar horarios vazio
+    const horariosFallback = [
+      {
+        id: NO_HORARIOS_ID,
+        title: "Selecione uma data",
+        description: "Depois escolha um horário"
+      }
+    ];
+
+    responsePayload = buildFlowResponsePayload(
+      decryptedBody,
+      "DATE_TIME_SCREEN",
+      {
+        quadra_id: quadraId ? String(quadraId) : "",
+        data_agendamento: dataAgendamento || "",
+        horarios: horariosFallback
+      }
+    );
+    responsePayload.version = version;
+  }
+}
+
 
     // ---------------------------------------------
     // CENÁRIO F: Outras telas (CADASTRO, REVIEW)
@@ -11752,20 +11994,26 @@ if (msgType === "text") {
           console.error("[FLOW Agendamento] Erro ao processar agendamento:", err);
 
           if (err && err.code === "HORARIO_INDISPONIVEL") {
-            await callWhatsAppAPI(
-              buildTextMessage(
-                waId,
-                "Este horário acabou de ser reservado por outra pessoa. Volte e escolha outro horário."
-              )
-            );
-          } else {
-            await callWhatsAppAPI(
-              buildTextMessage(
-                waId,
-                "Tivemos um erro interno ao salvar seu agendamento. Tente novamente em alguns instantes."
-              )
-            );
-          }
+  await callWhatsAppAPI(
+    buildTextMessage(
+      waId,
+      "⛔ Esse horário *acabou de ser reservado* (pago ou pendente).\n\n" +
+      "✅ Para resolver:\n" +
+      "1) Volte no calendário\n" +
+      "2) Toque em *Buscar horários*\n" +
+      "3) Escolha outro horário disponível 🙂\n\n" +
+      "Se estava pendente de outra pessoa e não for pago, ele volta a ficar disponível automaticamente."
+    )
+  );
+} else {
+  await callWhatsAppAPI(
+    buildTextMessage(
+      waId,
+      "Tivemos um erro interno ao salvar seu agendamento. Tente novamente em alguns instantes."
+    )
+  );
+}
+
 
           return res.sendStatus(200);
         }

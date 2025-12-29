@@ -40,54 +40,54 @@ export default function AdminQuadrasPage() {
     foto3: null,
   });
 
+  // ✅ NOVO: tela de sucesso dentro do modal (evita duplicar)
+  const [salvouNoModal, setSalvouNoModal] = useState(false);
+  const [salvouTexto, setSalvouTexto] = useState("");
+  const [salvouResumo, setSalvouResumo] = useState(null);
+
   // ----------------------------
-// carregar dados
-// ----------------------------
-async function carregarTudo() {
-  try {
-    setCarregando(true);
-    setErro("");
-    setMsg("");
+  // carregar dados
+  // ----------------------------
+  async function carregarTudo() {
+    try {
+      setCarregando(true);
+      setErro("");
+      setMsg("");
 
-    // 1) empresas (para dropdown)
-    // Reaproveita sua rota admin de empresas (se já existir).
-    // Se você não tiver GET /admin/empresas, me avisa que eu adapto para usar /gestor/empresas + permissões.
-    const respEmp = await api.get("/admin/empresas");
-    setEmpresas(respEmp.data || []);
+      const respEmp = await api.get("/admin/empresas");
+      setEmpresas(respEmp.data || []);
 
-    // 2) quadras
-    const respQ = await api.get("/admin/quadras");
-    setQuadras(respQ.data || []);
-  } catch (e) {
-    console.error("[ADMIN/QUADRAS] Erro ao carregar:", e);
-    setErro(e.response?.data?.error || "Erro ao carregar quadras (admin).");
-  } finally {
-    setCarregando(false);
-  }
-}
-
-useEffect(() => {
-  carregarTudo();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-}, []);
-
-// ✅ NOVO: fechar modal com ESC
-useEffect(() => {
-  function onKeyDown(e) {
-    if (e.key === "Escape" && formAberto) {
-      setFormAberto(false);
-      limparForm();
+      const respQ = await api.get("/admin/quadras");
+      setQuadras(respQ.data || []);
+    } catch (e) {
+      console.error("[ADMIN/QUADRAS] Erro ao carregar:", e);
+      setErro(e.response?.data?.error || "Erro ao carregar quadras (admin).");
+    } finally {
+      setCarregando(false);
     }
   }
 
-  window.addEventListener("keydown", onKeyDown);
-  return () => window.removeEventListener("keydown", onKeyDown);
-}, [formAberto]);
+  useEffect(() => {
+    carregarTudo();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-// ----------------------------
-// helpers form
-// ----------------------------
+  // ✅ fechar modal com ESC
+  useEffect(() => {
+    function onKeyDown(e) {
+      if (e.key === "Escape" && formAberto) {
+        setFormAberto(false);
+        limparForm();
+      }
+    }
 
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [formAberto]);
+
+  // ----------------------------
+  // helpers form
+  // ----------------------------
   function limparForm() {
     setModoEdicao(false);
     setQuadraEditId(null);
@@ -103,9 +103,16 @@ useEffect(() => {
     });
     setFotos({ foto1: null, foto2: null, foto3: null });
     setPreviews({ foto1: null, foto2: null, foto3: null });
+
+    // ✅ NOVO
+    setSalvouNoModal(false);
+    setSalvouTexto("");
+    setSalvouResumo(null);
   }
 
   function abrirNova() {
+    setMsg("");
+    setErro("");
     limparForm();
     setFormAberto(true);
   }
@@ -113,6 +120,11 @@ useEffect(() => {
   function abrirEdicao(quadra) {
     setMsg("");
     setErro("");
+
+    // ✅ NOVO
+    setSalvouNoModal(false);
+    setSalvouTexto("");
+    setSalvouResumo(null);
 
     setModoEdicao(true);
     setQuadraEditId(quadra.id);
@@ -126,7 +138,9 @@ useEffect(() => {
       informacoes: quadra.informacoes || "",
       status: quadra.status || "ativa",
       taxa_plataforma_override:
-        quadra.taxa_plataforma_override == null ? "" : String(quadra.taxa_plataforma_override),
+        quadra.taxa_plataforma_override == null
+          ? ""
+          : String(quadra.taxa_plataforma_override),
     });
 
     // previews das imagens atuais
@@ -191,8 +205,14 @@ useEffect(() => {
         if (fotos.foto2) fd.append("foto2", fotos.foto2);
         if (fotos.foto3) fd.append("foto3", fotos.foto3);
 
-        await api.post("/admin/quadras", fd);
-        setMsg("Quadra criada com sucesso!");
+        const resp = await api.post("/admin/quadras", fd);
+
+        await carregarTudo();
+
+        // ✅ NOVO: mostra tela de sucesso no modal (não fecha de cara)
+        setSalvouResumo(resp?.data || null);
+        setSalvouTexto("✅ Quadra criada com sucesso!");
+        setSalvouNoModal(true);
       } else {
         // EDIT (JSON) + (opcional) fotos
         const payload = {
@@ -217,12 +237,13 @@ useEffect(() => {
           await api.put(`/admin/quadras/${quadraEditId}/fotos`, fd);
         }
 
-        setMsg("Quadra atualizada com sucesso!");
-      }
+        await carregarTudo();
 
-      await carregarTudo();
-      setFormAberto(false);
-      limparForm();
+        // ✅ também vira tela de sucesso (mesmo padrão)
+        setSalvouResumo(null);
+        setSalvouTexto("✅ Quadra atualizada com sucesso!");
+        setSalvouNoModal(true);
+      }
     } catch (err) {
       console.error("[ADMIN/QUADRAS] Erro ao salvar:", err);
       setErro(err.response?.data?.error || "Erro ao salvar quadra.");
@@ -283,8 +304,7 @@ useEffect(() => {
       if (filtroStatus && String(q.status || "").toLowerCase() !== filtroStatus) return false;
 
       if (b) {
-        const s =
-          `${q.tipo || ""} ${q.material || ""} ${q.modalidade || ""}`.toLowerCase();
+        const s = `${q.tipo || ""} ${q.material || ""} ${q.modalidade || ""}`.toLowerCase();
         if (!s.includes(b)) return false;
       }
 
@@ -307,13 +327,11 @@ useEffect(() => {
       map.get(empId).push(q);
     });
 
-    // transforma em array com dados da empresa
     const arr = Array.from(map.entries()).map(([empresaId, lista]) => {
       const emp = empresasMap.get(empresaId) || qEmpresaFallback(empresaId);
       return { empresaId, empresa: emp, quadras: lista };
     });
 
-    // ordena por nome empresa
     arr.sort((a, b) => String(a.empresa?.nome || "").localeCompare(String(b.empresa?.nome || "")));
     return arr;
   }, [quadrasFiltradas, empresasMap]);
@@ -417,7 +435,6 @@ useEffect(() => {
                 {grupo.empresa && grupo.empresa.endereco_resumo && (
                   <p className="empresa-endereco">{grupo.empresa.endereco_resumo}</p>
                 )}
-
               </div>
 
               <div className="quadras-grid">
@@ -437,8 +454,7 @@ useEffect(() => {
                       <div className="quadra-card-header">
                         <div>
                           <h3 className="quadra-nome">
-                            {q.tipo || "Quadra"}{" "}
-                            {q.modalidade ? `- ${q.modalidade}` : ""}
+                            {q.tipo || "Quadra"} {q.modalidade ? `- ${q.modalidade}` : ""}
                           </h3>
                           <span className="quadra-material">
                             {q.material || "Material não informado"}
@@ -471,29 +487,15 @@ useEffect(() => {
                       </div>
 
                       <div className="quadra-acoes">
-                        <button
-                          className="btn-outlined"
-                          type="button"
-                          onClick={() => abrirEdicao(q)}
-                        >
+                        <button className="btn-outlined" type="button" onClick={() => abrirEdicao(q)}>
                           Editar
                         </button>
 
-                        <button
-                          className="btn-outlined"
-                          type="button"
-                          onClick={() => toggleStatus(q)}
-                        >
-                          {String(q.status || "").toLowerCase() === "ativa"
-                            ? "Desativar"
-                            : "Reativar"}
+                        <button className="btn-outlined" type="button" onClick={() => toggleStatus(q)}>
+                          {String(q.status || "").toLowerCase() === "ativa" ? "Desativar" : "Reativar"}
                         </button>
 
-                        <button
-                          className="btn-danger"
-                          type="button"
-                          onClick={() => excluirSoft(q)}
-                        >
+                        <button className="btn-danger" type="button" onClick={() => excluirSoft(q)}>
                           Excluir
                         </button>
                       </div>
@@ -507,245 +509,236 @@ useEffect(() => {
       )}
 
       {/* MODAL FORM (criar/editar) */}
-{formAberto && (
-  <div
-    className="vt-modal-overlay"
-    onClick={() => {
-      setFormAberto(false);
-      limparForm();
-    }}
-  >
-    <div
-      className="vt-modal"
-      onClick={(e) => e.stopPropagation()} // não fecha ao clicar dentro
-    >
-      <div className="vt-modal-header">
-        <div>
-          <h2 style={{ margin: 0 }}>
-            {modoEdicao ? "Editar quadra (Admin)" : "Nova quadra (Admin)"}
-          </h2>
-          <p style={{ margin: 0, opacity: 0.7, fontSize: 13 }}>
-            {modoEdicao
-              ? "Edite os dados da quadra e salve."
-              : "Cadastre a nova quadra e salve."}
-          </p>
-        </div>
-
-        <button
-          className="vt-modal-close"
-          type="button"
+      {formAberto && (
+        <div
+          className="vt-modal-overlay"
           onClick={() => {
             setFormAberto(false);
             limparForm();
           }}
-          aria-label="Fechar"
-          title="Fechar"
         >
-          ✕
-        </button>
-      </div>
+          <div className="vt-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="vt-modal-header">
+              <div>
+                <h2 style={{ margin: 0 }}>
+                  {modoEdicao ? "Editar quadra (Admin)" : "Nova quadra (Admin)"}
+                </h2>
+                <p style={{ margin: 0, opacity: 0.7, fontSize: 13 }}>
+                  {modoEdicao ? "Edite os dados da quadra e salve." : "Cadastre a nova quadra e salve."}
+                </p>
+              </div>
 
-      <div className="vt-modal-body">
-  <form onSubmit={salvar}>
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        <label style={{ fontWeight: 700, fontSize: 13 }}>Empresa *</label>
-        <select
-          name="empresaId"
-          value={form.empresaId}
-          onChange={handleChange}
-          style={{ padding: 10, borderRadius: 8, border: "1px solid #ddd" }}
-        >
-          <option value="">Selecione...</option>
-          {(empresas || []).map((e) => (
-            <option key={e.id} value={e.id}>
-              {e.nome}
-            </option>
-          ))}
-        </select>
-        <small style={{ opacity: 0.75 }}>
-          O Gestor é inferido automaticamente pela empresa selecionada.
-        </small>
-      </div>
+              <button
+                className="vt-modal-close"
+                type="button"
+                onClick={() => {
+                  setFormAberto(false);
+                  limparForm();
+                }}
+                aria-label="Fechar"
+                title="Fechar"
+              >
+                ✕
+              </button>
+            </div>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        <label style={{ fontWeight: 700, fontSize: 13 }}>Status</label>
-        <select
-          name="status"
-          value={form.status}
-          onChange={handleChange}
-          style={{ padding: 10, borderRadius: 8, border: "1px solid #ddd" }}
-        >
-          <option value="ativa">Ativa</option>
-          <option value="inativa">Inativa</option>
-          <option value="manutencao">Manutenção</option>
-        </select>
-      </div>
+            <div className="vt-modal-body">
+              {/* ✅ NOVO: se salvou, some o form e aparece tela de sucesso */}
+              {salvouNoModal ? (
+                <div style={{ padding: 8 }}>
+                  <h3 style={{ marginTop: 0 }}>{salvouTexto || "✅ Salvo com sucesso!"}</h3>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        <label style={{ fontWeight: 700, fontSize: 13 }}>Tipo *</label>
-        <input
-          name="tipo"
-          value={form.tipo}
-          onChange={handleChange}
-          style={{ padding: 10, borderRadius: 8, border: "1px solid #ddd" }}
-        />
-      </div>
+                  <p style={{ opacity: 0.85 }}>
+                    Agora não tem como clicar em “Salvar” de novo sem querer.
+                  </p>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        <label style={{ fontWeight: 700, fontSize: 13 }}>Material *</label>
-        <input
-          name="material"
-          value={form.material}
-          onChange={handleChange}
-          style={{ padding: 10, borderRadius: 8, border: "1px solid #ddd" }}
-        />
-      </div>
+                  <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 12 }}>
+                    <button
+                      className="btn-primary"
+                      type="button"
+                      onClick={() => {
+                        // mantém o modal aberto, volta pro form limpo
+                        limparForm();
+                        setModoEdicao(false);
+                        setQuadraEditId(null);
+                      }}
+                    >
+                      + Cadastrar outra quadra
+                    </button>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        <label style={{ fontWeight: 700, fontSize: 13 }}>Modalidade *</label>
-        <input
-          name="modalidade"
-          value={form.modalidade}
-          onChange={handleChange}
-          style={{ padding: 10, borderRadius: 8, border: "1px solid #ddd" }}
-        />
-      </div>
+                    <button
+                      className="btn-outlined"
+                      type="button"
+                      onClick={() => {
+                        setFormAberto(false);
+                        limparForm();
+                      }}
+                    >
+                      Fechar
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <form onSubmit={salvar}>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                      <label style={{ fontWeight: 700, fontSize: 13 }}>Empresa *</label>
+                      <select
+                        name="empresaId"
+                        value={form.empresaId}
+                        onChange={handleChange}
+                        style={{ padding: 10, borderRadius: 8, border: "1px solid #ddd" }}
+                      >
+                        <option value="">Selecione...</option>
+                        {(empresas || []).map((e) => (
+                          <option key={e.id} value={e.id}>
+                            {e.nome}
+                          </option>
+                        ))}
+                      </select>
+                      <small style={{ opacity: 0.75 }}>
+                        O Gestor é inferido automaticamente pela empresa selecionada.
+                      </small>
+                    </div>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        <label style={{ fontWeight: 700, fontSize: 13 }}>
-          Taxa override (opcional)
-        </label>
-        <input
-          name="taxa_plataforma_override"
-          value={form.taxa_plataforma_override}
-          onChange={handleChange}
-          placeholder="ex: 10 (ou 0)"
-          style={{ padding: 10, borderRadius: 8, border: "1px solid #ddd" }}
-        />
-        <small style={{ opacity: 0.75 }}>
-          Se preenchida, sobrescreve a taxa global do Gestor.
-        </small>
-      </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                      <label style={{ fontWeight: 700, fontSize: 13 }}>Status</label>
+                      <select
+                        name="status"
+                        value={form.status}
+                        onChange={handleChange}
+                        style={{ padding: 10, borderRadius: 8, border: "1px solid #ddd" }}
+                      >
+                        <option value="ativa">Ativa</option>
+                        <option value="inativa">Inativa</option>
+                        <option value="manutencao">Manutenção</option>
+                      </select>
+                    </div>
 
-      {/* ✅ NOVO: Avisos (igual Gestor) */}
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          gap: 6,
-          gridColumn: "1 / -1",
-        }}
-      >
-        <label style={{ fontWeight: 700, fontSize: 13 }}>Avisos</label>
-        <input
-          name="aviso"
-          value={form.aviso}
-          onChange={handleChange}
-          placeholder="Ex.: Chegar 10 min antes / Proibido travas altas / etc."
-          style={{ padding: 10, borderRadius: 8, border: "1px solid #ddd" }}
-        />
-        <small style={{ opacity: 0.75 }}>
-          Avisos importantes antes da reserva.
-        </small>
-      </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                      <label style={{ fontWeight: 700, fontSize: 13 }}>Tipo *</label>
+                      <input
+                        name="tipo"
+                        value={form.tipo}
+                        onChange={handleChange}
+                        style={{ padding: 10, borderRadius: 8, border: "1px solid #ddd" }}
+                      />
+                    </div>
 
-      {/* ✅ NOVO: Informações/Descrição (igual Gestor) */}
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          gap: 6,
-          gridColumn: "1 / -1",
-        }}
-      >
-        <label style={{ fontWeight: 700, fontSize: 13 }}>
-          Informações / Descrição
-        </label>
-        <textarea
-          name="informacoes"
-          value={form.informacoes}
-          onChange={handleChange}
-          rows={5}
-          placeholder="Descreva a quadra, dimensões, estrutura, bar/estacionamento/vestiário, regras..."
-          style={{
-            padding: 10,
-            borderRadius: 8,
-            border: "1px solid #ddd",
-            resize: "vertical",
-          }}
-        />
-        <small style={{ opacity: 0.75 }}>
-          Texto completo que ajuda o cliente a decidir.
-        </small>
-      </div>
-    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                      <label style={{ fontWeight: 700, fontSize: 13 }}>Material *</label>
+                      <input
+                        name="material"
+                        value={form.material}
+                        onChange={handleChange}
+                        style={{ padding: 10, borderRadius: 8, border: "1px solid #ddd" }}
+                      />
+                    </div>
 
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "1fr 1fr 1fr",
-        gap: 12,
-        marginTop: 14,
-      }}
-    >
-      <div className="photo-slot">
-        <span className="photo-label">Foto 1</span>
-        <input
-          type="file"
-          accept="image/*"
-          onChange={(e) => handleFileChange(e, "foto1")}
-        />
-        {previews.foto1 && (
-          <img src={previews.foto1} alt="Prévia foto 1" className="photo-preview" />
-        )}
-      </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                      <label style={{ fontWeight: 700, fontSize: 13 }}>Modalidade *</label>
+                      <input
+                        name="modalidade"
+                        value={form.modalidade}
+                        onChange={handleChange}
+                        style={{ padding: 10, borderRadius: 8, border: "1px solid #ddd" }}
+                      />
+                    </div>
 
-      <div className="photo-slot">
-        <span className="photo-label">Foto 2</span>
-        <input
-          type="file"
-          accept="image/*"
-          onChange={(e) => handleFileChange(e, "foto2")}
-        />
-        {previews.foto2 && (
-          <img src={previews.foto2} alt="Prévia foto 2" className="photo-preview" />
-        )}
-      </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                      <label style={{ fontWeight: 700, fontSize: 13 }}>Taxa override (opcional)</label>
+                      <input
+                        name="taxa_plataforma_override"
+                        value={form.taxa_plataforma_override}
+                        onChange={handleChange}
+                        placeholder="ex: 10 (ou 0)"
+                        style={{ padding: 10, borderRadius: 8, border: "1px solid #ddd" }}
+                      />
+                      <small style={{ opacity: 0.75 }}>
+                        Se preenchida, sobrescreve a taxa global do Gestor.
+                      </small>
+                    </div>
 
-      <div className="photo-slot">
-        <span className="photo-label">Foto 3</span>
-        <input
-          type="file"
-          accept="image/*"
-          onChange={(e) => handleFileChange(e, "foto3")}
-        />
-        {previews.foto3 && (
-          <img src={previews.foto3} alt="Prévia foto 3" className="photo-preview" />
-        )}
-      </div>
-    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6, gridColumn: "1 / -1" }}>
+                      <label style={{ fontWeight: 700, fontSize: 13 }}>Avisos</label>
+                      <input
+                        name="aviso"
+                        value={form.aviso}
+                        onChange={handleChange}
+                        placeholder="Ex.: Chegar 10 min antes / Proibido travas altas / etc."
+                        style={{ padding: 10, borderRadius: 8, border: "1px solid #ddd" }}
+                      />
+                      <small style={{ opacity: 0.75 }}>Avisos importantes antes da reserva.</small>
+                    </div>
 
-    <div style={{ marginTop: 14, display: "flex", gap: 10, justifyContent: "flex-end" }}>
-      <button
-        className="btn-outlined"
-        type="button"
-        onClick={limparForm}
-        disabled={carregando}
-      >
-        Limpar
-      </button>
-      <button className="btn-primary" type="submit" disabled={carregando}>
-        {carregando ? "Salvando..." : "Salvar"}
-      </button>
-    </div>
-  </form>
-</div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6, gridColumn: "1 / -1" }}>
+                      <label style={{ fontWeight: 700, fontSize: 13 }}>Informações / Descrição</label>
+                      <textarea
+                        name="informacoes"
+                        value={form.informacoes}
+                        onChange={handleChange}
+                        rows={5}
+                        placeholder="Descreva a quadra, dimensões, estrutura, bar/estacionamento/vestiário, regras..."
+                        style={{
+                          padding: 10,
+                          borderRadius: 8,
+                          border: "1px solid #ddd",
+                          resize: "vertical",
+                        }}
+                      />
+                      <small style={{ opacity: 0.75 }}>
+                        Texto completo que ajuda o cliente a decidir.
+                      </small>
+                    </div>
+                  </div>
 
-    </div>
-  </div>
-)}
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "1fr 1fr 1fr",
+                      gap: 12,
+                      marginTop: 14,
+                    }}
+                  >
+                    <div className="photo-slot">
+                      <span className="photo-label">Foto 1</span>
+                      <input type="file" accept="image/*" onChange={(e) => handleFileChange(e, "foto1")} />
+                      {previews.foto1 && (
+                        <img src={previews.foto1} alt="Prévia foto 1" className="photo-preview" />
+                      )}
+                    </div>
 
+                    <div className="photo-slot">
+                      <span className="photo-label">Foto 2</span>
+                      <input type="file" accept="image/*" onChange={(e) => handleFileChange(e, "foto2")} />
+                      {previews.foto2 && (
+                        <img src={previews.foto2} alt="Prévia foto 2" className="photo-preview" />
+                      )}
+                    </div>
+
+                    <div className="photo-slot">
+                      <span className="photo-label">Foto 3</span>
+                      <input type="file" accept="image/*" onChange={(e) => handleFileChange(e, "foto3")} />
+                      {previews.foto3 && (
+                        <img src={previews.foto3} alt="Prévia foto 3" className="photo-preview" />
+                      )}
+                    </div>
+                  </div>
+
+                  <div style={{ marginTop: 14, display: "flex", gap: 10, justifyContent: "flex-end" }}>
+                    <button className="btn-outlined" type="button" onClick={limparForm} disabled={carregando}>
+                      Limpar
+                    </button>
+                    <button className="btn-primary" type="submit" disabled={carregando}>
+                      {carregando ? "Salvando..." : "Salvar"}
+                    </button>
+                  </div>
+                </form>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

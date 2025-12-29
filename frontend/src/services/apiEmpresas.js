@@ -1,5 +1,7 @@
 // src/services/apiEmpresas.js
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL || "https://api.vaiterplay.com.br";
+
 
 function getAuthHeaders() {
   const token = localStorage.getItem("token"); // ajuste o nome se precisar

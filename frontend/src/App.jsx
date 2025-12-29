@@ -48,6 +48,7 @@ function App() {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/esqueci-senha" element={<EsqueciSenhaPage />} />
       <Route path="/resetar-senha" element={<ResetarSenhaPage />} />
+      <Route path="/nova-senha" element={<ResetarSenhaPage />} />
       <Route path="/trocar-senha" element={<TrocarSenhaPage />} />
 
 

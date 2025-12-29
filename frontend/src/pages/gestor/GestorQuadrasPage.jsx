@@ -1,9 +1,11 @@
 // src/pages/gestor/GestorQuadrasPage.jsx
 import React, { useState, useEffect } from "react";
-
+import { useNavigate } from "react-router-dom";
 import api from "../../services/api"; // usa axios com JWT
 
 function GestorQuadrasPage() {
+  const navigate = useNavigate();
+
   const [form, setForm] = useState({
     complexoId: "",
     tipo: "",
@@ -29,19 +31,23 @@ function GestorQuadrasPage() {
   const [mensagem, setMensagem] = useState("");
   const [erro, setErro] = useState("");
   const [carregando, setCarregando] = useState(false);
+
   // Empresas/complexos do gestor para popular o select
   const [empresas, setEmpresas] = useState([]);
   const [carregandoEmpresas, setCarregandoEmpresas] = useState(false);
   const [erroEmpresas, setErroEmpresas] = useState("");
 
-    useEffect(() => {
+  // ✅ NOVO: controla “tela de sucesso” após salvar
+  const [salvouComSucesso, setSalvouComSucesso] = useState(false);
+  const [quadraCriadaResumo, setQuadraCriadaResumo] = useState(null);
+
+  useEffect(() => {
     async function carregarEmpresas() {
       try {
         setCarregandoEmpresas(true);
         setErroEmpresas("");
 
         const response = await api.get("/gestor/empresas");
-        // Esperamos algo como: [{ id, nome }, ...]
         setEmpresas(response.data || []);
       } catch (error) {
         console.error("[GESTOR/QUADRAS] Erro ao carregar empresas:", error);
@@ -53,7 +59,6 @@ function GestorQuadrasPage() {
 
     carregarEmpresas();
   }, []);
-
 
   function handleChange(event) {
     const { name, value } = event.target;
@@ -85,56 +90,6 @@ function GestorQuadrasPage() {
     }
   }
 
-  async function handleSubmit(event) {
-  event.preventDefault();
-  setMensagem("");
-  setErro("");
-
-  if (!form.complexoId) {
-    setErro("Selecione um complexo antes de salvar a quadra.");
-    return;
-  }
-
-  setCarregando(true);
-
-  try {
-    const formData = new FormData();
-    // gestor_id vem do JWT, não precisa mandar
-    formData.append("complexoId", form.complexoId);
-    formData.append("tipo", form.tipo);
-    formData.append("material", form.material);
-    formData.append("modalidade", form.modalidade);
-    formData.append("aviso", form.aviso);
-    formData.append("informacoes", form.informacoes);
-    formData.append("status", form.status);
-
-    if (fotos.foto1) formData.append("foto1", fotos.foto1);
-    if (fotos.foto2) formData.append("foto2", fotos.foto2);
-    if (fotos.foto3) formData.append("foto3", fotos.foto3);
-
-    const response = await api.post("/gestor/quadras", formData);
-    // NÃO precisa setar Content-Type manualmente, o axios faz isso pro FormData
-
-    console.log("Quadra criada com sucesso:", response.data);
-    setMensagem("Quadra criada com sucesso!");
-
-    // Se quiser, recarrega a lista de quadras ou limpa o form aqui
-    // handleLimpar();
-    // carregarQuadras();
-  } catch (err) {
-    console.error("Erro inesperado ao enviar quadra:", err);
-    const msgBackend = err.response?.data?.error;
-    setErro(
-      msgBackend ||
-        "Erro ao criar quadra. Verifique o backend e tente novamente."
-    );
-  } finally {
-    setCarregando(false);
-  }
-}
-
-
-
   function handleLimpar() {
     setForm({
       complexoId: "",
@@ -159,12 +114,107 @@ function GestorQuadrasPage() {
     setErro("");
   }
 
+  async function handleSubmit(event) {
+    event.preventDefault();
+    setMensagem("");
+    setErro("");
+
+    if (!form.complexoId) {
+      setErro("Selecione um complexo antes de salvar a quadra.");
+      return;
+    }
+
+    setCarregando(true);
+
+    try {
+      const formData = new FormData();
+      // gestor_id vem do JWT, não precisa mandar
+      formData.append("complexoId", form.complexoId);
+      formData.append("tipo", form.tipo);
+      formData.append("material", form.material);
+      formData.append("modalidade", form.modalidade);
+      formData.append("aviso", form.aviso);
+      formData.append("informacoes", form.informacoes);
+      formData.append("status", form.status);
+
+      if (fotos.foto1) formData.append("foto1", fotos.foto1);
+      if (fotos.foto2) formData.append("foto2", fotos.foto2);
+      if (fotos.foto3) formData.append("foto3", fotos.foto3);
+
+      const response = await api.post("/gestor/quadras", formData);
+
+      console.log("Quadra criada com sucesso:", response.data);
+
+      // ✅ NOVO: tela de sucesso (some o formulário)
+      setQuadraCriadaResumo(response.data || null);
+      setSalvouComSucesso(true);
+      setMensagem("Quadra criada com sucesso!");
+    } catch (err) {
+      console.error("Erro inesperado ao enviar quadra:", err);
+      const msgBackend = err.response?.data?.error;
+      setErro(
+        msgBackend ||
+          "Erro ao criar quadra. Verifique o backend e tente novamente."
+      );
+    } finally {
+      setCarregando(false);
+    }
+  }
+
   const nomeGerado =
     form.modalidade || form.material || form.tipo
-      ? `${form.modalidade || "Modalidade"} - ${
-          form.material || "Material"
-        } (${form.tipo || "Tipo"})`
+      ? `${form.modalidade || "Modalidade"} - ${form.material || "Material"} (${
+          form.tipo || "Tipo"
+        })`
       : "Escolha Tipo, Material e Modalidade para gerar o nome da quadra.";
+
+  // ✅ NOVO: TELA DE SUCESSO
+  if (salvouComSucesso) {
+    const nomeFinal =
+      quadraCriadaResumo?.nome ||
+      nomeGerado ||
+      "Quadra cadastrada";
+
+    return (
+      <div className="page">
+        <div className="card" style={{ maxWidth: 720, margin: "0 auto" }}>
+          <h2 style={{ marginTop: 0 }}>✅ Quadra salva com sucesso!</h2>
+
+          <p style={{ marginTop: 8 }}>
+            A quadra <strong>{nomeFinal}</strong> já foi cadastrada e já pode
+            aparecer no Flow (se tiver regras/horários cadastrados).
+          </p>
+
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 16 }}>
+            <button
+              className="btn-primary"
+              type="button"
+              onClick={() => {
+                // volta pro formulário limpo
+                setSalvouComSucesso(false);
+                setQuadraCriadaResumo(null);
+                handleLimpar();
+              }}
+            >
+              + Cadastrar outra quadra
+            </button>
+
+            <button
+              className="btn-outlined"
+              type="button"
+              onClick={() => navigate("/gestor/quadras")}
+            >
+              Voltar para lista de quadras
+            </button>
+          </div>
+
+          <small style={{ display: "block", marginTop: 14, opacity: 0.75 }}>
+            Isso evita duplicar quadras por “clique repetido” depois de salvar.
+          </small>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -179,7 +229,7 @@ function GestorQuadrasPage() {
         <h3>Cadastro de Quadra (Gestor)</h3>
 
         <form className="form-grid" onSubmit={handleSubmit}>
-                    {/* COMPLEXO / EMPRESA */}
+          {/* COMPLEXO / EMPRESA */}
           <div className="form-field">
             <label htmlFor="complexoId">Complexo *</label>
             <select
@@ -209,7 +259,6 @@ function GestorQuadrasPage() {
               <small style={{ color: "#c0392b" }}>{erroEmpresas}</small>
             )}
           </div>
-
 
           {/* STATUS */}
           <div className="form-field">

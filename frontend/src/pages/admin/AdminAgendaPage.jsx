@@ -8,11 +8,8 @@ import { useAuth } from "../../context/AuthContext";
 import { AgendaFilters } from "../../components/agenda/AgendaFilters";
 import { AgendaLegend } from "../../components/agenda/AgendaLegend";
 import { AgendaGrid } from "../../components/agenda/AgendaGrid";
-
-// Aqui eu vou assumir que seu arquivo exporta **default**
-// src/components/agenda/gestor/agendacinemaview.jsx
 import AgendaCinemaView from "../../components/gestor/AgendaCinemaView";
-import AgendaCinemaViewReal from "../../components/gestor/AgendaCinemaViewReal";
+
 
 
 import { AgendaToolbar } from "../../components/agenda/AgendaToolbar";
@@ -340,7 +337,7 @@ function AdminAgendaPage() {
             regraForm.precoHora === ""
               ? null
               : Number(String(regraForm.precoHora).replace(",", ".")),
-          ativo: regraForm.ativo,
+          ativo: true,
         };
 
         await api.put(`/admin/agenda/regras/${regraEditandoId}`, payload);
@@ -371,7 +368,7 @@ function AdminAgendaPage() {
             regraForm.precoHora === ""
               ? null
               : Number(String(regraForm.precoHora).replace(",", ".")),
-          ativo: regraForm.ativo,
+         ativo: true,
         };
 
         await api.post("/admin/agenda/regras/lote", payload);
@@ -752,13 +749,14 @@ function AdminAgendaPage() {
           </div>
         </div>
       )}
-      {/* VISÃO CINEMA DA AGENDA (ADMIN = GESTOR) */}
+       {/* VISÃO CINEMA DA AGENDA (PADRÃO DO GESTOR) */}
 {quadraSelecionadaId && (
-  <AgendaCinemaViewReal
+  <AgendaCinemaView
     quadraId={quadraSelecionadaId}
     mode="ADMIN"
   />
 )}
+
 
       {/* Painéis de Regras e Bloqueios */}
       {quadraSelecionadaId && (
@@ -770,191 +768,206 @@ function AdminAgendaPage() {
           <div className="card">
             <h3>Regras de horário da quadra</h3>
 
-            {/* Form de criação/edição de regra */}
-            <form
-              className="form-grid"
-              style={{ marginTop: 8, marginBottom: 12 }}
-              onSubmit={handleSubmitRegra}
+{/* Form de criação/edição de regra */}
+<form
+  className="form-grid"
+  style={{ marginTop: 8, marginBottom: 12 }}
+  onSubmit={handleSubmitRegra}
+>
+  {/* Seleção de quadras para aplicar esta regra (lote) */}
+  <div className="form-field form-field-full">
+    <label>
+      {regraEditandoId
+        ? "Quadra da regra (edição)"
+        : "Quadras para aplicar esta regra (lote)"}
+    </label>
+
+    {quadras.length === 0 && (
+      <p style={{ fontSize: 13 }}>
+        Nenhuma quadra cadastrada para este complexo.
+      </p>
+    )}
+
+    {quadras.length > 0 && (
+      <div
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          gap: 8,
+          marginTop: 4,
+        }}
+      >
+        {quadras.map((q) => {
+          const isChecked = selectedQuadraIds.includes(q.id);
+          return (
+            <label
+              key={q.id}
+              style={{
+                fontSize: 13,
+                display: "flex",
+                gap: 4,
+                opacity: regraEditandoId && !isChecked ? 0.6 : 1,
+              }}
             >
-              {/* Seleção de quadras para aplicar esta regra (lote) */}
-              <div className="form-field form-field-full">
-                <label>Quadras para aplicar esta regra (lote)</label>
-                {quadras.length === 0 && (
-                  <p style={{ fontSize: 13 }}>
-                    Nenhuma quadra cadastrada para este complexo.
-                  </p>
-                )}
-                {quadras.length > 0 && (
-                  <div
-                    style={{
-                      display: "flex",
-                      flexWrap: "wrap",
-                      gap: 8,
-                      marginTop: 4,
-                    }}
-                  >
-                    {quadras.map((q) => (
-                      <label
-                        key={q.id}
-                        style={{ fontSize: 13, display: "flex", gap: 4 }}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={selectedQuadraIds.includes(q.id)}
-                          onChange={() => toggleQuadraSelecionada(q.id)}
-                        />
-                        {formatarNomeQuadra(q)}
-                      </label>
-                    ))}
-                  </div>
-                )}
-                <small>
-                  Ao criar uma nova regra, todas as quadras marcadas receberão a
-                  mesma faixa de horário/valor. Ao editar uma regra na tabela,
-                  apenas aquela quadra e dia serão alterados.
-                </small>
-              </div>
+              <input
+                type="checkbox"
+                checked={isChecked}
+                disabled={!!regraEditandoId} // ✅ em edição, trava para não confundir
+                onChange={() => toggleQuadraSelecionada(q.id)}
+              />
+              {formatarNomeQuadra(q)}
+            </label>
+          );
+        })}
+      </div>
+    )}
 
-              {/* Campo diaSemana (edição) */}
-              <div className="form-field">
-                <label htmlFor="diaSemana">
-                  Dia da semana{" "}
-                  <span style={{ fontSize: 11, fontWeight: "normal" }}>
-                    (usado para edição de regra individual)
-                  </span>
-                </label>
-                <select
-                  id="diaSemana"
-                  name="diaSemana"
-                  value={regraForm.diaSemana}
-                  onChange={handleChangeRegraForm}
-                >
-                  <option value="">Selecione</option>
-                  <option value={1}>Segunda</option>
-                  <option value={2}>Terça</option>
-                  <option value={3}>Quarta</option>
-                  <option value={4}>Quinta</option>
-                  <option value={5}>Sexta</option>
-                  <option value={6}>Sábado</option>
-                  <option value={0}>Domingo</option>
-                </select>
-                <small>
-                  Ao <strong>editar</strong> uma regra existente, esse campo
-                  será preenchido automaticamente. Para criar novas regras em
-                  lote, use os checkboxes de dias abaixo.
-                </small>
-              </div>
+    <small>
+      {regraEditandoId ? (
+        <>
+          Você está <strong>editando</strong> uma regra específica (uma quadra + um dia).
+          Para aplicar em várias quadras, clique em <strong>Cancelar edição</strong> e crie em lote.
+        </>
+      ) : (
+        <>
+          Ao criar uma nova regra, todas as quadras marcadas receberão a mesma faixa de horário/valor.
+        </>
+      )}
+    </small>
+  </div>
 
-              {/* Checkboxes de dias para criação em lote */}
-              <div className="form-field form-field-full">
-                <label>Dias da semana para nova regra (lote)</label>
-                <div
-                  style={{
-                    display: "flex",
-                    flexWrap: "wrap",
-                    gap: 8,
-                    marginTop: 4,
-                  }}
-                >
-                  {[
-                    { valor: 1, label: "Seg" },
-                    { valor: 2, label: "Ter" },
-                    { valor: 3, label: "Qua" },
-                    { valor: 4, label: "Qui" },
-                    { valor: 5, label: "Sex" },
-                    { valor: 6, label: "Sáb" },
-                    { valor: 0, label: "Dom" },
-                  ].map((dia) => (
-                    <label
-                      key={dia.valor}
-                      style={{ fontSize: 13, display: "flex", gap: 4 }}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={diasSelecionados.includes(dia.valor)}
-                        onChange={() => toggleDiaSelecionado(dia.valor)}
-                      />
-                      {dia.label}
-                    </label>
-                  ))}
-                </div>
-                <small>
-                  Para <strong>criar novas regras</strong> em lote, selecione
-                  aqui os dias que terão a mesma faixa de horário e valor.
-                </small>
-              </div>
+  {/* ✅ Dia da semana (apenas na EDIÇÃO) */}
+  {regraEditandoId && (
+    <div className="form-field">
+      <label htmlFor="diaSemana">Dia da semana (edição)</label>
+      <select
+        id="diaSemana"
+        name="diaSemana"
+        value={regraForm.diaSemana}
+        onChange={handleChangeRegraForm}
+      >
+        <option value="">Selecione</option>
+        <option value={1}>Segunda</option>
+        <option value={2}>Terça</option>
+        <option value={3}>Quarta</option>
+        <option value={4}>Quinta</option>
+        <option value={5}>Sexta</option>
+        <option value={6}>Sábado</option>
+        <option value={0}>Domingo</option>
+      </select>
+      <small>
+        Esse campo só aparece quando você está editando uma regra já existente.
+      </small>
+    </div>
+  )}
 
-              <div className="form-field">
-                <label htmlFor="horaInicio">Hora início</label>
-                <input
-                  type="time"
-                  id="horaInicio"
-                  name="horaInicio"
-                  value={regraForm.horaInicio}
-                  onChange={handleChangeRegraForm}
-                />
-              </div>
+  {/* ✅ Dias da semana (apenas na CRIAÇÃO EM LOTE) */}
+  {!regraEditandoId && (
+    <div className="form-field form-field-full">
+      <label>Dias da semana (lote)</label>
+      <div
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          gap: 8,
+          marginTop: 4,
+        }}
+      >
+        {[
+          { valor: 1, label: "Seg" },
+          { valor: 2, label: "Ter" },
+          { valor: 3, label: "Qua" },
+          { valor: 4, label: "Qui" },
+          { valor: 5, label: "Sex" },
+          { valor: 6, label: "Sáb" },
+          { valor: 0, label: "Dom" },
+        ].map((dia) => (
+          <label
+            key={dia.valor}
+            style={{ fontSize: 13, display: "flex", gap: 4 }}
+          >
+            <input
+              type="checkbox"
+              checked={diasSelecionados.includes(dia.valor)}
+              onChange={() => toggleDiaSelecionado(dia.valor)}
+            />
+            {dia.label}
+          </label>
+        ))}
+      </div>
+      <small>
+        Marque um ou mais dias. A mesma faixa de horário e preço será criada para os dias selecionados.
+      </small>
+    </div>
+  )}
 
-              <div className="form-field">
-                <label htmlFor="horaFim">Hora fim</label>
-                <input
-                  type="time"
-                  id="horaFim"
-                  name="horaFim"
-                  value={regraForm.horaFim}
-                  onChange={handleChangeRegraForm}
-                />
-              </div>
+  <div className="form-field">
+    <label htmlFor="horaInicio">Hora início</label>
+    <input
+      type="time"
+      id="horaInicio"
+      name="horaInicio"
+      value={regraForm.horaInicio}
+      onChange={handleChangeRegraForm}
+    />
+  </div>
 
-              <div className="form-field">
-                <label htmlFor="precoHora">Preço por hora (R$)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  id="precoHora"
-                  name="precoHora"
-                  value={regraForm.precoHora}
-                  onChange={handleChangeRegraForm}
-                />
-              </div>
+  <div className="form-field">
+    <label htmlFor="horaFim">Hora fim</label>
+    <input
+      type="time"
+      id="horaFim"
+      name="horaFim"
+      value={regraForm.horaFim}
+      onChange={handleChangeRegraForm}
+    />
+  </div>
 
-              <div className="form-field">
-                <label className="checkbox-inline">
-                  <input
-                    type="checkbox"
-                    name="ativo"
-                    checked={regraForm.ativo}
-                    onChange={handleChangeRegraForm}
-                  />
-                  Regra ativa
-                </label>
-              </div>
+  <div className="form-field">
+    <label htmlFor="precoHora">Preço por hora (R$)</label>
+    <input
+      type="number"
+      step="0.01"
+      min="0"
+      id="precoHora"
+      name="precoHora"
+      value={regraForm.precoHora}
+      onChange={handleChangeRegraForm}
+    />
+    <small>
+      O preço é o que “manda” na regra. Se preço/horário forem iguais, você aplica em lote facilmente.
+    </small>
+  </div>
 
-              <div className="form-actions">
-                {regraEditandoId && (
-                  <button
-                    type="button"
-                    className="btn-outlined"
-                    onClick={resetRegraForm}
-                    disabled={salvandoRegra}
-                  >
-                    Cancelar edição
-                  </button>
-                )}
-                <button
-                  type="submit"
-                  className="btn-primary"
-                  disabled={salvandoRegra}
-                >
-                  {salvandoRegra
-                    ? "Salvando..."
-                    : regraEditandoId
-                    ? "Salvar alterações"
-                    : "Adicionar regra em lote"}
-                </button>
-              </div>
-            </form>
+  {/* ✅ Removido: checkbox "Regra ativa" (regra já nasce ativa) */}
+
+  <div className="form-actions">
+    {regraEditandoId && (
+      <button
+        type="button"
+        className="btn-outlined"
+        onClick={resetRegraForm}
+        disabled={salvandoRegra}
+      >
+        Cancelar edição
+      </button>
+    )}
+
+    <button
+      type="submit"
+      className="btn-primary"
+      disabled={salvandoRegra}
+    >
+      {salvandoRegra
+        ? "Salvando..."
+        : regraEditandoId
+        ? "Salvar alterações"
+        : "Adicionar regra em lote"}
+    </button>
+  </div>
+</form>
+
+
 
             {carregandoAgenda && <p>Carregando regras...</p>}
 

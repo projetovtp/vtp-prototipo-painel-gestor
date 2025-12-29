@@ -32,7 +32,6 @@ export default function AdminRepassesPage() {
   const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState("");
 
-  // detalhe do repasse
   const [repasseSelecionado, setRepasseSelecionado] = useState(null);
   const [pagamentosDoRepasse, setPagamentosDoRepasse] = useState([]);
 
@@ -84,7 +83,6 @@ export default function AdminRepassesPage() {
 
       const { data } = await api.post("/admin/repasses/gerar", body);
 
-      // Atualiza lista e abre detalhe do repasse criado
       await listarRepasses();
 
       if (data?.repasse?.id) {
@@ -120,15 +118,16 @@ export default function AdminRepassesPage() {
     setErro("");
     try {
       const body = {
-        data_pagamento: new Date().toISOString().slice(0, 10),
         observacao: "Pago manualmente via painel Admin"
       };
-      await api.put(`/admin/repasses/${repasseId}/pagar`, body);
+
+      // ✅ endpoint correto (padrão backend que você está usando)
+      await api.put(`/admin/repasses/${repasseId}/marcar-pago`, body);
 
       await listarRepasses();
       await abrirDetalhe(repasseId);
     } catch (e) {
-      console.error("[ADMIN/REPASSES] erro pagar:", e);
+      console.error("[ADMIN/REPASSES] erro marcar-pago:", e);
       setErro(e?.response?.data?.error || "Erro ao marcar repasse como pago.");
     } finally {
       setLoading(false);
@@ -142,168 +141,186 @@ export default function AdminRepassesPage() {
   }, []);
 
   return (
-    <div style={{ padding: 18 }}>
-      <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800 }}>Repasses (Admin)</h1>
-      <p style={{ marginTop: 6, opacity: 0.8 }}>
-        Gere repasses por gestor e controle o que o Admin precisa <b>pagar / repassar</b> ao gestor (manual).
-      </p>
-
-      <div style={panel}>
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "260px 160px 160px 160px 1fr",
-            gap: 12,
-            alignItems: "end"
-          }}
-        >
-          <div>
-            <label style={lbl}>Gestor</label>
-            <select value={gestorId} onChange={(e) => setGestorId(e.target.value)} style={inputStyle}>
-              <option value="">Selecione...</option>
-              {gestores.map((g) => (
-                <option key={g.id} value={g.id}>
-                  {g.nome} ({g.email})
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label style={lbl}>Início</label>
-            <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} style={inputStyle} />
-          </div>
-
-          <div>
-            <label style={lbl}>Fim</label>
-            <input type="date" value={to} onChange={(e) => setTo(e.target.value)} style={inputStyle} />
-          </div>
-
-          <div>
-            <label style={lbl}>Status</label>
-            <select value={status} onChange={(e) => setStatus(e.target.value)} style={inputStyle}>
-              <option value="">Todos</option>
-              <option value="pendente">Pendente</option>
-              <option value="pago">Pago</option>
-            </select>
-          </div>
-
-          <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-            <button style={btnPrimary} onClick={gerarRepasse} disabled={loading}>
-              Gerar repasse (período)
-            </button>
-            <button
-              style={btn}
-              onClick={() => {
-                const d = defaultPeriodo30();
-                setFrom(d.inicio);
-                setTo(d.fim);
-              }}
-            >
-              Últimos 30 dias
-            </button>
-            <button style={btn} onClick={listarRepasses} disabled={loading}>
-              Atualizar lista
-            </button>
-          </div>
+    <div style={{ padding: 16 }}>
+      <div style={{ marginBottom: 12 }}>
+        <h1 style={{ margin: 0 }}>Repasses (Admin)</h1>
+        <div style={{ opacity: 0.75, marginTop: 6, fontSize: 13 }}>
+          Liste repasses, gere por período e marque como pago.
         </div>
-
-        {erro ? <div style={{ ...errorBox, marginTop: 12 }}>{erro}</div> : null}
       </div>
 
-      <div style={{ height: 12 }} />
+      {erro ? <div style={errorBox}>{erro}</div> : null}
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-        {/* LISTA */}
-        <div style={panel}>
-          <h2 style={{ margin: 0, fontSize: 16, fontWeight: 800 }}>Repasses</h2>
-
-          <div style={{ marginTop: 10 }}>
-            {loading ? (
-              <div style={{ opacity: 0.75, padding: 10 }}>Carregando...</div>
-            ) : repasses.length === 0 ? (
-              <div style={{ opacity: 0.75, padding: 10 }}>Nenhum repasse encontrado.</div>
-            ) : (
-              <div style={{ display: "grid", gap: 8 }}>
-                <div style={rowHead2}>
-                  <div>ID</div>
-                  <div>Competência</div>
-                  <div>Status</div>
-                  <div>Taxa</div>
-                  <div>Líquido</div>
-                  <div>Ações</div>
-                </div>
-
-                {repasses.map((r) => (
-                  <div key={r.id} style={row2}>
-                    <div style={mono} title={r.id}>{String(r.id).slice(0, 8)}…</div>
-                    <div style={mono}>{r.competencia ? String(r.competencia).slice(0, 10) : "-"}</div>
-                    <div>{r.status || "-"}</div>
-                    <div>{formatBRL(r.valor_total_taxa)}</div>
-                    <div>{formatBRL(r.valor_total_liquido)}</div>
-                    <div style={{ display: "flex", gap: 8 }}>
-                      <button style={btn} onClick={() => abrirDetalhe(r.id)} disabled={loading}>
-                        Ver
-                      </button>
-                      {String(r.status || "").toLowerCase() !== "pago" ? (
-                        <button style={btnPrimary} onClick={() => marcarComoPago(r.id)} disabled={loading}>
-                          Marcar pago
-                        </button>
-                      ) : null}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr 1.2fr 0.8fr 0.8fr",
+          gap: 10,
+          marginBottom: 12
+        }}
+      >
+        <div>
+          <label style={labelSmall} htmlFor="admin_rep_from">De</label>
+          <input
+            id="admin_rep_from"
+            name="admin_rep_from"
+            type="date"
+            value={from}
+            onChange={(e) => setFrom(e.target.value)}
+            style={inputStyle}
+          />
         </div>
 
-        {/* DETALHE */}
-        <div style={panel}>
-          <h2 style={{ margin: 0, fontSize: 16, fontWeight: 800 }}>Detalhe do repasse</h2>
+        <div>
+          <label style={labelSmall} htmlFor="admin_rep_to">Até</label>
+          <input
+            id="admin_rep_to"
+            name="admin_rep_to"
+            type="date"
+            value={to}
+            onChange={(e) => setTo(e.target.value)}
+            style={inputStyle}
+          />
+        </div>
 
-          {!repasseSelecionado ? (
-            <div style={{ opacity: 0.75, padding: 10, marginTop: 10 }}>
-              Selecione um repasse na lista para ver os pagamentos vinculados.
-            </div>
+        <div>
+          <label style={labelSmall} htmlFor="admin_rep_gestor">Gestor</label>
+          <select
+            id="admin_rep_gestor"
+            name="admin_rep_gestor"
+            value={gestorId}
+            onChange={(e) => setGestorId(e.target.value)}
+            style={inputStyle}
+          >
+            <option value="">Selecione…</option>
+            {gestores.map((g) => (
+              <option key={g.id} value={g.id}>
+                {g.nome || g.email || g.id}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label style={labelSmall} htmlFor="admin_rep_status">Status</label>
+          <select
+            id="admin_rep_status"
+            name="admin_rep_status"
+            value={status}
+            onChange={(e) => setStatus(e.target.value)}
+            style={inputStyle}
+          >
+            <option value="">Todos</option>
+            <option value="pendente">Pendente</option>
+            <option value="pago">Pago</option>
+          </select>
+        </div>
+
+        <div style={{ display: "flex", alignItems: "end", gap: 8 }}>
+          <button type="button" style={btn} onClick={listarRepasses} disabled={loading}>
+            {loading ? "..." : "Listar"}
+          </button>
+          <button type="button" style={btnPrimary} onClick={gerarRepasse} disabled={loading}>
+            {loading ? "..." : "Gerar"}
+          </button>
+        </div>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        <div style={panel}>
+          <div style={{ fontWeight: 800, marginBottom: 10 }}>Repasses</div>
+
+          {repasses.length === 0 ? (
+            <div style={{ opacity: 0.75, padding: 10 }}>Nenhum repasse encontrado.</div>
           ) : (
-            <div style={{ marginTop: 10 }}>
-              <div style={{ display: "grid", gap: 6, marginBottom: 12 }}>
-                <div><b>ID:</b> <span style={mono}>{repasseSelecionado.id}</span></div>
-                <div><b>Status:</b> {repasseSelecionado.status}</div>
-                <div><b>Competência:</b> {repasseSelecionado.competencia ? String(repasseSelecionado.competencia).slice(0, 10) : "-"}</div>
-                <div><b>Taxa Total:</b> {formatBRL(repasseSelecionado.valor_total_taxa)}</div>
-                <div><b>Líquido Total:</b> {formatBRL(repasseSelecionado.valor_total_liquido)}</div>
-                <div><b>Data Pagamento:</b> {repasseSelecionado.data_pagamento ? String(repasseSelecionado.data_pagamento).slice(0, 10) : "-"}</div>
+            <div style={{ display: "grid", gap: 8 }}>
+              <div style={rowHead}>
+                <div>ID</div>
+                <div>Gestor</div>
+                <div>Status</div>
+                <div style={{ textAlign: "right" }}>Líquido</div>
+                <div>Ações</div>
               </div>
 
-              <h3 style={{ margin: "10px 0 6px", fontSize: 14 }}>Pagamentos vinculados</h3>
+              {repasses.map((r) => (
+                <div key={r.id} style={row}>
+                  <div style={mono} title={r.id}>
+                    {String(r.id).slice(0, 8)}…
+                  </div>
+                  <div style={{ overflow: "hidden", textOverflow: "ellipsis" }}>
+                    {r.gestor_nome || r.gestor_id || "-"}
+                  </div>
+                  <div>{r.status || "-"}</div>
+                  <div style={{ textAlign: "right" }}>
+                    {formatBRL(r.total_liquido ?? r.valor_total_liquido ?? 0)}
+                  </div>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button
+                      type="button"
+                      style={btn}
+                      onClick={() => abrirDetalhe(r.id)}
+                      disabled={loading}
+                    >
+                      Ver
+                    </button>
+                    {String(r.status) === "pendente" ? (
+                      <button
+                        type="button"
+                        style={btnPrimary}
+                        onClick={() => marcarComoPago(r.id)}
+                        disabled={loading}
+                      >
+                        Marcar pago
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div style={panel}>
+          <div style={{ fontWeight: 800, marginBottom: 10 }}>Detalhe</div>
+
+          {!repasseSelecionado ? (
+            <div style={{ opacity: 0.75, padding: 10 }}>
+              Selecione um repasse para ver os pagamentos vinculados.
+            </div>
+          ) : (
+            <>
+              <div style={{ display: "grid", gap: 6, marginBottom: 10 }}>
+                <div><b>ID:</b> <span style={mono}>{repasseSelecionado.id}</span></div>
+                <div><b>Status:</b> {repasseSelecionado.status}</div>
+                <div><b>Competência:</b> {String(repasseSelecionado.competencia || "").slice(0, 10) || "-"}</div>
+                <div><b>Líquido:</b> {formatBRL(repasseSelecionado.valor_total_liquido ?? repasseSelecionado.total_liquido ?? 0)}</div>
+              </div>
+
+              <div style={{ fontWeight: 700, marginBottom: 8 }}>Pagamentos</div>
               {pagamentosDoRepasse.length === 0 ? (
-                <div style={{ opacity: 0.75, padding: 10 }}>Nenhum pagamento encontrado nesse repasse.</div>
+                <div style={{ opacity: 0.75, padding: 10 }}>Nenhum pagamento vinculado.</div>
               ) : (
                 <div style={{ display: "grid", gap: 8 }}>
-                  <div style={rowHead3}>
+                  <div style={rowHeadPag}>
                     <div>ID</div>
                     <div>Data</div>
-                    <div>Status</div>
-                    <div>Bruto</div>
-                    <div>Taxa</div>
-                    <div>Líquido</div>
+                    <div style={{ textAlign: "right" }}>Bruto</div>
+                    <div style={{ textAlign: "right" }}>Taxa</div>
+                    <div style={{ textAlign: "right" }}>Líquido</div>
                   </div>
 
                   {pagamentosDoRepasse.map((p) => (
-                    <div key={p.id} style={row3}>
+                    <div key={p.id} style={rowPag}>
                       <div style={mono} title={p.id}>{String(p.id).slice(0, 8)}…</div>
                       <div style={mono}>{p.created_at ? String(p.created_at).slice(0, 10) : "-"}</div>
-                      <div>{p.status || "-"}</div>
-                      <div>{formatBRL(p.valor_total)}</div>
-                      <div>{formatBRL(p.taxa_plataforma)}</div>
-                      <div>{formatBRL(p.valor_liquido_gestor)}</div>
+                      <div style={{ textAlign: "right" }}>{formatBRL(p.valor_total)}</div>
+                      <div style={{ textAlign: "right" }}>{formatBRL(p.taxa_plataforma)}</div>
+                      <div style={{ textAlign: "right" }}>{formatBRL(p.valor_liquido_gestor)}</div>
                     </div>
                   ))}
                 </div>
               )}
-            </div>
+            </>
           )}
         </div>
       </div>
@@ -311,7 +328,7 @@ export default function AdminRepassesPage() {
   );
 }
 
-const lbl = { display: "block", fontSize: 12, opacity: 0.8, marginBottom: 6 };
+const labelSmall = { display: "block", fontSize: 12, opacity: 0.8, marginBottom: 6 };
 
 const inputStyle = {
   width: "100%",
@@ -342,7 +359,8 @@ const errorBox = {
   padding: "10px 12px",
   borderRadius: 10,
   border: "1px solid rgba(255, 80, 80, 0.35)",
-  background: "rgba(255, 80, 80, 0.10)"
+  background: "rgba(255, 80, 80, 0.10)",
+  marginBottom: 12
 };
 
 const panel = {
@@ -352,15 +370,11 @@ const panel = {
   background: "rgba(255,255,255,0.03)"
 };
 
-const mono = {
-  fontFamily:
-    'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-  fontSize: 12
-};
+const mono = { fontFamily: "monospace" };
 
-const rowHead2 = {
+const rowHead = {
   display: "grid",
-  gridTemplateColumns: "90px 110px 90px 110px 110px 1fr",
+  gridTemplateColumns: "120px 1fr 110px 130px 220px",
   gap: 10,
   padding: 10,
   borderRadius: 12,
@@ -372,9 +386,9 @@ const rowHead2 = {
   alignItems: "center"
 };
 
-const row2 = {
+const row = {
   display: "grid",
-  gridTemplateColumns: "90px 110px 90px 110px 110px 1fr",
+  gridTemplateColumns: "120px 1fr 110px 130px 220px",
   gap: 10,
   padding: 10,
   borderRadius: 12,
@@ -383,9 +397,9 @@ const row2 = {
   alignItems: "center"
 };
 
-const rowHead3 = {
+const rowHeadPag = {
   display: "grid",
-  gridTemplateColumns: "90px 110px 90px 110px 110px 110px",
+  gridTemplateColumns: "120px 100px 110px 110px 110px",
   gap: 10,
   padding: 10,
   borderRadius: 12,
@@ -397,9 +411,9 @@ const rowHead3 = {
   alignItems: "center"
 };
 
-const row3 = {
+const rowPag = {
   display: "grid",
-  gridTemplateColumns: "90px 110px 90px 110px 110px 110px",
+  gridTemplateColumns: "120px 100px 110px 110px 110px",
   gap: 10,
   padding: 10,
   borderRadius: 12,

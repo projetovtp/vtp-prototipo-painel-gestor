@@ -15,7 +15,13 @@ function defaultPeriodo30() {
 
 function formatBRL(v) {
   const n = Number(v || 0);
+  if (!Number.isFinite(n)) return "R$ 0,00";
   return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
+function safeNum(v) {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
 }
 
 export default function AdminFinanceiroPage() {
@@ -24,13 +30,13 @@ export default function AdminFinanceiroPage() {
   const [to, setTo] = useState(def.fim);
 
   const [gestores, setGestores] = useState([]);
-  const [gestorId, setGestorId] = useState(""); // opcional
+  const [gestorId, setGestorId] = useState("");
 
   const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState("");
 
   const [overview, setOverview] = useState(null);
-  const [resumo, setResumo] = useState(null); // ✅ novo: /admin/financeiro/resumo
+  const [resumo, setResumo] = useState(null);
 
   async function carregarGestores() {
     try {
@@ -38,42 +44,44 @@ export default function AdminFinanceiroPage() {
       setGestores(Array.isArray(data) ? data : []);
     } catch (e) {
       console.warn("[ADMIN/FINANCEIRO] falha ao carregar gestores:", e);
-      setGestores([]);
+      // não trava a tela por causa disso
     }
   }
 
   async function carregarTudo() {
-    setLoading(true);
     setErro("");
-
+    setLoading(true);
     try {
-      // ✅ busca em paralelo:
-      // - overview (kpis / por_quadra / ultimos_pagamentos)
-      // - resumo (pendentes de repasse / repasses pendentes / repasses pagos)
+      // ✅ overview usa from/to e aceita gestorId opcional
+      const paramsOverview = {
+        from,
+        to,
+        ...(gestorId ? { gestorId } : {}),
+      };
+
+      // ✅ resumo no seu backend às vezes é inicio/fim
+      // então mandamos os DOIS pra ficar compatível
+      const paramsResumo = {
+        inicio: from,
+        fim: to,
+        from,
+        to,
+        status: "paid",
+      };
+
       const [rOverview, rResumo] = await Promise.all([
-        api.get("/admin/financeiro-overview", {
-          params: {
-            from,
-            to,
-            gestorId: gestorId || undefined
-          }
-        }),
-        api.get("/admin/financeiro/resumo", {
-          params: {
-            from,
-            to,
-            gestorId: gestorId || undefined
-          }
-        })
+        api.get("/admin/financeiro-overview", { params: paramsOverview }),
+        api.get("/admin/financeiro/resumo", { params: paramsResumo }),
       ]);
 
-      setOverview(rOverview.data || null);
-      setResumo(rResumo.data || null);
+      setOverview(rOverview?.data || null);
+      setResumo(rResumo?.data || null);
     } catch (e) {
       console.error("[ADMIN/FINANCEIRO] erro ao carregar:", e);
       setErro(
         e?.response?.data?.error ||
-          "Erro ao carregar financeiro do admin. Verifique o backend."
+          e?.message ||
+          "Falha ao carregar financeiro."
       );
       setOverview(null);
       setResumo(null);
@@ -84,335 +92,207 @@ export default function AdminFinanceiroPage() {
 
   useEffect(() => {
     carregarGestores();
-    carregarTudo();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const kpis = overview?.kpis || {};
-  const ultimos = Array.isArray(overview?.ultimos_pagamentos)
-    ? overview.ultimos_pagamentos
-    : [];
-  const porQuadra = Array.isArray(overview?.por_quadra) ? overview.por_quadra : [];
+  useEffect(() => {
+    carregarTudo();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [from, to, gestorId]);
 
-  // ✅ novos cards do resumo
-  const pendentesRepasse = resumo?.pendentesRepasse || {};
-  const repassesPendentes = resumo?.repassesPendentes || {};
-  const repassesPagos = resumo?.repassesPagos || {};
+  // Normalizações defensivas (evita quebrar UI se o backend mudar nomes)
+  const resumoNorm = useMemo(() => {
+    if (!resumo) return null;
+    return {
+      periodo: resumo.periodo || { inicio: from, fim: to },
+      status: resumo.status || "paid",
+      qtd_pagamentos: safeNum(resumo.qtd_pagamentos),
+      total_bruto: safeNum(resumo.total_bruto),
+      total_taxa: safeNum(resumo.total_taxa),
+      total_liquido: safeNum(resumo.total_liquido),
+      pendentes_repasse: safeNum(resumo.pendentes_repasse),
+      repasses_pendentes: safeNum(resumo.repasses_pendentes),
+      repasses_pagos: safeNum(resumo.repasses_pagos),
+    };
+  }, [resumo, from, to]);
 
   return (
-    <div style={{ padding: 18 }}>
-      <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800 }}>
-        Financeiro (Admin)
-      </h1>
-      <p style={{ marginTop: 6, opacity: 0.8 }}>
-        Visão geral por período. Você pode filtrar por Gestor.
-      </p>
-
+    <div className="page">
       <div
+        className="page-header"
         style={{
-          display: "grid",
-          gridTemplateColumns: "160px 160px 260px 1fr",
+          display: "flex",
+          justifyContent: "space-between",
           gap: 12,
-          alignItems: "end",
-          padding: 12,
-          borderRadius: 12,
-          border: "1px solid rgba(255,255,255,0.10)",
-          marginBottom: 12
+          alignItems: "flex-start",
+          flexWrap: "wrap",
         }}
       >
         <div>
-          <label style={labelSmall}>Início</label>
-          <input
-            type="date"
-            value={from}
-            onChange={(e) => setFrom(e.target.value)}
-            style={inputStyle}
-          />
+          <h1 className="page-title">Financeiro (Admin)</h1>
+          <p style={{ marginTop: 6, color: "#666", fontSize: 13 }}>
+            Visão global do período + overview (opcional) por gestor.
+          </p>
         </div>
 
-        <div>
-          <label style={labelSmall}>Fim</label>
-          <input
-            type="date"
-            value={to}
-            onChange={(e) => setTo(e.target.value)}
-            style={inputStyle}
-          />
-        </div>
-
-        <div>
-          <label style={labelSmall}>Gestor (opcional)</label>
-          <select
-            value={gestorId}
-            onChange={(e) => setGestorId(e.target.value)}
-            style={inputStyle}
-          >
-            <option value="">Todos</option>
-            {gestores.map((g) => (
-              <option key={g.id} value={g.id}>
-                {g.nome} ({g.email})
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-          <button style={btnPrimary} onClick={carregarTudo}>
-            {loading ? "Carregando..." : "Aplicar"}
-          </button>
+        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
           <button
-            style={btn}
-            onClick={() => {
-              const d = defaultPeriodo30();
-              setFrom(d.inicio);
-              setTo(d.fim);
-              setGestorId("");
-              setTimeout(() => carregarTudo(), 0);
+            className="btn btn-outline-secondary"
+            onClick={carregarTudo}
+            disabled={loading}
+            type="button"
+          >
+            {loading ? "Carregando..." : "Recarregar"}
+          </button>
+        </div>
+      </div>
+
+      {/* filtros */}
+      <div className="vt-card" style={{ padding: 14, marginTop: 12 }}>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr 2fr",
+            gap: 12,
+          }}
+        >
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <label htmlFor="admin_fin_from" style={{ fontWeight: 700, fontSize: 13 }}>
+              De
+            </label>
+            <input
+              id="admin_fin_from"
+              name="admin_fin_from"
+              type="date"
+              value={from}
+              onChange={(e) => setFrom(e.target.value)}
+              className="form-control"
+            />
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <label htmlFor="admin_fin_to" style={{ fontWeight: 700, fontSize: 13 }}>
+              Até
+            </label>
+            <input
+              id="admin_fin_to"
+              name="admin_fin_to"
+              type="date"
+              value={to}
+              onChange={(e) => setTo(e.target.value)}
+              className="form-control"
+            />
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <label htmlFor="admin_fin_gestor" style={{ fontWeight: 700, fontSize: 13 }}>
+              Filtrar por gestor (opcional)
+            </label>
+            <select
+              id="admin_fin_gestor"
+              name="admin_fin_gestor"
+              value={gestorId}
+              onChange={(e) => setGestorId(e.target.value)}
+              className="form-control"
+            >
+              <option value="">(Todos)</option>
+              {(gestores || []).map((g) => (
+                <option key={g.id} value={g.id}>
+                  {g.nome || g.email || g.id}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {erro ? (
+          <div style={{ marginTop: 10, color: "#b00020", fontSize: 13 }}>
+            {erro}
+          </div>
+        ) : null}
+      </div>
+
+      {/* resumo */}
+      <div className="vt-card" style={{ padding: 14, marginTop: 12 }}>
+        <h3 style={{ margin: 0, fontSize: 16 }}>Resumo global</h3>
+        <p style={{ marginTop: 6, color: "#666", fontSize: 13 }}>
+          Baseado nos pagamentos do período (status: <b>{resumoNorm?.status || "paid"}</b>).
+        </p>
+
+        {!resumoNorm ? (
+          <div style={{ marginTop: 10, color: "#666" }}>
+            {loading ? "Carregando..." : "Sem dados."}
+          </div>
+        ) : (
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+              gap: 10,
+              marginTop: 12,
             }}
           >
-            Últimos 30 dias
-          </button>
-        </div>
-      </div>
-
-      {erro ? <div style={errorBox}>{erro}</div> : null}
-
-      {/* ✅ KPI + RESUMO (7 cards) */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(4, 1fr)",
-          gap: 12,
-          marginBottom: 12
-        }}
-      >
-        <Card label="Qtd. Pagamentos" value={loading ? "..." : (kpis.qtd_pagamentos ?? 0)} />
-        <Card label="Receita Bruta" value={loading ? "..." : formatBRL(kpis.receita_bruta)} />
-        <Card label="Taxa Plataforma" value={loading ? "..." : formatBRL(kpis.taxa_plataforma)} />
-        <Card label="Líquido (Gestores)" value={loading ? "..." : formatBRL(kpis.valor_liquido)} />
-
-        {/* ✅ novos cards */}
-        <Card
-          label="Pendentes de repasse (A pagar)"
-          value={
-            loading
-              ? "..."
-              : `${pendentesRepasse.totalQtd ?? 0} • ${formatBRL(pendentesRepasse.totalValor ?? 0)}`
-          }
-          hint="Pagamentos paid ainda não vinculados a um repasse"
-        />
-        <Card
-          label="Repasses pendentes"
-          value={
-            loading
-              ? "..."
-              : `${repassesPendentes.totalQtd ?? 0} • ${formatBRL(repassesPendentes.totalValor ?? 0)}`
-          }
-          hint="Repasses criados e ainda pendentes"
-        />
-        <Card
-          label="Repasses pagos"
-          value={
-            loading
-              ? "..."
-              : `${repassesPagos.totalQtd ?? 0} • ${formatBRL(repassesPagos.totalValor ?? 0)}`
-          }
-          hint="Repasses concluídos no período"
-        />
-      </div>
-
-      {/* POR QUADRA */}
-      <div style={panel}>
-        <h2 style={{ margin: 0, fontSize: 16, fontWeight: 800 }}>Por Quadra (Top)</h2>
-
-        <div style={{ marginTop: 10 }}>
-          {porQuadra.length === 0 ? (
-            <div style={{ opacity: 0.75, padding: 10 }}>Sem dados no período.</div>
-          ) : (
-            <div style={{ display: "grid", gap: 8 }}>
-              <div style={rowHeadQuadra}>
-                <div>Quadra</div>
-                <div style={{ textAlign: "right" }}>Qtd</div>
-                <div style={{ textAlign: "right" }}>Bruto</div>
-                <div style={{ textAlign: "right" }}>Taxa</div>
-                <div style={{ textAlign: "right" }}>Líquido</div>
-              </div>
-
-              {porQuadra.slice(0, 20).map((r, idx) => (
-                <div key={idx} style={rowQuadra}>
-                  <div title={r.quadra_nome || ""} style={{ overflow: "hidden", textOverflow: "ellipsis" }}>
-                    {r.quadra_nome || "-"}
-                  </div>
-                  <div style={{ textAlign: "right" }}>{r.qtd_pagamentos ?? 0}</div>
-                  <div style={{ textAlign: "right" }}>{formatBRL(r.receita_bruta)}</div>
-                  <div style={{ textAlign: "right" }}>{formatBRL(r.taxa_plataforma)}</div>
-                  <div style={{ textAlign: "right" }}>{formatBRL(r.valor_liquido)}</div>
-                </div>
-              ))}
+            <div className="vt-card" style={{ padding: 12 }}>
+              <div style={{ fontSize: 12, color: "#666" }}>Qtd. pagamentos</div>
+              <div style={{ fontSize: 18, fontWeight: 800 }}>{resumoNorm.qtd_pagamentos}</div>
             </div>
-          )}
-        </div>
+
+            <div className="vt-card" style={{ padding: 12 }}>
+              <div style={{ fontSize: 12, color: "#666" }}>Total bruto</div>
+              <div style={{ fontSize: 18, fontWeight: 800 }}>{formatBRL(resumoNorm.total_bruto)}</div>
+            </div>
+
+            <div className="vt-card" style={{ padding: 12 }}>
+              <div style={{ fontSize: 12, color: "#666" }}>Total líquido (gestores)</div>
+              <div style={{ fontSize: 18, fontWeight: 800 }}>{formatBRL(resumoNorm.total_liquido)}</div>
+            </div>
+
+            <div className="vt-card" style={{ padding: 12 }}>
+              <div style={{ fontSize: 12, color: "#666" }}>Total taxa (plataforma)</div>
+              <div style={{ fontSize: 18, fontWeight: 800 }}>{formatBRL(resumoNorm.total_taxa)}</div>
+            </div>
+
+            <div className="vt-card" style={{ padding: 12 }}>
+              <div style={{ fontSize: 12, color: "#666" }}>Pendentes de repasse</div>
+              <div style={{ fontSize: 18, fontWeight: 800 }}>{resumoNorm.pendentes_repasse}</div>
+            </div>
+
+            <div className="vt-card" style={{ padding: 12 }}>
+              <div style={{ fontSize: 12, color: "#666" }}>Repasses (pendentes / pagos)</div>
+              <div style={{ fontSize: 18, fontWeight: 800 }}>
+                {resumoNorm.repasses_pendentes} / {resumoNorm.repasses_pagos}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
-      <div style={{ height: 12 }} />
+      {/* overview (pode variar conforme backend) */}
+      <div className="vt-card" style={{ padding: 14, marginTop: 12 }}>
+        <h3 style={{ margin: 0, fontSize: 16 }}>
+          Overview {gestorId ? "(por gestor)" : "(geral)"}
+        </h3>
 
-      {/* ÚLTIMOS PAGAMENTOS */}
-      <div style={panel}>
-        <h2 style={{ margin: 0, fontSize: 16, fontWeight: 800 }}>Últimos Pagamentos</h2>
-
-        <div style={{ marginTop: 10 }}>
-          {ultimos.length === 0 ? (
-            <div style={{ opacity: 0.75, padding: 10 }}>Sem pagamentos no período.</div>
-          ) : (
-            <div style={{ display: "grid", gap: 8 }}>
-              <div style={rowHeadPagamentos}>
-                <div>ID</div>
-                <div>Data</div>
-                <div>Quadra</div>
-                <div>Reserva</div>
-                <div style={{ textAlign: "right" }}>Bruto</div>
-                <div style={{ textAlign: "right" }}>Taxa</div>
-                <div style={{ textAlign: "right" }}>Líquido</div>
-              </div>
-
-              {ultimos.map((p) => (
-                <div key={p.pagamento_id || p.id} style={rowPagamentos}>
-                  <div style={mono} title={p.pagamento_id || p.id}>
-                    {String(p.pagamento_id || p.id).slice(0, 8)}…
-                  </div>
-                  <div style={mono}>{p.created_at ? String(p.created_at).slice(0, 10) : "-"}</div>
-                  <div title={p.quadra_nome || ""} style={{ overflow: "hidden", textOverflow: "ellipsis" }}>
-                    {p.quadra_nome || "-"}
-                  </div>
-                  <div style={mono}>
-                    {p.data_reserva ? `${p.data_reserva} ${p.hora_reserva || ""}` : "-"}
-                  </div>
-                  <div style={{ textAlign: "right" }}>{formatBRL(p.valor_total)}</div>
-                  <div style={{ textAlign: "right" }}>{formatBRL(p.taxa_plataforma)}</div>
-                  <div style={{ textAlign: "right" }}>{formatBRL(p.valor_liquido_gestor)}</div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+        {!overview ? (
+          <div style={{ marginTop: 10, color: "#666" }}>
+            {loading ? "Carregando..." : "Sem dados."}
+          </div>
+        ) : (
+          <pre
+            style={{
+              marginTop: 10,
+              background: "#111",
+              color: "#eee",
+              padding: 12,
+              borderRadius: 10,
+              overflow: "auto",
+              fontSize: 12,
+            }}
+          >
+            {JSON.stringify(overview, null, 2)}
+          </pre>
+        )}
       </div>
     </div>
   );
 }
-
-function Card({ label, value, hint }) {
-  return (
-    <div
-      style={{
-        padding: 14,
-        borderRadius: 14,
-        border: "1px solid rgba(255,255,255,0.10)",
-        background: "rgba(255,255,255,0.04)"
-      }}
-    >
-      <div style={{ fontSize: 12, opacity: 0.85, marginBottom: 6 }}>{label}</div>
-      <div style={{ fontSize: 20, fontWeight: 800 }}>{value}</div>
-      {hint ? <div style={{ fontSize: 12, opacity: 0.75, marginTop: 6 }}>{hint}</div> : null}
-    </div>
-  );
-}
-
-const labelSmall = { display: "block", fontSize: 12, opacity: 0.8, marginBottom: 6 };
-
-const inputStyle = {
-  width: "100%",
-  padding: 10,
-  borderRadius: 10,
-  border: "1px solid rgba(255,255,255,0.12)",
-  background: "rgba(0,0,0,0.25)",
-  color: "inherit",
-  outline: "none"
-};
-
-const btn = {
-  padding: "10px 12px",
-  borderRadius: 10,
-  border: "1px solid rgba(255,255,255,0.14)",
-  background: "rgba(255,255,255,0.06)",
-  color: "inherit",
-  cursor: "pointer"
-};
-
-const btnPrimary = {
-  ...btn,
-  background: "rgba(0, 160, 255, 0.18)",
-  borderColor: "rgba(0, 160, 255, 0.35)"
-};
-
-const errorBox = {
-  padding: "10px 12px",
-  borderRadius: 10,
-  border: "1px solid rgba(255, 80, 80, 0.35)",
-  background: "rgba(255, 80, 80, 0.10)",
-  marginBottom: 12
-};
-
-const panel = {
-  padding: 12,
-  borderRadius: 14,
-  border: "1px solid rgba(255,255,255,0.10)",
-  background: "rgba(255,255,255,0.03)"
-};
-
-// 5 colunas (Por Quadra)
-const rowHeadQuadra = {
-  display: "grid",
-  gridTemplateColumns: "1fr 70px 120px 120px 120px",
-  gap: 10,
-  padding: 10,
-  borderRadius: 12,
-  border: "1px solid rgba(255,255,255,0.08)",
-  background: "rgba(255,255,255,0.06)",
-  fontSize: 12,
-  fontWeight: 700,
-  opacity: 0.9,
-  alignItems: "center"
-};
-
-const rowQuadra = {
-  display: "grid",
-  gridTemplateColumns: "1fr 70px 120px 120px 120px",
-  gap: 10,
-  padding: 10,
-  borderRadius: 12,
-  border: "1px solid rgba(255,255,255,0.08)",
-  background: "rgba(0,0,0,0.18)",
-  alignItems: "center"
-};
-
-// 7 colunas (Últimos Pagamentos)
-const rowHeadPagamentos = {
-  display: "grid",
-  gridTemplateColumns: "120px 110px 1fr 140px 110px 110px 110px",
-  gap: 10,
-  padding: 10,
-  borderRadius: 12,
-  border: "1px solid rgba(255,255,255,0.08)",
-  background: "rgba(255,255,255,0.06)",
-  fontSize: 12,
-  fontWeight: 700,
-  opacity: 0.9,
-  alignItems: "center"
-};
-
-const rowPagamentos = {
-  display: "grid",
-  gridTemplateColumns: "120px 110px 1fr 140px 110px 110px 110px",
-  gap: 10,
-  padding: 10,
-  borderRadius: 12,
-  border: "1px solid rgba(255,255,255,0.08)",
-  background: "rgba(0,0,0,0.18)",
-  alignItems: "center"
-};
-
-const mono = {
-  fontFamily:
-    'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-  fontSize: 12
-};

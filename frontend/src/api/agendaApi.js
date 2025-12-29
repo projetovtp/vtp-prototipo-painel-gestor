@@ -1,7 +1,9 @@
 // src/api/agendaApi.js
 
 // Base URL do seu backend (ajuste se precisar)
-const API_BASE_URL = "http://localhost:3000";
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL || "https://api.vaiterplay.com.br";
+
 
 /**
  * Busca os slots da agenda do gestor (visualização tipo cinema)
