@@ -1,59 +1,50 @@
 // src/api/agendaApi.js
-
-// Base URL do seu backend (ajuste se precisar)
-const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || "https://api.vaiterplay.com.br";
-
+import api from "../services/api";
 
 /**
- * Busca os slots da agenda do gestor (visualização tipo cinema)
+ * Busca slots da agenda (visão cinema)
  *
- * Parâmetros esperados pelo backend:
- *   - quadraId      (obrigatório)
- *   - periodo       (opcional) → "semana" | "mes" | "intervalo"
- *   - dataInicio    (opcional)
- *   - dataFim       (opcional)
- *   - filtro        (opcional) → "disponivel" | "reservada" | "bloqueada" | "todas"
+ * - mode: "GESTOR" | "ADMIN" (default: "GESTOR")
+ * Parâmetros:
+ *   - quadraId (obrigatório)
+ *   - periodo  (opcional) "semana" | "mes" | "intervalo"
+ *   - dataInicio (opcional)
+ *   - dataFim    (opcional)
+ *   - filtro     (opcional) "disponivel" | "reservada" | "bloqueada" | "todas"
  */
 export async function fetchAgendaSlots({
+  mode = "GESTOR",
   quadraId,
   periodo = "semana",
   dataInicio,
   dataFim,
   filtro = "todas",
-  token, // JWT do gestor (se já tiver login feito)
-}) {
+} = {}) {
   if (!quadraId) {
     throw new Error("Parâmetro quadraId é obrigatório em fetchAgendaSlots.");
   }
 
-  const params = new URLSearchParams();
+  const modeUpper = String(mode || "GESTOR").toUpperCase();
+  const prefix = modeUpper === "ADMIN" ? "admin" : "gestor";
 
-  params.append("quadraId", quadraId);
-  if (periodo) params.append("periodo", periodo);
-  if (dataInicio) params.append("dataInicio", dataInicio);
-  if (dataFim) params.append("dataFim", dataFim);
-  if (filtro) params.append("filtro", filtro);
+  try {
+    const resp = await api.get(`/${prefix}/agenda/slots`, {
+      params: {
+        quadraId,
+        periodo,
+        dataInicio: dataInicio || undefined,
+        dataFim: dataFim || undefined,
+        filtro,
+      },
+    });
 
-  const url = `${API_BASE_URL}/gestor/agenda/slots?${params.toString()}`;
-
-  const headers = {
-    "Content-Type": "application/json",
-  };
-
-  // Se você já estiver usando JWT no painel, pode injetar aqui
-  if (token) {
-    headers["Authorization"] = `Bearer ${token}`;
+    return resp.data;
+  } catch (err) {
+    console.error("[fetchAgendaSlots] erro:", err);
+    const msg =
+      err?.response?.data?.error ||
+      err?.message ||
+      "Erro ao buscar slots da agenda.";
+    throw new Error(msg);
   }
-
-  const response = await fetch(url, { method: "GET", headers });
-
-  if (!response.ok) {
-    const texto = await response.text();
-    console.error("[fetchAgendaSlots] Erro HTTP:", response.status, texto);
-    throw new Error("Erro ao buscar slots da agenda do servidor.");
-  }
-
-  const data = await response.json();
-  return data;
 }

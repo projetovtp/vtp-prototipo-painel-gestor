@@ -7371,28 +7371,23 @@ app.delete(
 );
 
 
-// =========================================
-// AGENDA / VISÃO DE SLOTS (PAINEL ADMIN) — CLONE DO GESTOR
-// =========================================
-// GET /admin/agenda/slots
-//
-// Mesma visão "cinema" do Gestor, porém:
-// - Admin pode consultar QUALQUER quadra (global)
-// - Única diferença: validação da quadra (existe) em vez de "quadra pertence ao gestor"
-//
-// Query params:
-//   quadraId   (obrigatório)  → UUID da quadra
-//   dataInicio (opcional)     → AAAA-MM-DD ou DD/MM/AAAA
-//   dataFim    (opcional)     → AAAA-MM-DD ou DD/MM/AAAA
-//   filtro     (opcional)     → "disponivel" | "reservada" | "bloqueada" | "todas" (default: "todas")
-//
+// ==========================================================
+// AGENDA (SLOTS) - ADMIN
+//   - clone do gestor, mas permite ADMIN ver qualquer quadra
+// ==========================================================
 app.get(
   "/admin/agenda/slots",
   authPainel,
   permitirTipos("ADMIN"),
   async (req, res) => {
     try {
-      const { quadraId, dataInicio, dataFim, filtro } = req.query || {};
+      const {
+        quadraId,
+        periodo = "semana",
+        dataInicio,
+        dataFim,
+        filtro = "todas",
+      } = req.query || {};
 
       if (!quadraId) {
         return res.status(400).json({
@@ -7400,65 +7395,62 @@ app.get(
         });
       }
 
-      // 1) Admin: garante apenas que a quadra EXISTE
-      const vr = await adminValidarQuadraExiste(quadraId);
-      if (!vr.ok) {
-        return res.status(vr.status).json({ error: vr.error });
+      // 1) ADMIN: valida apenas se a quadra existe (e usa supabaseAdmin p/ furar RLS)
+      const { data: quadraExist, error: qErr } = await supabaseAdmin
+        .from("quadras")
+        .select("id")
+        .eq("id", quadraId)
+        .maybeSingle();
+
+      if (qErr) {
+        console.error("[ADMIN/AGENDA/SLOTS] Erro ao validar quadra:", qErr);
+        return res.status(500).json({ error: "Erro ao validar quadra." });
+      }
+      if (!quadraExist) {
+        return res.status(404).json({ error: "Quadra não encontrada." });
       }
 
-      // 2) Monta intervalo de datas
+      // 2) Calcula intervalo de datas (mesma regra do gestor)
+      function normalizarDataBase(str) {
+        if (!str) return null;
+        const dt = parseDataAgendamentoBr(str); // aceita AAAA-MM-DD ou DD/MM/AAAA
+        return dt;
+      }
+
+      let dtInicio;
+      let dtFim;
+
       const hoje = new Date();
       hoje.setHours(0, 0, 0, 0);
 
-      let dtInicio = new Date(hoje.getTime());
-      let dtFim = new Date(hoje.getTime());
-      dtFim.setDate(dtFim.getDate() + 6); // padrão 7 dias (hoje + 6)
+      if (String(periodo).toLowerCase() === "intervalo") {
+        dtInicio = normalizarDataBase(dataInicio) || hoje;
+        dtFim =
+          normalizarDataBase(dataFim) ||
+          new Date(dtInicio.getTime() + 6 * 24 * 60 * 60 * 1000);
+      } else {
+        dtInicio = normalizarDataBase(dataInicio) || hoje;
+        const baseMs = dtInicio.getTime();
 
-      if (dataInicio) {
-        const parsed = parseDataAgendamentoBr(dataInicio);
-        if (!parsed) {
-          return res.status(400).json({
-            error:
-              "dataInicio inválida. Use AAAA-MM-DD ou DD/MM/AAAA em /admin/agenda/slots.",
-          });
+        if (String(periodo).toLowerCase() === "mes") {
+          dtFim = new Date(baseMs + 29 * 24 * 60 * 60 * 1000); // 30 dias
+        } else {
+          dtFim = new Date(baseMs + 6 * 24 * 60 * 60 * 1000); // 7 dias
         }
-        parsed.setHours(0, 0, 0, 0);
-        dtInicio = parsed;
       }
 
-      if (dataFim) {
-        const parsed = parseDataAgendamentoBr(dataFim);
-        if (!parsed) {
-          return res.status(400).json({
-            error:
-              "dataFim inválida. Use AAAA-MM-DD ou DD/MM/AAAA em /admin/agenda/slots.",
-          });
-        }
-        parsed.setHours(0, 0, 0, 0);
-        dtFim = parsed;
-      }
-
-      if (dtFim < dtInicio) {
-        return res.status(400).json({
-          error:
-            "dataFim não pode ser menor que dataInicio em /admin/agenda/slots.",
-        });
-      }
-
-      // Protege contra intervalos muito grandes (máx. 60 dias)
-      const diffMs = dtFim.getTime() - dtInicio.getTime();
-      const diffDias = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-      if (diffDias > 60) {
-        return res.status(400).json({
-          error: "Intervalo máximo permitido é de 60 dias em /admin/agenda/slots.",
-        });
+      // Garante dtInicio <= dtFim
+      if (dtFim.getTime() < dtInicio.getTime()) {
+        const tmp = dtInicio;
+        dtInicio = dtFim;
+        dtFim = tmp;
       }
 
       const dataInicioISO = formatDateISO(dtInicio);
       const dataFimISO = formatDateISO(dtFim);
 
-      // 3) Busca REGRAS de horário da quadra (recorrentes por dia_da_semana)
-      const { data: regras, error: errRegras } = await supabase
+      // 3) Busca REGRAS da quadra
+      const { data: regras, error: errRegras } = await supabaseAdmin
         .from("regras_horarios")
         .select(
           `
@@ -7473,29 +7465,24 @@ app.get(
         .eq("id_quadra", quadraId);
 
       if (errRegras) {
-        console.error(
-          "[ADMIN/AGENDA/SLOTS][GET] Erro ao buscar regras_horarios:",
-          errRegras
-        );
-        return res.status(500).json({
-          error: "Erro ao buscar regras de horário em /admin/agenda/slots.",
-        });
+        console.error("[ADMIN/AGENDA/SLOTS][GET] Erro ao buscar regras_horarios:", errRegras);
+        return res
+          .status(500)
+          .json({ error: "Erro ao buscar regras de horário em /admin/agenda/slots." });
       }
 
       const regrasList = regras || [];
 
-      // Mapa por dia_da_semana (0=Domingo ... 6=Sábado)
+      // Mapa por dia_da_semana
       const regrasPorDiaSemana = new Map();
       for (const r of regrasList) {
-        const key = r.dia_da_semana;
-        if (!regrasPorDiaSemana.has(key)) {
-          regrasPorDiaSemana.set(key, []);
-        }
+        const key = Number(r.dia_da_semana);
+        if (!regrasPorDiaSemana.has(key)) regrasPorDiaSemana.set(key, []);
         regrasPorDiaSemana.get(key).push(r);
       }
 
       // 4) Busca RESERVAS no período (pending/paid)
-      const { data: reservas, error: errReservas } = await supabase
+      const { data: reservas, error: errReservas } = await supabaseAdmin
         .from("reservas")
         .select(
           `
@@ -7506,7 +7493,8 @@ app.get(
           status,
           preco_total,
           user_cpf,
-          phone
+          phone,
+          origem
         `
         )
         .eq("quadra_id", quadraId)
@@ -7515,28 +7503,25 @@ app.get(
         .in("status", ["pending", "paid", "pendente", "pago"]);
 
       if (errReservas) {
-        console.error(
-          "[ADMIN/AGENDA/SLOTS][GET] Erro ao buscar reservas:",
-          errReservas
-        );
-        return res.status(500).json({
-          error: "Erro ao buscar reservas em /admin/agenda/slots.",
-        });
+        console.error("[ADMIN/AGENDA/SLOTS][GET] Erro ao buscar reservas:", errReservas);
+        return res
+          .status(500)
+          .json({ error: "Erro ao buscar reservas em /admin/agenda/slots." });
       }
 
       const reservasList = reservas || [];
 
-      // Mapa chave "YYYY-MM-DD|HH:MM" -> reserva
+      // Mapa chave = "YYYY-MM-DD|HH:MM"
       const reservasPorChave = new Map();
       for (const r of reservasList) {
         const dataStr = String(r.data).slice(0, 10);
-        const horaStr = String(r.hora).slice(0, 5); // HH:MM
-        const key = `${dataStr}|${horaStr}`;
-        reservasPorChave.set(key, r);
+        const horaStr = String(r.hora || "").slice(0, 5);
+        if (!dataStr || !horaStr) continue;
+        reservasPorChave.set(`${dataStr}|${horaStr}`, r);
       }
 
       // 5) Busca BLOQUEIOS no período
-      const { data: bloqueios, error: errBloqueios } = await supabase
+      const { data: bloqueios, error: errBloq } = await supabaseAdmin
         .from("bloqueios_quadra")
         .select(
           `
@@ -7552,14 +7537,11 @@ app.get(
         .gte("data", dataInicioISO)
         .lte("data", dataFimISO);
 
-      if (errBloqueios) {
-        console.error(
-          "[ADMIN/AGENDA/SLOTS][GET] Erro ao buscar bloqueios_quadra:",
-          errBloqueios
-        );
-        return res.status(500).json({
-          error: "Erro ao buscar bloqueios em /admin/agenda/slots.",
-        });
+      if (errBloq) {
+        console.error("[ADMIN/AGENDA/SLOTS][GET] Erro ao buscar bloqueios:", errBloq);
+        return res
+          .status(500)
+          .json({ error: "Erro ao buscar bloqueios em /admin/agenda/slots." });
       }
 
       const bloqueiosList = bloqueios || [];
@@ -7568,9 +7550,7 @@ app.get(
       const bloqueiosPorData = new Map();
       for (const b of bloqueiosList) {
         const dataStr = String(b.data).slice(0, 10);
-        if (!bloqueiosPorData.has(dataStr)) {
-          bloqueiosPorData.set(dataStr, []);
-        }
+        if (!bloqueiosPorData.has(dataStr)) bloqueiosPorData.set(dataStr, []);
         bloqueiosPorData.get(dataStr).push(b);
       }
 
@@ -7582,6 +7562,7 @@ app.get(
       // 7) Gera lista de datas do intervalo
       const dias = [];
       const dtCursor = new Date(dtInicio.getTime());
+
       while (dtCursor.getTime() <= dtFim.getTime()) {
         const iso = dtCursor.toISOString().slice(0, 10); // YYYY-MM-DD
         const weekday = dtCursor.getDay(); // 0=Domingo ... 6=Sábado
@@ -7592,16 +7573,11 @@ app.get(
         const slotsDia = [];
 
         for (const regra of regrasDoDia) {
-          // Para cada regra (ex.: 18:00–23:00), gera slots de 1h
           let slotsRegra = [];
           try {
             slotsRegra = gerarSlotsHoraCheia(regra.hora_inicio, regra.hora_fim);
           } catch (e) {
-            console.error(
-              "[ADMIN/AGENDA/SLOTS][GET] Erro ao gerar slots para regra:",
-              regra,
-              e
-            );
+            console.error("[ADMIN/AGENDA/SLOTS][GET] Erro ao gerar slots para regra:", regra, e);
             continue;
           }
 
@@ -7609,70 +7585,53 @@ app.get(
             const horaInicioSlot = slot.hora_inicio; // HH:MM
             const horaFimSlot = slot.hora_fim;       // HH:MM
 
-            // Verifica bloqueio (prioridade sobre reserva)
+            // prioridade: BLOQUEIO > RESERVA
             let statusSlot = "DISPONIVEL";
             let reservaInfo = null;
             let bloqueioInfo = null;
 
-            // 7.1) Checa bloqueio
+            // 7.1) checa bloqueio
             if (bloqueiosDoDia.length > 0) {
               for (const b of bloqueiosDoDia) {
                 const bHoraInicio = b.hora_inicio;
                 const bHoraFim = b.hora_fim;
 
-                // Caso especial: bloqueio de dia inteiro (sem horas)
+                // bloqueio de dia inteiro
                 if (!bHoraInicio && !bHoraFim) {
                   statusSlot = "BLOQUEADO";
-                  bloqueioInfo = {
-                    id: b.id,
-                    motivo: b.motivo,
-                    tipo: "DIA_INTEIRO",
-                  };
+                  bloqueioInfo = { id: b.id, motivo: b.motivo, tipo: "DIA_INTEIRO" };
                   break;
                 }
 
-                // Bloqueio com faixa de horário
+                // faixa de horário
                 if (bHoraInicio && bHoraFim) {
-                  const [bhIni, bmIni] = String(bHoraInicio)
-                    .slice(0, 5)
-                    .split(":")
-                    .map((n) => Number(n));
-                  const [bhFim, bmFim] = String(bHoraFim)
-                    .slice(0, 5)
-                    .split(":")
-                    .map((n) => Number(n));
-
-                  const [shIni, smIni] = horaInicioSlot
-                    .split(":")
-                    .map((n) => Number(n));
+                  const [bhIni, bmIni] = String(bHoraInicio).slice(0, 5).split(":").map(Number);
+                  const [bhFim, bmFim] = String(bHoraFim).slice(0, 5).split(":").map(Number);
+                  const [shIni, smIni] = String(horaInicioSlot).slice(0, 5).split(":").map(Number);
 
                   const slotMin = shIni * 60 + smIni;
                   const bIniMin = bhIni * 60 + bmIni;
                   const bFimMin = bhFim * 60 + bmFim;
 
-                  // Se o início do slot está dentro da faixa de bloqueio → BLOQUEADO
                   if (slotMin >= bIniMin && slotMin < bFimMin) {
                     statusSlot = "BLOQUEADO";
-                    bloqueioInfo = {
-                      id: b.id,
-                      motivo: b.motivo,
-                      tipo: "FAIXA_HORARIO",
-                    };
+                    bloqueioInfo = { id: b.id, motivo: b.motivo, tipo: "FAIXA_HORARIO" };
                     break;
                   }
                 }
               }
             }
 
-            // 7.2) Se NÃO estiver bloqueado, checa reserva
+            // 7.2) se não bloqueado, checa reserva
             if (statusSlot !== "BLOQUEADO") {
-              const chave = `${iso}|${horaInicioSlot}`;
+              const chave = `${iso}|${String(horaInicioSlot).slice(0, 5)}`;
               const r = reservasPorChave.get(chave);
               if (r) {
                 statusSlot = "RESERVADO";
                 reservaInfo = {
                   id: r.id,
                   status: r.status,
+                  origem: r.origem,
                   preco_total: Number(r.preco_total || 0),
                   user_cpf: r.user_cpf,
                   phone: r.phone,
@@ -7680,7 +7639,7 @@ app.get(
               }
             }
 
-            // 7.3) Aplica filtro de status
+            // 7.3) aplica filtro
             const statusLower = statusSlot.toLowerCase(); // disponivel | reservado | bloqueado
             if (
               filtroFinal !== "todas" &&
@@ -7697,7 +7656,7 @@ app.get(
               data: iso,
               hora_inicio: horaInicioSlot,
               hora_fim: horaFimSlot,
-              status: statusSlot,
+              status: statusSlot, // "DISPONIVEL" | "RESERVADO" | "BLOQUEADO"
               reserva: reservaInfo,
               bloqueio: bloqueioInfo,
               preco_hora: Number(regra.valor || 0),
@@ -7719,6 +7678,7 @@ app.get(
         quadra_id: quadraId,
         data_inicio: dataInicioISO,
         data_fim: dataFimISO,
+        periodo: String(periodo || "semana").toLowerCase(),
         filtro: filtroFinal,
         dias,
       });
@@ -7730,7 +7690,6 @@ app.get(
     }
   }
 );
-
 
 // -----------------------------------------
 // GET /gestor/reservas/grade  → visão "cinema" da agenda

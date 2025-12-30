@@ -752,10 +752,16 @@ function AdminAgendaPage() {
        {/* VISÃO CINEMA DA AGENDA (PADRÃO DO GESTOR) */}
 {quadraSelecionadaId && (
   <AgendaCinemaView
+    key={`${quadraSelecionadaId}|${periodo}|${filtroStatus}|${dataInicio}|${dataFim}`}
     quadraId={quadraSelecionadaId}
     mode="ADMIN"
+    periodo={periodo}
+    filtro={filtroStatus}
+    dataInicio={dataInicio}
+    dataFim={dataFim}
   />
 )}
+
 
 
       {/* Painéis de Regras e Bloqueios */}
