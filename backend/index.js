@@ -8393,75 +8393,105 @@ app.get("/gestor/financeiro/repasses", authPainel, permitirTipos("GESTOR"), asyn
 
 // ==========================================================
 // (4) ADMIN — RESUMO FINANCEIRO GLOBAL
-// GET /admin/financeiro/resumo?inicio&fim&status=paid
+// Aceita: ?inicio&fim  OU ?from&to  (compat)
+// Também aceita: ?gestorId=UUID (opcional) e ?status (default paid)
+// Retorno em camelCase para bater com AdminFinanceiroPage
 // ==========================================================
 app.get("/admin/financeiro/resumo", authPainel, async (req, res) => {
   try {
     if (!requireAdminSoft(req, res)) return;
 
     const def = defaultPeriodo();
-    const inicio = parseDateISO(req.query.inicio) || def.inicio;
-    const fim = parseDateISO(req.query.fim) || def.fim;
-    const status = req.query.status || "paid";
 
-    // Pegamos pagamentos por período usando created_at (mais “financeiro”)
-    let q = supabase
-      .from("pagamentos")
-      .select("id, valor_total, taxa_plataforma, valor_liquido_gestor, status, created_at")
-      .order("created_at", { ascending: false });
+    // compat: front manda from/to, mas aqui aceitamos ambos
+    const inicio = parseDateISO(req.query.inicio) || parseDateISO(req.query.from) || def.inicio;
+    const fim = parseDateISO(req.query.fim) || parseDateISO(req.query.to) || def.fim;
 
-    if (status) q = q.eq("status", status);
-    if (inicio) q = q.gte("created_at", `${inicio}T00:00:00.000Z`);
-    if (fim) q = q.lte("created_at", `${fim}T23:59:59.999Z`);
+    const status = String(req.query.status || "paid");
+    const gestorId = req.query.gestorId ? String(req.query.gestorId) : null;
 
-    const { data: pagamentos, error } = await q;
-    if (error) {
-      console.error("[ADMIN/FINANCEIRO] Erro ao buscar pagamentos:", error);
-      return res.status(500).json({ error: "Erro ao buscar pagamentos do período." });
+    // 1) Buscar pagamentos do período
+    // Se filtrar por gestor, usa o caminho seguro (quadras -> reservas -> pagamentos)
+    let pagamentos = [];
+
+    if (gestorId) {
+      const quadraIds = await getQuadraIdsDoGestor(gestorId);
+      const reservaIds = await getReservaIdsDoGestor(quadraIds, inicio, fim);
+      pagamentos = await getPagamentosByReservaIds(reservaIds, { status, limit: 2000, offset: 0 });
+    } else {
+      // Global: por created_at (financeiro)
+      let q = supabase
+        .from("pagamentos")
+        .select("id, valor_total, taxa_plataforma, valor_liquido_gestor, status, created_at")
+        .order("created_at", { ascending: false });
+
+      if (status) q = q.eq("status", status);
+      if (inicio) q = q.gte("created_at", `${inicio}T00:00:00.000Z`);
+      if (fim) q = q.lte("created_at", `${fim}T23:59:59.999Z`);
+
+      const { data, error } = await q;
+      if (error) {
+        console.error("[ADMIN/FINANCEIRO] Erro ao buscar pagamentos:", error);
+        return res.status(500).json({ error: "Erro ao buscar pagamentos do período." });
+      }
+      pagamentos = data || [];
     }
 
-    const total_bruto = round2((pagamentos || []).reduce((a, p) => a + Number(p.valor_total || 0), 0));
-    const total_taxa = round2((pagamentos || []).reduce((a, p) => a + Number(p.taxa_plataforma || 0), 0));
-    const total_liquido = round2(
-      (pagamentos || []).reduce((a, p) => a + Number(p.valor_liquido_gestor || 0), 0)
-    );
+    // 2) Pendentes de repasse = pagamentos (paid) que não estão em repasses_pagamentos
+    const pagamentoIds = (pagamentos || []).map((p) => p.id);
+    const setRepassados = await getPagamentosIdsJaRepassados(pagamentoIds);
 
-    // pendente de repasse = pagamentos paid que não estão em repasses_pagamentos
-    const ids = (pagamentos || []).map((p) => p.id);
-    const setRepassados = await getPagamentosIdsJaRepassados(ids);
-    const pendentes_repasse = ids.filter((id) => !setRepassados.has(id)).length;
+    const pendentesList = (pagamentos || []).filter((p) => !setRepassados.has(p.id));
+    const repassadosList = (pagamentos || []).filter((p) => setRepassados.has(p.id));
 
-    // ======================================================
-    // REPASSES (usa SEMPRE o schema real do seu banco)
-    // repasses do período (por competência fica melhor, mas aqui só uma visão geral)
-    // ======================================================
+    const pendentesQtd = pendentesList.length;
+    const pendentesValor = round2(pendentesList.reduce((a, p) => a + Number(p.valor_liquido_gestor || 0), 0));
+
+    const repassadosQtd = repassadosList.length;
+    const repassadosValor = round2(repassadosList.reduce((a, p) => a + Number(p.valor_liquido_gestor || 0), 0));
+
+    // 3) Repasses (tabela repasses)
+    // (simples: pega últimos 2000; se quiser filtrar por período/gestor depois, refinamos)
     const { data: repasses, error: repErr } = await supabase
       .from("repasses")
-      .select("id, status, valor_total_liquido")
+      .select("id, status, valor_total_liquido, gestor_id, created_at, competencia")
       .order("created_at", { ascending: false })
       .limit(2000);
 
     if (repErr) console.warn("[ADMIN/FINANCEIRO] Aviso ao buscar repasses:", repErr);
 
-    const repasses_pendentes = (repasses || []).filter((r) => String(r.status) === "pendente").length;
-    const repasses_pagos = (repasses || []).filter((r) => String(r.status) !== "pendente").length;
+    const repassesFiltrados = (repasses || []).filter((r) => {
+      if (gestorId && String(r.gestor_id) !== gestorId) return false;
+      return true;
+    });
 
+    const repPend = repassesFiltrados.filter((r) => String(r.status) === "pendente");
+    const repPago = repassesFiltrados.filter((r) => String(r.status) !== "pendente");
+
+    const repPendQtd = repPend.length;
+    const repPendValor = round2(repPend.reduce((a, r) => a + Number(r.valor_total_liquido || 0), 0));
+
+    const repPagoQtd = repPago.length;
+    const repPagoValor = round2(repPago.reduce((a, r) => a + Number(r.valor_total_liquido || 0), 0));
+
+    // 4) Retorno no formato que o AdminFinanceiroPage espera (camelCase + objetos)
     return res.json({
       periodo: { inicio, fim },
       status,
-      qtd_pagamentos: (pagamentos || []).length,
-      total_bruto,
-      total_taxa,
-      total_liquido,
-      pendentes_repasse,
-      repasses_pendentes,
-      repasses_pagos
+      gestorId: gestorId || null,
+
+      pendentesRepasse: { qtd: pendentesQtd, valor: pendentesValor },
+      repassados: { qtd: repassadosQtd, valor: repassadosValor },
+
+      repassesPendentes: { qtd: repPendQtd, valor: repPendValor },
+      repassesPagos: { qtd: repPagoQtd, valor: repPagoValor }
     });
   } catch (err) {
     console.error("[ADMIN/FINANCEIRO] Erro em /admin/financeiro/resumo:", err);
     return res.status(500).json({ error: "Erro ao calcular resumo financeiro do admin." });
   }
 });
+
 
 
 
@@ -16254,14 +16284,16 @@ app.get(
   garantirAdmin,
   async (req, res) => {
   try {
-    const { from, to, gestorId, quadraId } = req.query;
+    const { from, to, status, gestorId, quadraId } = req.query;
 
-    const overview = await buildFinanceiroOverviewBase({
-      from,
-      to,
-      gestorId: gestorId || null,
-      quadraId: quadraId || null
-    });
+const overview = await buildFinanceiroOverviewBase({
+  from,
+  to,
+  status: status || "paid",
+  gestorId: gestorId || null,
+  quadraId: quadraId || null
+});
+
 
     return res.status(200).json(overview);
   } catch (err) {

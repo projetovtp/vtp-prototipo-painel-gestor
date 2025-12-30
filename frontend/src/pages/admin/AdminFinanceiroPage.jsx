@@ -70,9 +70,14 @@ export default function AdminFinanceiroPage() {
       };
 
       const [rOverview, rResumo] = await Promise.all([
-        api.get("/admin/financeiro-overview", { params: paramsOverview }),
-        api.get("/admin/financeiro/resumo", { params: paramsResumo }),
-      ]);
+  api.get("/admin/financeiro-overview", {
+    params: { from, to, status: "paid", gestorId: gestorId || undefined }
+  }),
+  api.get("/admin/financeiro/resumo", {
+    params: { from, to, status: "paid", gestorId: gestorId || undefined }
+  })
+]);
+
 
       setOverview(rOverview?.data || null);
       setResumo(rResumo?.data || null);
