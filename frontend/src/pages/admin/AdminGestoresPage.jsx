@@ -17,12 +17,14 @@ export default function AdminGestoresPage() {
   // Modal: Novo Gestor
   const [modalNovo, setModalNovo] = useState(false);
   const [novo, setNovo] = useState({
-    nome: "",
-    email: "",
-    telefone: "",
-    cpf: "",
-    taxa_plataforma_global: "",
-  });
+  nome: "",
+  email: "",
+  telefone: "",
+  cpf: "",
+  taxa_plataforma_global: "",
+  tipo: "GESTOR",
+});
+
   const [salvandoNovo, setSalvandoNovo] = useState(false);
   const [linkDevCriacao, setLinkDevCriacao] = useState("");
 
@@ -141,6 +143,7 @@ const contagem = useMemo(() => {
         gestor.taxa_plataforma_global === null
           ? ""
           : String(gestor.taxa_plataforma_global),
+      tipo: gestor.tipo,    
     });
     setModalEditar(true);
   }
@@ -159,6 +162,7 @@ const contagem = useMemo(() => {
         novo.taxa_plataforma_global === "" || novo.taxa_plataforma_global == null
           ? null
           : Number(novo.taxa_plataforma_global),
+      tipo: novo.tipo,    
     };
 
     if (!payload.nome || !payload.email || !payload.cpf) {
@@ -180,7 +184,7 @@ const contagem = useMemo(() => {
     setSalvandoNovo(true);
     try {
       // POST /admin/gestores (Modelo A)
-      const { data } = await api.post("/admin/gestores", payload);
+      const { data } = await api.post("/admin/usuarios", payload);
 
       await carregar();
 
@@ -247,6 +251,28 @@ const contagem = useMemo(() => {
       setSalvandoEdit(false);
     }
   }
+  async function promoverParaAdmin() {
+  if (!edit?.id) return;
+
+  const ok = window.confirm(
+    `Tem certeza que deseja evoluir "${edit.nome}" para ADMIN?\n\nEle terá acesso TOTAL ao sistema.`
+  );
+  if (!ok) return;
+
+  setErro("");
+  try {
+    await api.put(`/admin/usuarios/${edit.id}/promover`);
+    await carregar();
+    setModalEditar(false);
+    setEdit(null);
+  } catch (err) {
+    console.error(err);
+    setErro(
+      err?.response?.data?.error ||
+        "Erro ao promover usuário para ADMIN."
+    );
+  }
+}
 
   async function reenviarAtivacao(gestorId) {
     setErro("");
@@ -583,6 +609,28 @@ const contagem = useMemo(() => {
               value={novo.cpf}
               onChange={(v) => setNovo({ ...novo, cpf: v })}
             />
+            <div style={{ marginBottom: 12 }}>
+  <label style={{ display: "block", marginBottom: 6, fontWeight: 800 }}>
+    Tipo de usuário
+  </label>
+  <select
+    value={novo.tipo}
+    onChange={(e) => setNovo({ ...novo, tipo: e.target.value })}
+    style={{
+      width: "100%",
+      padding: "10px 12px",
+      borderRadius: 10,
+      border: "1px solid #e5e7eb",
+      outline: "none",
+      background: "#fff",
+      fontWeight: 800,
+    }}
+  >
+    <option value="GESTOR">Gestor</option>
+    <option value="ADMIN">Admin</option>
+  </select>
+</div>
+
             <Campo
               label="Taxa plataforma global (opcional)"
               type="number"
@@ -673,83 +721,109 @@ const contagem = useMemo(() => {
       ) : null}
 
       {/* MODAL EDITAR */}
-      {modalEditar && edit ? (
-        <Modal title="Editar Gestor" onClose={() => setModalEditar(false)}>
-          <form onSubmit={salvarEdicao}>
-            <Campo label="Nome" value={edit.nome} onChange={() => {}} disabled />
-            <Campo label="Email" type="email" value={edit.email} onChange={(v) => setEdit({ ...edit, email: v })}/>
-            <Campo label="CPF" value={edit.cpf} onChange={() => {}} disabled />
+{modalEditar && edit ? (
+  <Modal title="Editar Gestor" onClose={() => setModalEditar(false)}>
+    <form onSubmit={salvarEdicao}>
+      <Campo label="Nome" value={edit.nome} onChange={() => {}} disabled />
+      <Campo
+        label="Email"
+        type="email"
+        value={edit.email}
+        onChange={(v) => setEdit({ ...edit, email: v })}
+      />
+      <Campo label="CPF" value={edit.cpf} onChange={() => {}} disabled />
 
-            <div style={{ marginBottom: 12 }}>
-              <label style={{ display: "block", marginBottom: 6, fontWeight: 900 }}>
-                Status
-              </label>
-              <select
-                value={edit.status}
-                onChange={(e) => setEdit({ ...edit, status: e.target.value })}
-                style={{
-                  width: "100%",
-                  padding: "10px 12px",
-                  borderRadius: 10,
-                  border: "1px solid #e5e7eb",
-                  outline: "none",
-                }}
-              >
-                <option value="ATIVO">ATIVO</option>
-                <option value="INATIVO">INATIVO</option>
-              </select>
-            </div>
+      <div style={{ marginBottom: 12 }}>
+        <label style={{ display: "block", marginBottom: 6, fontWeight: 900 }}>
+          Status
+        </label>
+        <select
+          value={edit.status}
+          onChange={(e) => setEdit({ ...edit, status: e.target.value })}
+          style={{
+            width: "100%",
+            padding: "10px 12px",
+            borderRadius: 10,
+            border: "1px solid #e5e7eb",
+            outline: "none",
+          }}
+        >
+          <option value="ATIVO">ATIVO</option>
+          <option value="INATIVO">INATIVO</option>
+        </select>
+      </div>
 
-            <Campo
-              label="Taxa plataforma global"
-              type="number"
-              step="0.01"
-              value={edit.taxa_plataforma_global}
-              onChange={(v) => setEdit({ ...edit, taxa_plataforma_global: v })}
-            />
+      <Campo
+        label="Taxa plataforma global"
+        type="number"
+        step="0.01"
+        value={edit.taxa_plataforma_global}
+        onChange={(v) => setEdit({ ...edit, taxa_plataforma_global: v })}
+      />
 
-            <div
-              style={{
-                display: "flex",
-                gap: 10,
-                justifyContent: "flex-end",
-                marginTop: 16,
-              }}
-            >
-              <button
-                type="button"
-                onClick={() => setModalEditar(false)}
-                disabled={salvandoEdit}
-                style={{
-                  padding: "10px 12px",
-                  borderRadius: 10,
-                  border: "1px solid #e5e7eb",
-                  background: "#fff",
-                  cursor: salvandoEdit ? "not-allowed" : "pointer",
-                  fontWeight: 900,
-                }}
-              >
-                Cancelar
-              </button>
-              <button
-                type="submit"
-                disabled={salvandoEdit}
-                style={{
-                  padding: "10px 12px",
-                  borderRadius: 10,
-                  border: "1px solid #1f2937",
-                  background: "#0b1220",
-                  color: "#f9fafb",
-                  cursor: salvandoEdit ? "not-allowed" : "pointer",
-                  fontWeight: 900,
-                }}
-              >
-                {salvandoEdit ? "Salvando..." : "Salvar alterações"}
-              </button>
-            </div>
-          </form>
-        </Modal>
-      ) : null}
+      <div
+        style={{
+          display: "flex",
+          gap: 10,
+          justifyContent: "flex-end",
+          marginTop: 16,
+        }}
+      >
+        {edit.tipo === "GESTOR" ? (
+          <button
+            type="button"
+            onClick={promoverParaAdmin}
+            disabled={salvandoEdit}
+            style={{
+              padding: "10px 12px",
+              borderRadius: 10,
+              border: "1px solid #991b1b",
+              background: "#450a0a",
+              color: "#fca5a5",
+              cursor: salvandoEdit ? "not-allowed" : "pointer",
+              fontWeight: 900,
+              marginRight: "auto",
+            }}
+          >
+            Evoluir para ADMIN
+          </button>
+        ) : null}
+
+        <button
+          type="button"
+          onClick={() => setModalEditar(false)}
+          disabled={salvandoEdit}
+          style={{
+            padding: "10px 12px",
+            borderRadius: 10,
+            border: "1px solid #e5e7eb",
+            background: "#fff",
+            cursor: salvandoEdit ? "not-allowed" : "pointer",
+            fontWeight: 900,
+          }}
+        >
+          Cancelar
+        </button>
+        <button
+          type="submit"
+          disabled={salvandoEdit}
+          style={{
+            padding: "10px 12px",
+            borderRadius: 10,
+            border: "1px solid #1f2937",
+            background: "#0b1220",
+            color: "#f9fafb",
+            cursor: salvandoEdit ? "not-allowed" : "pointer",
+            fontWeight: 900,
+          }}
+        >
+          {salvandoEdit ? "Salvando..." : "Salvar alterações"}
+        </button>
+      </div>
+    </form>
+  </Modal>
+) : null}
+
     </div>
   );
 }

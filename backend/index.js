@@ -1575,6 +1575,119 @@ app.get(
     }
   }
 );
+// =========================
+// ADMIN → USUÁRIOS (NOVO)
+// =========================
+
+app.post(
+  "/admin/usuarios",
+  authPainel,
+  permitirTipos("ADMIN"),
+  async (req, res) => {
+    try {
+      const { nome, email, cpf, tipo, telefone, taxa_plataforma_global } = req.body;
+
+      if (!nome || !email || !cpf) {
+        return res.status(400).json({ error: "Dados obrigatórios ausentes." });
+      }
+
+      const tipoFinal = tipo === "ADMIN" ? "ADMIN" : "GESTOR";
+
+      const resetToken = crypto.randomUUID();
+      const resetTokenHash = hashToken(resetToken);
+
+      const { data, error } = await supabase
+        .from("gestores")
+        .insert([
+          {
+            nome,
+            email,
+            cpf,
+            tipo: tipoFinal,
+            status: "PENDENTE",
+            reset_token_hash: resetTokenHash,
+            telefone: telefone || null,
+            taxa_plataforma_global: taxa_plataforma_global ?? null
+          }
+        ])
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      await enviarEmailAtivacao({
+        email,
+        nome,
+        token: resetToken
+      });
+
+      return res.json({ ok: true, usuario: data });
+    } catch (err) {
+      console.error("Erro ao criar usuário:", err);
+      return res.status(500).json({ error: "Erro interno." });
+    }
+  }
+);
+
+app.get(
+  "/admin/usuarios",
+  authPainel,
+  permitirTipos("ADMIN"),
+  async (req, res) => {
+    try {
+      const { data, error } = await supabase
+        .from("gestores")
+        .select(
+          "id, nome, email, cpf, tipo, status, taxa_plataforma_global, created_at"
+        )
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+
+      return res.json({ ok: true, usuarios: data });
+    } catch (err) {
+      console.error("Erro ao listar usuários:", err);
+      return res.status(500).json({ error: "Erro interno." });
+    }
+  }
+);
+
+app.put(
+  "/admin/usuarios/:id/promover",
+  authPainel,
+  permitirTipos("ADMIN"),
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      const { data: usuario, error: findError } = await supabase
+        .from("gestores")
+        .select("id, tipo")
+        .eq("id", id)
+        .single();
+
+      if (findError || !usuario) {
+        return res.status(404).json({ error: "Usuário não encontrado." });
+      }
+
+      if (usuario.tipo === "ADMIN") {
+        return res.status(400).json({ error: "Usuário já é ADMIN." });
+      }
+
+      const { error: updateError } = await supabase
+        .from("gestores")
+        .update({ tipo: "ADMIN" })
+        .eq("id", id);
+
+      if (updateError) throw updateError;
+
+      return res.json({ ok: true });
+    } catch (err) {
+      console.error("Erro ao promover usuário:", err);
+      return res.status(500).json({ error: "Erro interno." });
+    }
+  }
+);
 
 // =========================
 // GET /admin/empresas/:id/detalhe

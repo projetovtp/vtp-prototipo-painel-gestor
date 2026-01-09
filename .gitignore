@@ -25,3 +25,8 @@ Thumbs.db
 *.swp
 *.swo
 
+.env
+backend/.env
+frontend/.env
+*.pem
+private.pem
