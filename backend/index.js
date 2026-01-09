@@ -4970,44 +4970,78 @@ app.put(
     try {
       const gestorId = req.usuarioPainel.id;
       const regraId = req.params.id;
-      const {
-        quadraId,
-        diaSemana,
-        horaInicio,
-        horaFim,
-        precoHora,
-      } = req.body || {};
 
-      if (!regraId || !quadraId) {
-        return res.status(400).json({
-          error:
-            "Campos obrigatórios: id da regra na URL e quadraId no body em /gestor/agenda/regras/:id.",
-        });
+      const { quadraId, diaSemana, horaInicio, horaFim, precoHora } = req.body || {};
+
+      if (!regraId) {
+        return res.status(400).json({ error: "Campo obrigatório: id da regra na URL." });
       }
 
       if (diaSemana === undefined || diaSemana === null) {
-        return res.status(400).json({
-          error: "Campo diaSemana é obrigatório para edição.",
-        });
+        return res.status(400).json({ error: "Campo diaSemana é obrigatório para edição." });
       }
 
       if (!horaInicio || !horaFim) {
-        return res.status(400).json({
-          error: "Campos obrigatórios: horaInicio e horaFim.",
-        });
+        return res.status(400).json({ error: "Campos obrigatórios: horaInicio e horaFim." });
       }
 
-      await validarQuadraDoGestor(quadraId, gestorId);
+      // 1) Busca regra atual (e trava a quadra real da regra)
+      const { data: regraAtual, error: errRegra } = await supabase
+        .from("regras_horarios")
+        .select("id, id_quadra")
+        .eq("id", regraId)
+        .single();
+
+      if (errRegra) {
+        console.error("[AGENDA/REGRAS][PUT] Erro ao buscar regra:", errRegra);
+        return res.status(500).json({ error: "Erro ao buscar regra de horário." });
+      }
+
+      if (!regraAtual) {
+        return res.status(404).json({ error: "Regra de horário não encontrada para este id." });
+      }
+
+      // 2) Segurança: valida a quadra da regra (não a quadra do body)
+      await validarQuadraDoGestor(regraAtual.id_quadra, gestorId);
+
+      // 3) Se veio quadraId no body e não bate, rejeita (evita mover regra de quadra)
+      if (quadraId && String(quadraId) !== String(regraAtual.id_quadra)) {
+        return res.status(400).json({
+          error: "QuadraId não confere com a quadra desta regra. Recarregue a página e tente novamente.",
+        });
+      }
 
       const precoNormalizado =
         precoHora === "" || precoHora === undefined || precoHora === null
           ? null
           : Number(String(precoHora).replace(",", "."));
 
+      // 4) Pré-checagem de duplicidade (evita estourar 23505)
+      const { data: conflito, error: errConflito } = await supabase
+        .from("regras_horarios")
+        .select("id")
+        .eq("id_quadra", regraAtual.id_quadra)
+        .eq("dia_da_semana", diaSemana)
+        .eq("hora_inicio", horaInicio)
+        .neq("id", regraId)
+        .maybeSingle();
+
+      if (errConflito) {
+        console.error("[AGENDA/REGRAS][PUT] Erro ao checar duplicidade:", errConflito);
+        return res.status(500).json({ error: "Erro ao validar duplicidade de regra." });
+      }
+
+      if (conflito?.id) {
+        return res.status(409).json({
+          error:
+            "Já existe outra regra com este dia/horário (mesma quadra). Ajuste o horário ou edite/exclua a regra existente.",
+        });
+      }
+
+      // 5) Atualiza sem permitir trocar id_quadra
       const { data, error } = await supabase
         .from("regras_horarios")
         .update({
-          id_quadra: quadraId,
           dia_da_semana: diaSemana,
           hora_inicio: horaInicio,
           hora_fim: horaFim,
@@ -5029,22 +5063,20 @@ app.put(
 
       if (error) {
         console.error("[AGENDA/REGRAS][PUT] Erro ao atualizar regra:", error);
-        // Trata possível violação de UNIQUE (dia/horário já existe em outra regra)
+
+        // Se ainda assim acontecer 23505 (corrida/concurrency), devolve 409 amigável
         if (error.code === "23505") {
           return res.status(409).json({
             error:
               "Já existe outra regra com este dia/horário. Ajuste ou exclua a regra duplicada.",
           });
         }
-        return res
-          .status(500)
-          .json({ error: "Erro ao atualizar regra de horário." });
+
+        return res.status(500).json({ error: "Erro ao atualizar regra de horário." });
       }
 
       if (!data) {
-        return res
-          .status(404)
-          .json({ error: "Regra de horário não encontrada para este id." });
+        return res.status(404).json({ error: "Regra de horário não encontrada para este id." });
       }
 
       return res.json({
@@ -5059,18 +5091,19 @@ app.put(
       });
     } catch (err) {
       console.error("[AGENDA/REGRAS][PUT] Erro geral:", err);
+
       if (err.message === "Quadra não pertence a este gestor") {
         return res.status(403).json({ error: err.message });
       }
       if (err.message === "Quadra não encontrada") {
         return res.status(404).json({ error: err.message });
       }
-      return res
-        .status(500)
-        .json({ error: "Erro interno ao atualizar regra de horário." });
+
+      return res.status(500).json({ error: "Erro interno ao atualizar regra de horário." });
     }
   }
 );
+
 
 // DELETE /gestor/agenda/regras/:id
 // Remove uma regra de horário específica (hard delete usando apenas o ID)
