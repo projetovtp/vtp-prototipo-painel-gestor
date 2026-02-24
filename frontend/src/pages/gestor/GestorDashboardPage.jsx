@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import api from "../../services/api";
 import logoVaiTerPlay from "../../assets/Design sem nome (4).png";
 import { useNavigate } from "react-router-dom";
+import { useDevice } from "../../hooks/useDevice";
 
 function formatBRL(v) {
   const n = Number(v || 0);
@@ -677,7 +678,16 @@ const DetalhesReservaModalDashboard = ({ aberto, onFechar, reserva, reservas, on
 
 export default function GestorDashboardPage() {
   const navigate = useNavigate();
+  const { isMobile, isTablet } = useDevice();
   const [contatoSelecionado, setContatoSelecionado] = useState(mockContatos.find(c => c.fixo) || mockContatos[0]);
+
+  // Redireciona para mensagens no mobile/tablet
+  useEffect(() => {
+    if (isMobile || isTablet) {
+      navigate("/gestor/mensagens", { replace: true });
+      return;
+    }
+  }, [isMobile, isTablet, navigate]);
   const [reservasHoje] = useState(5); // Mock
   const [pixHoje] = useState(1250.00); // Mock
   const [taxaOcupacao] = useState(68); // Mock - porcentagem

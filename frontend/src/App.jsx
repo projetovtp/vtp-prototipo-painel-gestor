@@ -4,6 +4,7 @@ import { Routes, Route, Navigate } from "react-router-dom";
 
 import AdminLayout from "./layouts/AdminLayout";
 import GestorLayout from "./layouts/GestorLayout";
+import MobileLayout from "./layouts/MobileLayout";
 
 
 
@@ -17,6 +18,7 @@ import AdminFinanceiroPage from "./pages/admin/AdminFinanceiroPage";
 import AdminRepassesPage from "./pages/admin/AdminRepassesPage";
 
 import GestorDashboardPage from "./pages/gestor/GestorDashboardPage";
+import GestorDashboardPageMobile from "./pages/gestor/GestorDashboardPageMobile";
 import GestorEmpresasPage from "./pages/gestor/GestorEmpresasPage";
 import GestorQuadrasPage from "./pages/gestor/GestorQuadrasPage";
 import GestorQuadrasListPage from "./pages/gestor/GestorQuadrasListPage";
@@ -35,6 +37,10 @@ import GestorAjudaPage from "./pages/gestor/GestorAjudaPage";
 import GestorAgendaPage from "./pages/gestor/GestorAgendaPage";
 import GestorBloqueiosPage from "./pages/gestor/GestorBloqueiosPage";
 
+// 📱 Páginas Mobile
+import GestorMobileMensagensPage from "./pages/gestor/mobile/GestorMobileMensagensPage";
+import GestorMobileChatPage from "./pages/gestor/mobile/GestorMobileChatPage";
+
 import LoginPage from "./pages/LoginPage"; // tela de login (pública)
 
 // ✅ Novas telas públicas (Modelo A)
@@ -44,6 +50,7 @@ import TrocarSenhaPage from "./pages/TrocarSenhaPage";
 import LandingPage from "./pages/LandingPage";
 
 import RotaPrivada from "./components/RotaPrivada"; // guarda de rota (admin/gestor)
+import DeviceRouter from "./components/DeviceRouter";
 
 function App() {
   return (
@@ -84,12 +91,16 @@ function App() {
         path="/gestor"
         element={
           <RotaPrivada role="gestor">
-            <GestorLayout />
+            <DeviceRouter />
           </RotaPrivada>
         }
       >
-        {/* Dashboard */}
+        {/* Dashboard - Redireciona para mensagens no mobile */}
         <Route index element={<GestorDashboardPage />} />
+
+        {/* Mensagens (Mobile) */}
+        <Route path="mensagens" element={<GestorMobileMensagensPage />} />
+        <Route path="mensagens/chat/:chatId" element={<GestorMobileChatPage />} />
 
         {/* Empresas / Complexos */}
         <Route path="empresas" element={<GestorEmpresasPage />} />
@@ -116,7 +127,7 @@ function App() {
         <Route path="agenda/editar" element={<GestorAgendaEditPage />} />
 
         {/* Reservas */}
-        <Route path="reservas" element={<GestorReservasPage />} />
+igi        <Route path="reservas" element={<GestorReservasPage />} />
 
         {/* Clientes */}
         <Route path="clientes" element={<GestorClientesPage />} />
