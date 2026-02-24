@@ -279,7 +279,7 @@ export default function AdminDashboardPage() {
 
           <div style={{ marginTop: 10, display: "grid", gridTemplateColumns: "1fr", gap: 10 }}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
-              <div style={{ fontWeight: 800 }}>Quadras sem regras de horário</div>
+              <div style={{ fontWeight: 800 }}>Quadras sem regras de horários</div>
               <div>{formatInt(quadrasSemRegras.length)}</div>
             </div>
 

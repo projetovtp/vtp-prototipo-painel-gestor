@@ -20,12 +20,13 @@ body {
 }
 
 .layout-sidebar {
-  width: 220px;
+  width: 260px;
   background-color: #ffffff;
-  border-right: 1px solid #e0e0e0;
-  padding: 16px;
+  border-right: 1px solid #e5e7eb;
+  padding: 20px;
   display: flex;
   flex-direction: column;
+  box-shadow: 1px 0 3px rgba(0, 0, 0, 0.05);
 }
 
 .layout-logo {
@@ -36,7 +37,7 @@ body {
   display: block;
   font-weight: 700;
   font-size: 20px;
-  color: #1c7c54; /* verdinho VaiTerPlay */
+  color: #37648c; /* azul VaiTerPlay */
 }
 
 .logo-tag {
@@ -51,20 +52,50 @@ body {
 }
 
 .menu-link {
-  padding: 8px 10px;
-  border-radius: 6px;
+  padding: 10px 12px;
+  border-radius: 8px;
   text-decoration: none;
-  color: #444;
+  color: #6b7280;
   font-size: 14px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  transition: all 0.2s ease;
+  line-height: 1.5;
+}
+
+.menu-link span {
+  display: flex;
+  align-items: center;
+  line-height: 1.5;
+}
+
+.menu-link svg {
+  flex-shrink: 0;
+  opacity: 0.7;
+  display: block;
+  align-self: center;
+  margin-top: 0;
 }
 
 .menu-link.active {
-  background-color: #1c7c54;
+  background-color: #37648c;
   color: white;
+  font-weight: 600;
 }
 
-.menu-link:hover {
-  background-color: #eaeaea;
+.menu-link.active svg {
+  opacity: 1;
+}
+
+.menu-link:hover:not(.active) {
+  background-color: #e8f0f7;
+  color: #37648c;
+}
+
+.menu-link:hover:not(.active) svg {
+  opacity: 1;
 }
 
 .layout-main {
@@ -227,6 +258,12 @@ body {
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+/* Dashboard específico - permite overflow controlado */
+.page.dashboard-fullscreen {
+  height: calc(100vh - 120px);
+  overflow: hidden;
 }
 
 /* cabeçalho da página (título + botão nova quadra) */
@@ -517,7 +554,7 @@ body {
 
 .menu-item.active,
 .menu-link.active {
-  background-color: #1c7c54;
+  background-color: #37648c;
   color: white;
 }
 
@@ -529,7 +566,7 @@ body {
 /* Mantém o active com prioridade mesmo no hover */
 .menu-item.active:hover,
 .menu-link.active:hover {
-  background-color: #155b3e;
+  background-color: #2d5070;
   color: #fff;
 }
 
@@ -599,4 +636,32 @@ body {
 .vt-modal-body {
   padding: 16px;
   overflow-y: auto;
+}
+
+/* ===== Estilos da Agenda (AgendaGrid) ===== */
+.agenda-grid {
+  overflow-x: auto;
+  border-radius: 8px;
+  border: 1px solid #eee;
+}
+
+.slot-disponivel {
+  background-color: #c8e6c9 !important;
+  border: 2px solid #2e7d32 !important;
+  color: #1b5e20 !important;
+  font-weight: 500;
+}
+
+.slot-reservada {
+  background-color: #ffcdd2 !important;
+  border: 2px solid #c62828 !important;
+  color: #b71c1c !important;
+  font-weight: 500;
+}
+
+.slot-bloqueada {
+  background-color: #eeeeee !important;
+  border: 2px solid #616161 !important;
+  color: #424242 !important;
+  font-weight: 500;
 }

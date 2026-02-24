@@ -25,9 +25,15 @@ import GestorEmpresaEditarPage from "./pages/gestor/GestorEmpresaEditarPage";
 import GestorAgendaEditPage from "./pages/gestor/GestorAgendaEditPage.jsx";
 import GestorReservasPage from "./pages/gestor/GestorReservasPage";
 import GestorFinanceiroPage from "./pages/gestor/GestorFinanceiroPage";
+import GestorClientesPage from "./pages/gestor/GestorClientesPage";
+import GestorRelatoriosPage from "./pages/gestor/GestorRelatoriosPage";
+import GestorConfiguracoesPage from "./pages/gestor/GestorConfiguracoesPage";
+import GestorConfiguracoesQuadrasPage from "./pages/gestor/GestorConfiguracoesQuadrasPage";
+import GestorAjudaPage from "./pages/gestor/GestorAjudaPage";
 
 // 🔹 Agenda do Gestor (visualização tipo cinema + filtros)
 import GestorAgendaPage from "./pages/gestor/GestorAgendaPage";
+import GestorBloqueiosPage from "./pages/gestor/GestorBloqueiosPage";
 
 import LoginPage from "./pages/LoginPage"; // tela de login (pública)
 
@@ -35,14 +41,15 @@ import LoginPage from "./pages/LoginPage"; // tela de login (pública)
 import EsqueciSenhaPage from "./pages/EsqueciSenhaPage";
 import ResetarSenhaPage from "./pages/ResetarSenhaPage";
 import TrocarSenhaPage from "./pages/TrocarSenhaPage";
+import LandingPage from "./pages/LandingPage";
 
 import RotaPrivada from "./components/RotaPrivada"; // guarda de rota (admin/gestor)
 
 function App() {
   return (
     <Routes>
-      {/* Raiz manda para /login */}
-      <Route path="/" element={<Navigate to="/login" replace />} />
+      {/* Landing Page */}
+      <Route path="/" element={<LandingPage />} />
 
       {/* Telas Públicas */}
       <Route path="/login" element={<LoginPage />} />
@@ -102,16 +109,31 @@ function App() {
         />
 
         {/* Agenda do Gestor (visualização tipo cinema + filtros) */}
-        <Route path="agenda" element={<GestorAgendaPage />} />
+        <Route path="regras-de-horarios" element={<GestorAgendaPage />} />
+        <Route path="regras-de-horarios/bloqueios" element={<GestorBloqueiosPage />} />
 
-        {/* Página de edição da agenda (regras de horário + bloqueios) */}
+        {/* Página de edição da agenda (regras de horários + bloqueios) */}
         <Route path="agenda/editar" element={<GestorAgendaEditPage />} />
 
         {/* Reservas */}
         <Route path="reservas" element={<GestorReservasPage />} />
 
+        {/* Clientes */}
+        <Route path="clientes" element={<GestorClientesPage />} />
+
+        {/* Relatórios */}
+        <Route path="relatorios" element={<GestorRelatoriosPage />} />
+
         {/* Financeiro do Gestor */}
         <Route path="financeiro" element={<GestorFinanceiroPage />} />
+
+        {/* Configurações */}
+        <Route path="configuracoes" element={<GestorConfiguracoesPage />} />
+        <Route path="configuracoes/complexo" element={<GestorConfiguracoesPage />} />
+        <Route path="configuracoes/quadras" element={<GestorConfiguracoesQuadrasPage />} />
+
+        {/* Ajuda */}
+        <Route path="ajuda" element={<GestorAjudaPage />} />
       </Route>
 
       {/* Qualquer outra rota → volta pro login */}

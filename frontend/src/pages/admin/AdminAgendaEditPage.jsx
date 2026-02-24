@@ -256,7 +256,7 @@ export default function AdminAgendaEditPage() {
         <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
           {/* Regras */}
           <div className="card">
-            <h3 style={{ marginBottom: 10 }}>Regras de Horário</h3>
+            <h3 style={{ marginBottom: 10 }}>Regras de Horários</h3>
 
             {regras.length === 0 && <p>Nenhuma regra cadastrada.</p>}
 

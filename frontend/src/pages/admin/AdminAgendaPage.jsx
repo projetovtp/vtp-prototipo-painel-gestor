@@ -379,9 +379,9 @@ function AdminAgendaPage() {
 
       // ✅ Mensagens de sucesso
       if (regraEditandoId) {
-        setMensagem("Regra de horário atualizada com sucesso.");
+        setMensagem("Regra de horários atualizada com sucesso.");
       } else {
-        setMensagem("Regras de horário criadas com sucesso.");
+        setMensagem("Regras de horários criadas com sucesso.");
       }
     } catch (err) {
       console.error("[GESTOR/AGENDA] Erro ao salvar regra:", err);
@@ -389,7 +389,7 @@ function AdminAgendaPage() {
       const status = err.response?.status;
       const apiError = err.response?.data?.error;
 
-      let mensagemLocal = "Erro ao salvar regra de horário.";
+      let mensagemLocal = "Erro ao salvar regra de horários.";
 
       if (status === 409) {
         // Conflito: regra já existe para esse dia/horário
@@ -446,7 +446,7 @@ function AdminAgendaPage() {
     } catch (err) {
       console.error("[ADMIN/AGENDA] Erro ao excluir regra:", err);
       const mensagemLocal =
-        err.response?.data?.error || "Erro ao excluir regra de horário.";
+        err.response?.data?.error || "Erro ao excluir regra de horários.";
       setErroAgenda(mensagemLocal);
       setMensagem("");
     } finally {
@@ -772,7 +772,7 @@ function AdminAgendaPage() {
         >
           {/* REGRAS DE HORÁRIO */}
           <div className="card">
-            <h3>Regras de horário da quadra</h3>
+            <h3>Regras de horários da quadra</h3>
 
 {/* Form de criação/edição de regra */}
 <form

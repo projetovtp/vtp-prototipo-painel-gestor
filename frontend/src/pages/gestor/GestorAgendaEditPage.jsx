@@ -276,7 +276,7 @@ function GestorAgendaEditPage() {
       )
     );
 
-    setMensagem("Regra de horário atualizada com sucesso.");
+    setMensagem("Regra de horários atualizada com sucesso.");
     setErro("");
     cancelarEdicaoRegra();
   } catch (err) {
@@ -285,7 +285,7 @@ function GestorAgendaEditPage() {
     const status = err.response?.status;
     const apiError = err.response?.data?.error;
 
-    let msg = "Erro ao atualizar regra de horário.";
+    let msg = "Erro ao atualizar regra de horários.";
 
     if (status === 409) {
       // 🔴 Mesmo padrão de conflito: já existe regra cobrindo esse horário
@@ -328,7 +328,7 @@ function GestorAgendaEditPage() {
     } catch (err) {
       console.error("[GestorAgendaEditPage] Erro ao remover regra:", err);
       const msg =
-        err.response?.data?.error || "Erro ao remover regra de horário.";
+        err.response?.data?.error || "Erro ao remover regra de horários.";
       setErro(msg);
     }
   }
@@ -547,7 +547,7 @@ function GestorAgendaEditPage() {
       {/* LISTA DE REGRAS (Agenda recorrente por dia da semana) */}
       {quadraSelecionadaId && (
         <div style={{ marginTop: 24 }}>
-          <h3 style={{ marginBottom: 8 }}>Regras de horário (por dia)</h3>
+          <h3 style={{ marginBottom: 8 }}>Regras de horários (por dia)</h3>
           {regras.length === 0 ? (
             <p style={{ fontSize: 13, color: "#777" }}>
               Nenhuma regra cadastrada para essa quadra.

@@ -8,7 +8,8 @@ export function AuthProvider({ children }) {
   const [usuario, setUsuario] = useState(null);
   const [carregando, setCarregando] = useState(true);
 
-  useEffect(() => {
+  // Função para carregar usuário do localStorage
+  const carregarUsuario = () => {
     const token = localStorage.getItem("vaiterplay_token");
     const userJson = localStorage.getItem("vaiterplay_usuario");
 
@@ -16,14 +17,36 @@ export function AuthProvider({ children }) {
       try {
         const user = JSON.parse(userJson);
         setUsuario(user);
+        return true;
       } catch (e) {
         console.error("Erro ao ler usuário do localStorage", e);
         localStorage.removeItem("vaiterplay_token");
         localStorage.removeItem("vaiterplay_usuario");
+        setUsuario(null);
+        return false;
       }
     }
+    setUsuario(null);
+    return false;
+  };
 
+  useEffect(() => {
+    carregarUsuario();
     setCarregando(false);
+  }, []);
+
+  // Sincroniza o estado com localStorage quando há mudanças em outras abas
+  useEffect(() => {
+    const handleStorageChange = () => {
+      carregarUsuario();
+    };
+
+    // Escuta mudanças no localStorage (de outras abas)
+    window.addEventListener("storage", handleStorageChange);
+
+    return () => {
+      window.removeEventListener("storage", handleStorageChange);
+    };
   }, []);
 
   async function login(email, senha) {

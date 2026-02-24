@@ -1,1214 +1,1516 @@
-// src/pages/gestor/GestorAgendaPage.jsx
 import React, { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import api from "../../services/api";
 import { useAuth } from "../../context/AuthContext";
 
-// ⚠️ IMPORTS DA AGENDA – todos vindos de src/components/agenda
-import { AgendaFilters } from "../../components/agenda/AgendaFilters";
-import { AgendaLegend } from "../../components/agenda/AgendaLegend";
-import { AgendaGrid } from "../../components/agenda/AgendaGrid";
+function formatBRL(v) {
+  const n = Number(v || 0);
+  return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
 
-// Aqui eu vou assumir que seu arquivo exporta **default**
-// src/components/agenda/gestor/agendacinemaview.jsx
-import AgendaCinemaView from "../../components/gestor/AgendaCinemaView";
+function formatDateBR(yyyyMmDd) {
+  if (!yyyyMmDd) return "—";
+  const s = String(yyyyMmDd).slice(0, 10);
+  const [y, m, d] = s.split("-");
+  if (!y || !m || !d) return s;
+  return `${d}/${m}/${y}`;
+}
 
-import { AgendaToolbar } from "../../components/agenda/AgendaToolbar";
+const DIAS_SEMANA = [
+  { valor: 1, nome: "Segunda-feira", abreviacao: "Seg" },
+  { valor: 2, nome: "Terça-feira", abreviacao: "Ter" },
+  { valor: 3, nome: "Quarta-feira", abreviacao: "Qua" },
+  { valor: 4, nome: "Quinta-feira", abreviacao: "Qui" },
+  { valor: 5, nome: "Sexta-feira", abreviacao: "Sex" },
+  { valor: 6, nome: "Sábado", abreviacao: "Sáb" },
+  { valor: 0, nome: "Domingo", abreviacao: "Dom" }
+];
 
-
-function GestorAgendaPage() {
+export default function GestorAgendaPage() {
   const { usuario } = useAuth();
-
-  const [empresas, setEmpresas] = useState([]);
-  const [empresaSelecionadaId, setEmpresaSelecionadaId] = useState("");
+  const navigate = useNavigate();
 
   const [quadras, setQuadras] = useState([]);
   const [quadraSelecionadaId, setQuadraSelecionadaId] = useState("");
-
   const [regras, setRegras] = useState([]);
   const [bloqueios, setBloqueios] = useState([]);
 
-  const [carregandoEmpresas, setCarregandoEmpresas] = useState(false);
-  const [carregandoQuadras, setCarregandoQuadras] = useState(false);
-  const [carregandoAgenda, setCarregandoAgenda] = useState(false);
-
-  const [erroEmpresas, setErroEmpresas] = useState("");
-  const [erroQuadras, setErroQuadras] = useState("");
-  const [erroAgenda, setErroAgenda] = useState("");
-
-  // ✅ mensagem de sucesso/avisos gerais da agenda
-  const [mensagem, setMensagem] = useState("");
-
-  const [periodo, setPeriodo] = useState("semana");
-  const [filtroStatus, setFiltroStatus] = useState("todas");
-  const [dataInicio, setDataInicio] = useState("");
-  const [dataFim, setDataFim] = useState("");
-
   // Form de regra
   const [regraForm, setRegraForm] = useState({
-    diaSemana: "",
+    diasSemana: [], // Array de dias selecionados
     horaInicio: "",
     horaFim: "",
-    precoHora: "",
-    ativo: true,
+    precoHora: ""
   });
   const [regraEditandoId, setRegraEditandoId] = useState(null);
-  const [editingQuadraId, setEditingQuadraId] = useState(null);
+  const [regraEditando, setRegraEditando] = useState(null);
+  const [modalEdicaoAberto, setModalEdicaoAberto] = useState(false);
+  const [modalLimparTodasAberto, setModalLimparTodasAberto] = useState(false);
+  const [modalExcluirRegra, setModalExcluirRegra] = useState({ aberto: false, regraId: null });
+  const [modalLimparDia, setModalLimparDia] = useState({ aberto: false, diaSemana: null, diaNome: "" });
   const [salvandoRegra, setSalvandoRegra] = useState(false);
-  const [excluindoRegraId, setExcluindoRegraId] = useState(null);
 
-  // Seleção em lote (regras + bloqueios)
-  const [selectedQuadraIds, setSelectedQuadraIds] = useState([]);
-  const [diasSelecionados, setDiasSelecionados] = useState([]);
-
-  // Form de bloqueio
-  const [bloqueioForm, setBloqueioForm] = useState({
-    data: "",
-    horaInicio: "",
-    horaFim: "",
-    motivo: "",
-  });
-  const [bloquearComplexoInteiro, setBloquearComplexoInteiro] =
-    useState(false);
+  // Calendário para bloqueios
+  const [mesBloqueio, setMesBloqueio] = useState(new Date());
+  const [horariosBloqueio, setHorariosBloqueio] = useState([]);
+  const [dataBloqueioSelecionada, setDataBloqueioSelecionada] = useState("");
   const [salvandoBloqueio, setSalvandoBloqueio] = useState(false);
-  const [excluindoBloqueioId, setExcluindoBloqueioId] = useState(null);
+  const [removendoBloqueio, setRemovendoBloqueio] = useState(false);
 
-  // -----------------------------------
-  // 1) Carregar empresas do gestor
-  // -----------------------------------
-  async function carregarEmpresas() {
-    try {
-      setCarregandoEmpresas(true);
-      setErroEmpresas("");
-      setMensagem("");
+  const [carregando, setCarregando] = useState(false);
+  const [erro, setErro] = useState("");
+  const [mensagem, setMensagem] = useState("");
 
-      const { data } = await api.get("/gestor/empresas");
-      setEmpresas(Array.isArray(data) ? data : []);
-    } catch (err) {
-      console.error("[GESTOR/AGENDA] Erro ao buscar empresas:", err);
-      const mensagemLocal =
-        err.response?.data?.error ||
-        "Erro ao carregar empresas. Tente novamente mais tarde.";
-      setErroEmpresas(mensagemLocal);
-    } finally {
-      setCarregandoEmpresas(false);
-    }
-  }
-
+  // Carregar quadras
   useEffect(() => {
     if (!usuario) return;
-    carregarEmpresas();
+    carregarQuadras();
   }, [usuario]);
 
-  // -----------------------------------
-  // 2) Carregar quadras da empresa selecionada
-  // -----------------------------------
-  async function carregarQuadrasDaEmpresa(empresaId) {
-    if (!empresaId) {
-      setQuadras([]);
-      setQuadraSelecionadaId("");
-      setErroQuadras("");
-      setSelectedQuadraIds([]);
-      return;
-    }
-
-    try {
-      setCarregandoQuadras(true);
-      setErroQuadras("");
-      setMensagem("");
-
-      const { data } = await api.get("/gestor/quadras", {
-        params: { empresaId },
-      });
-
-      const lista = Array.isArray(data) ? data : [];
-      setQuadras(lista);
-
-      if (lista.length === 0) {
-        setQuadraSelecionadaId("");
-        setSelectedQuadraIds([]);
-      }
-    } catch (err) {
-      console.error("[GESTOR/AGENDA] Erro ao buscar quadras:", err);
-      const mensagemLocal =
-        err.response?.data?.error ||
-        "Erro ao carregar quadras da empresa selecionada.";
-      setErroQuadras(mensagemLocal);
-      setQuadras([]);
-      setQuadraSelecionadaId("");
-      setSelectedQuadraIds([]);
-    } finally {
-      setCarregandoQuadras(false);
-    }
-  }
-
-  function handleSelecionarEmpresa(event) {
-    const id = event.target.value;
-    setEmpresaSelecionadaId(id);
-
-    setQuadras([]);
-    setQuadraSelecionadaId("");
-    setSelectedQuadraIds([]);
-    setRegras([]);
-    setBloqueios([]);
-    setErroAgenda("");
-    setMensagem("");
-    setRegraEditandoId(null);
-    setEditingQuadraId(null);
-    setDiasSelecionados([]);
-    resetRegraForm();
-    resetBloqueioForm();
-    setBloquearComplexoInteiro(false);
-
-    if (id) {
-      carregarQuadrasDaEmpresa(id);
-    }
-  }
-
-  // Quando muda a quadra selecionada (visão), alinhar com lista de quadras marcadas
+  // Carregar regras e bloqueios quando quadra mudar
   useEffect(() => {
     if (quadraSelecionadaId) {
-      setSelectedQuadraIds([quadraSelecionadaId]);
+      carregarAgenda();
     } else {
-      setSelectedQuadraIds([]);
+      setRegras([]);
+      setBloqueios([]);
     }
   }, [quadraSelecionadaId]);
 
-  // -----------------------------------
-  // 3) Buscar regras e bloqueios da quadra
-  // -----------------------------------
-  async function carregarAgendaDaQuadra(quadraId) {
-    if (!quadraId) {
-      setRegras([]);
-      setBloqueios([]);
-      setErroAgenda("");
-      setMensagem("");
-      return;
+  async function carregarQuadras() {
+    try {
+      setCarregando(true);
+      const { data } = await api.get("/gestor/quadras");
+      const quadrasData = Array.isArray(data) ? data : [];
+      setQuadras(quadrasData);
+      
+      if (quadrasData.length > 0 && !quadraSelecionadaId) {
+        setQuadraSelecionadaId(quadrasData[0].id);
+      }
+    } catch (err) {
+      console.error("[AGENDA] Erro ao carregar quadras:", err);
+      setErro("Erro ao carregar quadras.");
+    } finally {
+      setCarregando(false);
     }
+  }
+
+  async function carregarAgenda() {
+    if (!quadraSelecionadaId) return;
 
     try {
-      setCarregandoAgenda(true);
-      setErroAgenda("");
-      setMensagem("");
+      setCarregando(true);
+      setErro("");
 
       const [respRegras, respBloqueios] = await Promise.all([
-        api.get("/gestor/agenda/regras", {
-          params: { quadraId },
-        }),
-        api.get("/gestor/agenda/bloqueios", {
-          params: { quadraId },
-        }),
+        api.get("/gestor/agenda/regras", { params: { quadraId: quadraSelecionadaId } }),
+        api.get("/gestor/agenda/bloqueios", { params: { quadraId: quadraSelecionadaId } })
       ]);
 
       setRegras(respRegras.data?.regras || []);
       setBloqueios(respBloqueios.data?.bloqueios || []);
     } catch (err) {
-      console.error("[GESTOR/AGENDA] Erro ao buscar agenda:", err);
-      const mensagemLocal =
-        err.response?.data?.error ||
-        "Erro ao carregar regras/bloqueios da quadra.";
-      setErroAgenda(mensagemLocal);
-      setRegras([]);
-      setBloqueios([]);
+      console.error("[AGENDA] Erro ao carregar agenda:", err);
+      setErro("Erro ao carregar agenda.");
     } finally {
-      setCarregandoAgenda(false);
+      setCarregando(false);
     }
   }
 
-  function handleSelecionarQuadra(event) {
-    const id = event.target.value;
-    setQuadraSelecionadaId(id);
-    setRegras([]);
-    setBloqueios([]);
-    setErroAgenda("");
-    setMensagem("");
-    setRegraEditandoId(null);
-    setEditingQuadraId(null);
-    setDiasSelecionados([]);
-    resetRegraForm();
-    resetBloqueioForm();
-    setBloquearComplexoInteiro(false);
-
-    if (id) {
-      carregarAgendaDaQuadra(id);
+  // Gerar horários de hora em hora entre inicio e fim
+  function gerarHorarios(horaInicio, horaFim) {
+    const horarios = [];
+    const inicio = parseInt(horaInicio.split(":")[0]);
+    const fim = parseInt(horaFim.split(":")[0]);
+    
+    for (let h = inicio; h < fim; h++) {
+      horarios.push(String(h).padStart(2, "0") + ":00");
     }
+    
+    return horarios;
   }
 
-  // -----------------------------------
-  // Helpers de form
-  // -----------------------------------
-  function resetRegraForm() {
-    setRegraForm({
-      diaSemana: "",
-      horaInicio: "",
-      horaFim: "",
-      precoHora: "",
-      ativo: true,
-    });
-    setRegraEditandoId(null);
-    setEditingQuadraId(null);
-    setDiasSelecionados([]);
-    setSelectedQuadraIds(quadraSelecionadaId ? [quadraSelecionadaId] : []);
-  }
-
-  function resetBloqueioForm() {
-    setBloqueioForm({
-      data: "",
-      horaInicio: "",
-      horaFim: "",
-      motivo: "",
-    });
-    // não mexe em bloquearComplexoInteiro aqui
-  }
-
-  function handleChangeRegraForm(event) {
-    const { name, value, type, checked } = event.target;
-    setRegraForm((prev) => ({
-      ...prev,
-      [name]: type === "checkbox" ? checked : value,
-    }));
-  }
-
-  function handleChangeBloqueioForm(event) {
-    const { name, value } = event.target;
-    setBloqueioForm((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
-  }
-
-  function toggleQuadraSelecionada(id) {
-    setSelectedQuadraIds((prev) => {
-      if (prev.includes(id)) {
-        return prev.filter((qId) => qId !== id);
+  function toggleDiaSemana(diaValor) {
+    setRegraForm(prev => {
+      const diasAtuais = prev.diasSemana || [];
+      if (diasAtuais.includes(diaValor)) {
+        return { ...prev, diasSemana: diasAtuais.filter(d => d !== diaValor) };
+      } else {
+        return { ...prev, diasSemana: [...diasAtuais, diaValor] };
       }
-      return [...prev, id];
     });
   }
 
-  function toggleDiaSelecionado(valorDia) {
-    setDiasSelecionados((prev) => {
-      if (prev.includes(valorDia)) {
-        return prev.filter((d) => d !== valorDia);
-      }
-      return [...prev, valorDia];
-    });
-  }
-
-  // -----------------------------------
-  // Ações de Regras
-  // -----------------------------------
-  async function handleSubmitRegra(event) {
-    event.preventDefault();
-
+  async function handleSalvarRegra(e) {
+    e.preventDefault();
+    
+    // Validações
     if (!quadraSelecionadaId) {
-      setErroAgenda("Selecione uma quadra para visualizar a agenda.");
-      setMensagem("");
+      setErro("Selecione uma quadra antes de criar a regra.");
+      return;
+    }
+
+    if (!regraForm.diasSemana || regraForm.diasSemana.length === 0) {
+      setErro("Selecione pelo menos um dia da semana.");
       return;
     }
 
     if (!regraForm.horaInicio || !regraForm.horaFim) {
-      setErroAgenda("Informe horário de início e fim.");
-      setMensagem("");
+      setErro("Preencha os horários inicial e final.");
+      return;
+    }
+
+    // Validar formato de hora
+    const horaInicioMatch = regraForm.horaInicio.match(/^(\d{2}):(\d{2})$/);
+    const horaFimMatch = regraForm.horaFim.match(/^(\d{2}):(\d{2})$/);
+    
+    if (!horaInicioMatch || !horaFimMatch) {
+      setErro("Formato de horário inválido. Use o formato HH:MM (ex: 08:00).");
+      return;
+    }
+
+    const horaInicioNum = parseInt(regraForm.horaInicio.split(":")[0]);
+    const horaFimNum = parseInt(regraForm.horaFim.split(":")[0]);
+    const minutoInicio = parseInt(regraForm.horaInicio.split(":")[1]);
+    const minutoFim = parseInt(regraForm.horaFim.split(":")[1]);
+
+    // Validar que os minutos são 00 (hora cheia)
+    if (minutoInicio !== 0 || minutoFim !== 0) {
+      setErro("Os horários devem ser de hora em hora (ex: 08:00, 09:00). Minutos diferentes de 00 não são permitidos.");
+      // Corrigir automaticamente
+      const horaInicioCorrigida = String(horaInicioNum).padStart(2, "0") + ":00";
+      const horaFimCorrigida = String(horaFimNum).padStart(2, "0") + ":00";
+      setRegraForm({ ...regraForm, horaInicio: horaInicioCorrigida, horaFim: horaFimCorrigida });
+      return;
+    }
+
+    if (horaInicioNum >= horaFimNum) {
+      setErro("A hora final deve ser maior que a hora inicial.");
+      return;
+    }
+
+    if (horaInicioNum < 0 || horaInicioNum > 23 || horaFimNum < 0 || horaFimNum > 23) {
+      setErro("Os horários devem estar entre 00:00 e 23:00.");
       return;
     }
 
     try {
       setSalvandoRegra(true);
-      setErroAgenda("");
-      // 🔹 zera mensagem de sucesso antes de tentar salvar
+      setErro("");
       setMensagem("");
 
-      if (regraEditandoId) {
-        // EDIÇÃO de uma regra específica
-        if (regraForm.diaSemana === "" && regraForm.diaSemana !== 0) {
-          setErroAgenda(
-            "Informe o dia da semana para salvar a alteração da regra."
-          );
-          setSalvandoRegra(false);
-          return;
-        }
-
-        const payload = {
-          quadraId: editingQuadraId || quadraSelecionadaId,
-          diaSemana: Number(regraForm.diaSemana),
-          horaInicio: regraForm.horaInicio,
-          horaFim: regraForm.horaFim,
-          precoHora:
-            regraForm.precoHora === ""
-              ? null
-              : Number(String(regraForm.precoHora).replace(",", ".")),
-          ativo: true,
-        };
-
-        await api.put(`/gestor/agenda/regras/${regraEditandoId}`, payload);
-      } else {
-        // CRIAÇÃO EM LOTE
-        if (!selectedQuadraIds.length) {
-          setErroAgenda(
-            "Selecione pelo menos uma quadra na lista de quadras para aplicar a regra."
-          );
-          setSalvandoRegra(false);
-          return;
-        }
-
-        if (!diasSelecionados.length) {
-          setErroAgenda(
-            "Selecione pelo menos um dia da semana para aplicar a regra."
-          );
-          setSalvandoRegra(false);
-          return;
-        }
-
-        const payload = {
-          quadraIds: selectedQuadraIds,
-          diasSemana: diasSelecionados,
-          horaInicio: regraForm.horaInicio,
-          horaFim: regraForm.horaFim,
-          precoHora:
-            regraForm.precoHora === ""
-              ? null
-              : Number(String(regraForm.precoHora).replace(",", ".")),
-          ativo: true,
-
-        };
-
-        await api.post("/gestor/agenda/regras/lote", payload);
+      // Validar dias da semana
+      const diasSemanaValidos = regraForm.diasSemana.filter(d => 
+        !isNaN(Number(d)) && Number(d) >= 0 && Number(d) <= 6
+      );
+      
+      if (diasSemanaValidos.length === 0) {
+        setErro("Selecione pelo menos um dia da semana válido.");
+        setSalvandoRegra(false);
+        return;
       }
 
-      await carregarAgendaDaQuadra(quadraSelecionadaId);
+      // Validar e normalizar preço (obrigatório)
+      if (!regraForm.precoHora || regraForm.precoHora.trim() === "") {
+        setErro("O preço por hora é obrigatório.");
+        setSalvandoRegra(false);
+        return;
+      }
+
+      const precoLimpo = String(regraForm.precoHora).replace(",", ".").trim();
+      const precoHoraNum = Number(precoLimpo);
+      
+      if (isNaN(precoHoraNum) || precoHoraNum <= 0) {
+        setErro("Preço por hora inválido. Informe um valor maior que zero (ex: 100 ou 100.50).");
+        setSalvandoRegra(false);
+        return;
+      }
+
+      if (regraEditandoId) {
+        // Edição: criar regra para um único dia (o dia da regra sendo editada)
+        const diaSemanaNum = Number(regraForm.diasSemana[0]);
+        const payload = {
+          quadraId: quadraSelecionadaId,
+          diaSemana: diaSemanaNum,
+          horaInicio: regraForm.horaInicio,
+          horaFim: regraForm.horaFim,
+          precoHora: precoHoraNum,
+          ativo: true
+        };
+        const response = await api.put(`/gestor/agenda/regras/${regraEditandoId}`, payload);
+        setMensagem("Regra atualizada com sucesso!");
+      } else {
+        // Criação: criar regras para todos os dias selecionados
+        const promises = diasSemanaValidos.map(diaSemanaNum => {
+          const payload = {
+            quadraId: quadraSelecionadaId,
+            diaSemana: Number(diaSemanaNum),
+            horaInicio: regraForm.horaInicio,
+            horaFim: regraForm.horaFim,
+            precoHora: precoHoraNum,
+            ativo: true
+          };
+          return api.post("/gestor/agenda/regras", payload);
+        });
+
+        await Promise.all(promises);
+        const diasNomes = diasSemanaValidos.map(d => {
+          const dia = DIAS_SEMANA.find(ds => ds.valor === Number(d));
+          return dia ? dia.nome : d;
+        }).join(", ");
+        setMensagem(`Regras criadas com sucesso para: ${diasNomes}!`);
+      }
+
       resetRegraForm();
-
-      // ✅ Mensagens de sucesso
-      if (regraEditandoId) {
-        setMensagem("Regra de horário atualizada com sucesso.");
-      } else {
-        setMensagem("Regras de horário criadas com sucesso.");
-      }
+      await carregarAgenda();
+      setTimeout(() => setMensagem(""), 3000);
     } catch (err) {
-      console.error("[GESTOR/AGENDA] Erro ao salvar regra:", err);
-
-      const status = err.response?.status;
-      const apiError = err.response?.data?.error;
-
-      let mensagemLocal = "Erro ao salvar regra de horário.";
-
-      if (status === 409) {
-        // Conflito: regra já existe para esse dia/horário
-        mensagemLocal =
-          apiError ||
-          "Já existe regra cobrindo esses horários para alguma das quadras selecionadas. " +
-            "Use a tela de edição para alterar preço, horário ou excluir.";
-      } else if (apiError) {
-        mensagemLocal = apiError;
+      console.error("[AGENDA] Erro ao salvar regra:", err);
+      console.error("[AGENDA] Detalhes do erro:", err.response?.data);
+      
+      // Tratamento específico de erros
+      if (err.response?.status === 409) {
+        setErro("Já existe uma regra para este dia e horário. Use a opção 'Editar' para modificar ou remova a regra existente.");
+      } else if (err.response?.status === 400) {
+        setErro(err.response?.data?.error || "Dados inválidos. Verifique os campos preenchidos.");
+      } else if (err.response?.status === 403) {
+        setErro("Você não tem permissão para criar regras nesta quadra.");
+      } else if (err.response?.status === 404) {
+        setErro("Quadra não encontrada.");
+      } else {
+        setErro(err.response?.data?.error || "Erro ao salvar regra. Tente novamente.");
       }
-
-      setErroAgenda(mensagemLocal);
-      setMensagem("");
     } finally {
       setSalvandoRegra(false);
     }
   }
 
   function iniciarEdicaoRegra(regra) {
+    setRegraEditando(regra);
     setRegraEditandoId(regra.id);
-    setEditingQuadraId(regra.quadra_id);
     setRegraForm({
-      diaSemana: regra.dia_semana,
+      diasSemana: [regra.dia_semana],
       horaInicio: regra.hora_inicio,
       horaFim: regra.hora_fim,
-      precoHora: regra.preco_hora ?? "",
-      ativo: !!regra.ativo,
+      precoHora: regra.preco_hora ? String(regra.preco_hora) : ""
     });
-    setDiasSelecionados([]);
-    setSelectedQuadraIds([regra.quadra_id]);
-    setMensagem("");
-    setErroAgenda("");
+    setModalEdicaoAberto(true);
   }
 
-  async function handleExcluirRegra(regraId) {
-    if (!quadraSelecionadaId) return;
+  function fecharModalEdicao() {
+    setModalEdicaoAberto(false);
+    setRegraEditando(null);
+    resetRegraForm();
+  }
 
-    const confirmar = window.confirm(
-      "Tem certeza que deseja desativar esta regra?"
-    );
-    if (!confirmar) return;
+  async function handleSalvarEdicaoModal(e) {
+    e.preventDefault();
+    
+    if (!regraEditando) return;
+
+    // Validações
+    if (!regraForm.horaInicio || !regraForm.horaFim) {
+      setErro("Preencha os horários inicial e final.");
+      return;
+    }
+
+    const horaInicioMatch = regraForm.horaInicio.match(/^(\d{2}):(\d{2})$/);
+    const horaFimMatch = regraForm.horaFim.match(/^(\d{2}):(\d{2})$/);
+    
+    if (!horaInicioMatch || !horaFimMatch) {
+      setErro("Formato de horário inválido. Use o formato HH:MM (ex: 08:00).");
+      return;
+    }
+
+    const horaInicioNum = parseInt(regraForm.horaInicio.split(":")[0]);
+    const horaFimNum = parseInt(regraForm.horaFim.split(":")[0]);
+    const minutoInicio = parseInt(regraForm.horaInicio.split(":")[1]);
+    const minutoFim = parseInt(regraForm.horaFim.split(":")[1]);
+
+    if (minutoInicio !== 0 || minutoFim !== 0) {
+      setErro("Os horários devem ser de hora em hora (ex: 08:00, 09:00).");
+      return;
+    }
+
+    if (horaInicioNum >= horaFimNum) {
+      setErro("A hora final deve ser maior que a hora inicial.");
+      return;
+    }
+
+    if (!regraForm.precoHora || regraForm.precoHora.trim() === "") {
+      setErro("O preço por hora é obrigatório.");
+      return;
+    }
 
     try {
-      setExcluindoRegraId(regraId);
-      setErroAgenda("");
+      setSalvandoRegra(true);
+      setErro("");
       setMensagem("");
 
-      await api.delete(`/gestor/agenda/regras/${regraId}`, {
-        data: { quadraId: quadraSelecionadaId, softDelete: true },
-      });
+      const precoLimpo = String(regraForm.precoHora).replace(",", ".").trim();
+      const precoHoraNum = Number(precoLimpo);
+      
+      if (isNaN(precoHoraNum) || precoHoraNum <= 0) {
+        setErro("Preço por hora inválido. Informe um valor maior que zero.");
+        setSalvandoRegra(false);
+        return;
+      }
 
-      await carregarAgendaDaQuadra(quadraSelecionadaId);
-      setMensagem("Regra desativada com sucesso.");
+      const payload = {
+        quadraId: quadraSelecionadaId,
+        diaSemana: regraEditando.dia_semana,
+        horaInicio: regraForm.horaInicio,
+        horaFim: regraForm.horaFim,
+        precoHora: precoHoraNum,
+        ativo: true
+      };
+
+      await api.put(`/gestor/agenda/regras/${regraEditandoId}`, payload);
+      setMensagem("Regra atualizada com sucesso!");
+      fecharModalEdicao();
+      await carregarAgenda();
+      setTimeout(() => setMensagem(""), 3000);
     } catch (err) {
-      console.error("[GESTOR/AGENDA] Erro ao excluir regra:", err);
-      const mensagemLocal =
-        err.response?.data?.error || "Erro ao excluir regra de horário.";
-      setErroAgenda(mensagemLocal);
-      setMensagem("");
+      console.error("[AGENDA] Erro ao salvar edição:", err);
+      if (err.response?.status === 409) {
+        setErro("Já existe uma regra para este dia e horário.");
+      } else if (err.response?.status === 400) {
+        setErro(err.response?.data?.error || "Dados inválidos.");
+      } else {
+        setErro(err.response?.data?.error || "Erro ao atualizar regra.");
+      }
     } finally {
-      setExcluindoRegraId(null);
+      setSalvandoRegra(false);
     }
   }
 
-  // -----------------------------------
-  // Ações de Bloqueios (LOTE + COMPLEXO INTEIRO)
-  // -----------------------------------
-  async function handleSubmitBloqueio(event) {
-    event.preventDefault();
+  const [modalRemoverDoModal, setModalRemoverDoModal] = useState(false);
 
-    if (!empresaSelecionadaId) {
-      setErroAgenda(
-        "Selecione um complexo/empresa antes de criar bloqueios."
-      );
+  function abrirModalRemoverDoModal() {
+    setModalRemoverDoModal(true);
+  }
+
+  function fecharModalRemoverDoModal() {
+    setModalRemoverDoModal(false);
+  }
+
+  async function handleRemoverDoModal() {
+    if (!regraEditando) return;
+
+    try {
+      setErro("");
       setMensagem("");
+      fecharModalRemoverDoModal();
+      fecharModalEdicao();
+
+      await api.delete(`/gestor/agenda/regras/${regraEditando.id}`);
+      
+      setMensagem("Regra removida com sucesso!");
+      await carregarAgenda();
+      setTimeout(() => setMensagem(""), 3000);
+    } catch (err) {
+      console.error("[AGENDA] Erro ao excluir regra:", err);
+      setErro(err.response?.data?.error || "Erro ao remover regra.");
+    }
+  }
+
+  function resetRegraForm() {
+    setRegraForm({
+      diasSemana: [],
+      horaInicio: "",
+      horaFim: "",
+      precoHora: ""
+    });
+    setRegraEditandoId(null);
+  }
+
+  function abrirModalExcluirRegra(regraId) {
+    setModalExcluirRegra({ aberto: true, regraId });
+  }
+
+  function fecharModalExcluirRegra() {
+    setModalExcluirRegra({ aberto: false, regraId: null });
+  }
+
+  async function handleExcluirRegra() {
+    const regraId = modalExcluirRegra.regraId;
+    if (!regraId) {
+      setErro("ID da regra não informado.");
       return;
     }
 
-    if (!bloqueioForm.data || !bloqueioForm.horaInicio || !bloqueioForm.horaFim) {
-      setErroAgenda("Informe data, hora de início e fim para o bloqueio.");
+    try {
+      setErro("");
       setMensagem("");
+      fecharModalExcluirRegra();
+
+      // O backend não precisa de dados no body, apenas o ID na URL
+      await api.delete(`/gestor/agenda/regras/${regraId}`);
+      
+      setMensagem("Regra removida com sucesso!");
+      await carregarAgenda();
+      setTimeout(() => setMensagem(""), 3000);
+    } catch (err) {
+      console.error("[AGENDA] Erro ao excluir regra:", err);
+      console.error("[AGENDA] Detalhes do erro:", err.response?.data);
+      
+      // Tratamento específico de erros
+      if (err.response?.status === 404) {
+        setErro("Regra não encontrada. Ela pode já ter sido removida.");
+      } else if (err.response?.status === 403) {
+        setErro("Você não tem permissão para remover esta regra.");
+      } else {
+        setErro(err.response?.data?.error || "Erro ao remover regra. Tente novamente.");
+      }
+    }
+  }
+
+  function abrirModalLimparTodas() {
+    if (regras.length === 0) {
+      setErro("Não há regras para remover.");
       return;
     }
+    setModalLimparTodasAberto(true);
+  }
 
-    // Define quais quadras vão receber o bloqueio
-    let quadrasAlvo = [];
+  function fecharModalLimparTodas() {
+    setModalLimparTodasAberto(false);
+  }
 
-    if (bloquearComplexoInteiro) {
-      quadrasAlvo = quadras.map((q) => q.id);
-    } else if (selectedQuadraIds.length > 0) {
-      quadrasAlvo = [...selectedQuadraIds];
-    } else if (quadraSelecionadaId) {
-      quadrasAlvo = [quadraSelecionadaId];
+  async function handleLimparTodasRegras() {
+    try {
+      setCarregando(true);
+      setErro("");
+      setMensagem("");
+      fecharModalLimparTodas();
+
+      // Deletar todas as regras em paralelo
+      await Promise.all(
+        regras.map(regra =>
+          api.delete(`/gestor/agenda/regras/${regra.id}`, {
+            data: { quadraId: quadraSelecionadaId }
+          })
+        )
+      );
+
+      setMensagem(`Todas as ${regras.length} regras foram removidas com sucesso!`);
+      await carregarAgenda();
+      setTimeout(() => setMensagem(""), 3000);
+    } catch (err) {
+      console.error("[AGENDA] Erro ao limpar regras:", err);
+      setErro(err.response?.data?.error || "Erro ao remover regras. Tente novamente.");
+    } finally {
+      setCarregando(false);
+    }
+  }
+
+
+  // Calendário para bloqueios
+  function gerarDiasDoMes() {
+    const ano = mesBloqueio.getFullYear();
+    const mes = mesBloqueio.getMonth();
+    const primeiroDia = new Date(ano, mes, 1);
+    const ultimoDia = new Date(ano, mes + 1, 0);
+    const diasNoMes = ultimoDia.getDate();
+    const diaInicialSemana = primeiroDia.getDay();
+
+    const dias = [];
+    
+    // Dias vazios antes do primeiro dia
+    for (let i = 0; i < diaInicialSemana; i++) {
+      dias.push(null);
     }
 
-    quadrasAlvo = Array.from(new Set(quadrasAlvo));
+    // Dias do mês
+    for (let dia = 1; dia <= diasNoMes; dia++) {
+      const data = new Date(ano, mes, dia);
+      const dataISO = `${ano}-${String(mes + 1).padStart(2, "0")}-${String(dia).padStart(2, "0")}`;
+      dias.push({
+        dia,
+        data: dataISO,
+        bloqueado: bloqueios.some(b => b.data === dataISO),
+        bloqueiosDoDia: bloqueios.filter(b => b.data === dataISO)
+      });
+    }
 
-    if (!quadrasAlvo.length) {
-      setErroAgenda(
-        "Selecione pelo menos uma quadra ou marque 'Bloquear complexo inteiro'."
-      );
-      setMensagem("");
+    return dias;
+  }
+
+  function toggleHorarioBloqueio(horario) {
+    setHorariosBloqueio(prev => 
+      prev.includes(horario)
+        ? prev.filter(h => h !== horario)
+        : [...prev, horario]
+    );
+  }
+
+  async function handleSalvarBloqueios() {
+    if (!dataBloqueioSelecionada || horariosBloqueio.length === 0) {
+      setErro("Selecione uma data e pelo menos um horário para bloquear.");
       return;
     }
 
     try {
       setSalvandoBloqueio(true);
-      setErroAgenda("");
+      setErro("");
       setMensagem("");
 
+      const horaInicio = Math.min(...horariosBloqueio.map(h => parseInt(h.split(":")[0])));
+      const horaFim = Math.max(...horariosBloqueio.map(h => parseInt(h.split(":")[0]))) + 1;
+
       const payload = {
-        quadraIds: quadrasAlvo,
-        data: bloqueioForm.data,
-        horaInicio: bloqueioForm.horaInicio,
-        horaFim: bloqueioForm.horaFim,
-        motivo:
-          bloqueioForm.motivo ||
-          (bloquearComplexoInteiro
-            ? "Bloqueio geral do complexo"
-            : "Bloqueio manual"),
+        quadraIds: [quadraSelecionadaId],
+        data: dataBloqueioSelecionada,
+        horaInicio: String(horaInicio).padStart(2, "0") + ":00",
+        horaFim: String(horaFim).padStart(2, "0") + ":00",
+        motivo: "Bloqueio manual"
       };
 
       await api.post("/gestor/agenda/bloqueios/lote", payload);
-
-      if (quadraSelecionadaId) {
-        await carregarAgendaDaQuadra(quadraSelecionadaId);
-      }
-
-      resetBloqueioForm();
-      setMensagem("Bloqueio(s) cadastrado(s) com sucesso.");
+      setMensagem("Horários bloqueados com sucesso!");
+      setDataBloqueioSelecionada("");
+      setHorariosBloqueio([]);
+      await carregarAgenda();
+      setTimeout(() => setMensagem(""), 3000);
     } catch (err) {
-      console.error("[GESTOR/AGENDA] Erro ao salvar bloqueio:", err);
-      const mensagemLocal =
-        err.response?.data?.error || "Erro ao salvar bloqueio da quadra.";
-      setErroAgenda(mensagemLocal);
-      setMensagem("");
+      console.error("[AGENDA] Erro ao salvar bloqueio:", err);
+      setErro(err.response?.data?.error || "Erro ao salvar bloqueio.");
     } finally {
       setSalvandoBloqueio(false);
     }
   }
 
-  async function handleExcluirBloqueio(bloqueioId) {
-    if (!quadraSelecionadaId) return;
-
-    const confirmar = window.confirm(
-      "Tem certeza que deseja remover este bloqueio?"
-    );
-    if (!confirmar) return;
+  async function handleBloquearDiaInteiro() {
+    if (!dataBloqueioSelecionada) {
+      setErro("Selecione uma data primeiro.");
+      return;
+    }
 
     try {
-      setExcluindoBloqueioId(bloqueioId);
-      setErroAgenda("");
+      setSalvandoBloqueio(true);
+      setErro("");
       setMensagem("");
 
-      await api.delete(`/gestor/agenda/bloqueios/${bloqueioId}`, {
-        data: { quadraId: quadraSelecionadaId },
-      });
+      const payload = {
+        quadraIds: [quadraSelecionadaId],
+        data: dataBloqueioSelecionada,
+        horaInicio: "00:00",
+        horaFim: "23:59",
+        motivo: "Bloqueio de dia inteiro"
+      };
 
-      await carregarAgendaDaQuadra(quadraSelecionadaId);
-      setMensagem("Bloqueio removido com sucesso.");
+      await api.post("/gestor/agenda/bloqueios/lote", payload);
+      setMensagem("Dia inteiro bloqueado com sucesso!");
+      setDataBloqueioSelecionada("");
+      setHorariosBloqueio([]);
+      await carregarAgenda();
+      setTimeout(() => setMensagem(""), 3000);
     } catch (err) {
-      console.error("[GESTOR/AGENDA] Erro ao excluir bloqueio:", err);
-      const mensagemLocal =
-        err.response?.data?.error || "Erro ao excluir bloqueio da quadra.";
-      setErroAgenda(mensagemLocal);
-      setMensagem("");
+      console.error("[AGENDA] Erro ao bloquear dia inteiro:", err);
+      setErro(err.response?.data?.error || "Erro ao bloquear dia inteiro.");
     } finally {
-      setExcluindoBloqueioId(null);
+      setSalvandoBloqueio(false);
     }
   }
 
-  // -----------------------------------
-  // Helpers de exibição
-  // -----------------------------------
-  function formatarNomeEmpresa(empresa) {
-    const nome = empresa.nome || "Sem nome";
-    const desc = empresa.descricao_complexo;
-    if (desc) {
-      return `${nome} — ${desc}`;
+  async function handleDesbloquearHorarios() {
+    if (!dataBloqueioSelecionada || horariosBloqueio.length === 0) {
+      setErro("Selecione uma data e pelo menos um horário para desbloquear.");
+      return;
     }
-    return nome;
+
+    try {
+      setRemovendoBloqueio(true);
+      setErro("");
+      setMensagem("");
+
+      // Buscar bloqueios que correspondem aos horários selecionados
+      const bloqueiosDoDia = bloqueios.filter(b => b.data === dataBloqueioSelecionada);
+      
+      // Para cada horário selecionado, encontrar e remover o bloqueio correspondente
+      const bloqueiosParaRemover = [];
+      horariosBloqueio.forEach(horario => {
+        const hora = parseInt(horario.split(":")[0]);
+        const bloqueio = bloqueiosDoDia.find(b => {
+          const horaInicio = parseInt(b.hora_inicio?.split(":")[0] || 0);
+          const horaFim = parseInt(b.hora_fim?.split(":")[0] || 23);
+          return hora >= horaInicio && hora < horaFim;
+        });
+        if (bloqueio) {
+          bloqueiosParaRemover.push(bloqueio.id);
+        }
+      });
+
+      // Remover bloqueios únicos
+      const bloqueiosUnicos = [...new Set(bloqueiosParaRemover)];
+      await Promise.all(
+        bloqueiosUnicos.map(id => api.delete(`/gestor/agenda/bloqueios/${id}`))
+      );
+
+      setMensagem("Horários desbloqueados com sucesso!");
+      setDataBloqueioSelecionada("");
+      setHorariosBloqueio([]);
+      await carregarAgenda();
+      setTimeout(() => setMensagem(""), 3000);
+    } catch (err) {
+      console.error("[AGENDA] Erro ao desbloquear horários:", err);
+      setErro(err.response?.data?.error || "Erro ao desbloquear horários.");
+    } finally {
+      setRemovendoBloqueio(false);
+    }
+  }
+
+  async function handleDesbloquearDiaInteiro() {
+    if (!dataBloqueioSelecionada) {
+      setErro("Selecione uma data primeiro.");
+      return;
+    }
+
+    try {
+      setRemovendoBloqueio(true);
+      setErro("");
+      setMensagem("");
+
+      // Buscar todos os bloqueios do dia
+      const bloqueiosDoDia = bloqueios.filter(b => b.data === dataBloqueioSelecionada);
+      
+      // Remover todos os bloqueios do dia
+      await Promise.all(
+        bloqueiosDoDia.map(bloqueio => api.delete(`/gestor/agenda/bloqueios/${bloqueio.id}`))
+      );
+
+      setMensagem("Dia inteiro desbloqueado com sucesso!");
+      setDataBloqueioSelecionada("");
+      setHorariosBloqueio([]);
+      await carregarAgenda();
+      setTimeout(() => setMensagem(""), 3000);
+    } catch (err) {
+      console.error("[AGENDA] Erro ao desbloquear dia inteiro:", err);
+      setErro(err.response?.data?.error || "Erro ao desbloquear dia inteiro.");
+    } finally {
+      setRemovendoBloqueio(false);
+    }
+  }
+
+  // Verificar quais horários estão bloqueados para a data selecionada
+  function getHorariosBloqueados() {
+    if (!dataBloqueioSelecionada) return [];
+    
+    const bloqueiosDoDia = bloqueios.filter(b => b.data === dataBloqueioSelecionada);
+    const horariosBloqueados = [];
+    
+    bloqueiosDoDia.forEach(bloqueio => {
+      const horaInicio = parseInt(bloqueio.hora_inicio?.split(":")[0] || 0);
+      const horaFim = parseInt(bloqueio.hora_fim?.split(":")[0] || 23);
+      
+      for (let hora = horaInicio; hora < horaFim; hora++) {
+        const horario = String(hora).padStart(2, "0") + ":00";
+        if (!horariosBloqueados.includes(horario)) {
+          horariosBloqueados.push(horario);
+        }
+      }
+    });
+    
+    return horariosBloqueados;
   }
 
   function formatarNomeQuadra(quadra) {
-    const tipo = quadra.tipo || "Tipo";
-    const material = quadra.material || "Material";
-    const modalidade = quadra.modalidade || "Modalidade";
-    return `${modalidade} - ${material} (${tipo})`;
+    const tipo = quadra.tipo || "Quadra";
+    const modalidade = quadra.modalidade || "";
+    return modalidade ? `${tipo} - ${modalidade}` : tipo;
   }
 
-  function labelDiaSemana(numero) {
-    const mapa = {
-      0: "Domingo",
-      1: "Segunda",
-      2: "Terça",
-      3: "Quarta",
-      4: "Quinta",
-      5: "Sexta",
-      6: "Sábado",
-    };
-    return mapa[numero] ?? numero;
-  }
+  const regrasPorDia = DIAS_SEMANA.map(dia => ({
+    ...dia,
+    regras: regras.filter(r => r.dia_semana === dia.valor)
+  }));
 
-  // -----------------------------------
-  // RENDER
-  // -----------------------------------
+  const diasDoMes = gerarDiasDoMes();
+  const nomesMeses = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+
   return (
     <div className="page">
-      <div className="page-header">
-        <h1 className="page-title">Agenda das Quadras</h1>
-
-        {/* 🔹 Botão para abrir a tela de edição organizada */}
-        <Link to="/gestor/agenda/editar" className="btn-outlined">
-          Editar agenda
-        </Link>
+      <div style={{ marginBottom: 24 }}>
+        <h1 style={{ fontSize: 20, fontWeight: 700, color: "#111827" }}>Regra de Horários</h1>
       </div>
 
-      <p style={{ marginBottom: 16 }}>
-        Primeiro selecione o <strong>complexo/empresa</strong>, depois escolha a{" "}
-        <strong>quadra</strong> para visualizar a agenda. No formulário de
-        regras você pode aplicar a mesma faixa de horário/valor para{" "}
-        <strong>várias quadras</strong> e vários dias. Em bloqueios, você pode
-        bloquear quadras específicas ou o{" "}
-        <strong>complexo inteiro (ex.: Natal/Ano Novo)</strong>.
-      </p>
-
-      {/* ✅ Alerta de SUCESSO/AVISO */}
       {mensagem && (
-        <div
-          className="alert-sucesso-agenda"
-          style={{
-            marginTop: 8,
-            marginBottom: 16,
-            padding: "10px 14px",
-            borderRadius: 8,
-            border: "1px solid #4ade80",
-            backgroundColor: "#ecfdf3",
-            color: "#166534",
-            display: "flex",
-            alignItems: "flex-start",
-            gap: 8,
-            fontSize: 14,
-            fontWeight: 500,
-          }}
-        >
-          <span style={{ fontSize: 20, lineHeight: 1 }}>✅</span>
-          <div>
-            <strong style={{ display: "block", marginBottom: 4 }}>
-              Operação concluída
-            </strong>
-            <span>{mensagem}</span>
-          </div>
+        <div className="card" style={{ backgroundColor: "#d1fae5", border: "1px solid #86efac", color: "#065f46", padding: "12px 16px", marginBottom: 16 }}>
+          {mensagem}
         </div>
       )}
 
-      {/* Seleção da Empresa e Quadra */}
-      <div className="card" style={{ marginBottom: 20 }}>
-        <h3>Seleção de complexo e quadra</h3>
+      {erro && (
+        <div className="card" style={{ backgroundColor: "#fee2e2", border: "1px solid #fca5a5", color: "#991b1b", padding: "12px 16px", marginBottom: 16 }}>
+          {erro}
+        </div>
+      )}
 
-        {/* Empresas */}
-        {carregandoEmpresas && <p>Carregando empresas do gestor...</p>}
+      {!quadraSelecionadaId && (
+        <div className="card" style={{ textAlign: "center", padding: 40, color: "#6b7280" }}>
+          Selecione uma quadra para configurar a agenda
+        </div>
+      )}
 
-        {erroEmpresas && !carregandoEmpresas && (
-          <p className="form-message error">{erroEmpresas}</p>
-        )}
-
-        {!carregandoEmpresas && !erroEmpresas && empresas.length === 0 && (
-          <p>
-            Nenhuma empresa/complexo encontrada para este gestor. Cadastre uma
-            empresa primeiro.
-          </p>
-        )}
-
-        {!carregandoEmpresas && empresas.length > 0 && (
-          <div className="form-grid" style={{ maxWidth: 700 }}>
-            <div className="form-field form-field-full">
-              <label htmlFor="empresaSelecionada">Empresa / Complexo</label>
-              <select
-                id="empresaSelecionada"
-                value={empresaSelecionadaId}
-                onChange={handleSelecionarEmpresa}
-              >
-                <option value="">Selecione uma empresa</option>
-                {empresas.map((empresa) => (
-                  <option key={empresa.id} value={empresa.id}>
-                    {formatarNomeEmpresa(empresa)}
-                  </option>
-                ))}
-              </select>
-              <small>
-                Escolha o complexo para ver apenas as quadras vinculadas a ele.
-              </small>
+      {quadraSelecionadaId && (
+        <>
+          {/* Regras de Horários */}
+          <div className="card" style={{ marginTop: 0, marginBottom: 24 }}>
+            {/* Seleção de Quadra */}
+            <div style={{ marginBottom: 24, paddingBottom: 24, borderBottom: "1px solid #e5e7eb" }}>
+              <label style={{ 
+                display: "block", 
+                fontSize: 14, 
+                fontWeight: 600, 
+                color: "#111827", 
+                marginBottom: 8 
+              }}>
+                Quadra
+              </label>
+              {carregando && quadras.length === 0 ? (
+                <div style={{ 
+                  padding: "12px 16px", 
+                  color: "#6b7280", 
+                  fontSize: 14,
+                  backgroundColor: "#f9fafb",
+                  borderRadius: 8,
+                  border: "1px solid #e5e7eb"
+                }}>
+                  Carregando quadras...
+                </div>
+              ) : (
+                <select
+                  value={quadraSelecionadaId}
+                  onChange={(e) => setQuadraSelecionadaId(e.target.value)}
+                  style={{
+                    width: "100%",
+                    maxWidth: "400px",
+                    padding: "12px 16px",
+                    border: "1px solid #d1d5db",
+                    borderRadius: 8,
+                    fontSize: 15,
+                    fontWeight: 500,
+                    outline: "none",
+                    backgroundColor: "#fff",
+                    color: "#111827",
+                    cursor: "pointer",
+                    transition: "all 0.2s",
+                    appearance: "none",
+                    backgroundImage: `url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L6 6L11 1' stroke='%236b7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")`,
+                    backgroundRepeat: "no-repeat",
+                    backgroundPosition: "right 16px center",
+                    paddingRight: "40px"
+                  }}
+                  onFocus={(e) => {
+                    e.target.style.borderColor = "#37648c";
+                    e.target.style.boxShadow = "0 0 0 3px rgba(55, 100, 140, 0.1)";
+                  }}
+                  onBlur={(e) => {
+                    e.target.style.borderColor = "#d1d5db";
+                    e.target.style.boxShadow = "none";
+                  }}
+                  onMouseEnter={(e) => {
+                    if (document.activeElement !== e.target) {
+                      e.target.style.borderColor = "#9ca3af";
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (document.activeElement !== e.target) {
+                      e.target.style.borderColor = "#d1d5db";
+                    }
+                  }}
+                >
+                  <option value="">Selecione uma quadra</option>
+                  {quadras.map((quadra) => (
+                    <option key={quadra.id} value={quadra.id}>
+                      {formatarNomeQuadra(quadra)}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
+              <div>
+                <h3 style={{ fontSize: 18, fontWeight: 600, color: "#111827", marginBottom: 4 }}>
+                  Regras de Horários
+                </h3>
+                <p style={{ fontSize: 13, color: "#6b7280", margin: 0 }}>
+                  Configure os horários disponíveis de hora em hora. O sistema gerará automaticamente os horários entre o início e o fim informados.
+                </p>
+              </div>
+              {regras.length > 0 && (
+                <button
+                  type="button"
+                  onClick={abrirModalLimparTodas}
+                  disabled={carregando}
+                  style={{
+                    padding: "10px 20px",
+                    backgroundColor: carregando ? "#d1d5db" : "#fee2e2",
+                    color: carregando ? "#6b7280" : "#991b1b",
+                    border: `1px solid ${carregando ? "#9ca3af" : "#fca5a5"}`,
+                    borderRadius: 8,
+                    fontSize: 14,
+                    fontWeight: 600,
+                    cursor: carregando ? "not-allowed" : "pointer",
+                    transition: "all 0.2s",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    flexShrink: 0
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!carregando) {
+                      e.target.style.backgroundColor = "#fecaca";
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!carregando) {
+                      e.target.style.backgroundColor = "#fee2e2";
+                    }
+                  }}
+                >
+                  {carregando ? (
+                    <>
+                      <span>Removendo...</span>
+                    </>
+                  ) : (
+                    <>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M6 19C6 20.1 6.9 21 8 21H16C17.1 21 18 20.1 18 19V7H6V19ZM19 4H15.5L14.5 3H9.5L8.5 4H5V6H19V4Z" fill="currentColor"/>
+                      </svg>
+                      Limpar Todas as Regras ({regras.length})
+                    </>
+                  )}
+                </button>
+              )}
             </div>
 
-            {/* Quadras da empresa */}
-            {empresaSelecionadaId && (
-              <div className="form-field form-field-full">
-                <label htmlFor="quadraSelecionada">Quadra (visualização)</label>
-                {carregandoQuadras && <p>Carregando quadras...</p>}
-
-                {erroQuadras && !carregandoQuadras && (
-                  <p className="form-message error">{erroQuadras}</p>
-                )}
-
-                {!carregandoQuadras &&
-                  !erroQuadras &&
-                  quadras.length === 0 && (
-                    <p>Nenhuma quadra cadastrada para este complexo.</p>
-                  )}
-
-                {!carregandoQuadras && quadras.length > 0 && (
-                  <>
-                    <select
-                      id="quadraSelecionada"
-                      value={quadraSelecionadaId}
-                      onChange={handleSelecionarQuadra}
-                    >
-                      <option value="">Selecione uma quadra</option>
-                      {quadras.map((q) => (
-                        <option key={q.id} value={q.id}>
-                          {formatarNomeQuadra(q)}
-                        </option>
-                      ))}
-                    </select>
-                    <small>
-                      Esta quadra será usada para exibir a agenda abaixo. A
-                      criação de regras e bloqueios pode ser aplicada em lote a
-                      várias quadras.
-                    </small>
-                  </>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      {erroAgenda && (
-        <div
-          className="alert-erro-agenda"
-          style={{
-            marginTop: 16,
-            marginBottom: 16,
-            padding: "12px 16px",
-            borderRadius: 8,
-            border: "1px solid #fca5a5",
-            backgroundColor: "#fee2e2", // fundo vermelho claro
-            color: "#b91c1c", // texto vermelho forte
-            display: "flex",
-            alignItems: "flex-start",
-            gap: 8,
-            fontSize: 14,
-            fontWeight: 500,
-          }}
-        >
-          <span style={{ fontSize: 20, lineHeight: 1 }}>⚠️</span>
-          <div>
-            <strong style={{ display: "block", marginBottom: 4 }}>
-              Atenção na agenda
-            </strong>
-            <span>{erroAgenda}</span>
-          </div>
-        </div>
-      )}
-
-      {/* Painéis de Regras e Bloqueios */}
-      {quadraSelecionadaId && (
-        <div
-          className="page-grid"
-          style={{ display: "grid", gap: 16, gridTemplateColumns: "1.2fr 1fr" }}
-        >
-          {/* REGRAS DE HORÁRIO */}
-          <div className="card">
-            <h3>Regras de horário da quadra</h3>
-
-                        {/* Form de criação/edição de regra */}
-            <form
-              className="form-grid"
-              style={{ marginTop: 8, marginBottom: 12 }}
-              onSubmit={handleSubmitRegra}
-            >
-              {/* Seleção de quadras para aplicar esta regra (lote) */}
-              <div className="form-field form-field-full">
-                <label>
-                  {regraEditandoId
-                    ? "Quadra da regra (edição)"
-                    : "Quadras para aplicar esta regra (lote)"}
-                </label>
-
-                {quadras.length === 0 && (
-                  <p style={{ fontSize: 13 }}>
-                    Nenhuma quadra cadastrada para este complexo.
-                  </p>
-                )}
-
-                {quadras.length > 0 && (
-                  <div
-                    style={{
-                      display: "flex",
-                      flexWrap: "wrap",
-                      gap: 8,
-                      marginTop: 4,
-                    }}
-                  >
-                    {quadras.map((q) => {
-                      const isChecked = selectedQuadraIds.includes(q.id);
+            {/* Form de Regra */}
+            <form onSubmit={handleSalvarRegra} style={{ marginBottom: 24 }}>
+              <div className="form-grid">
+                <div className="form-field form-field-full">
+                  <label>Dias da Semana {regraEditandoId && "(edição de uma regra específica)"}</label>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 8 }}>
+                    {DIAS_SEMANA.map(dia => {
+                      const isSelecionado = regraForm.diasSemana.includes(dia.valor);
                       return (
                         <label
-                          key={q.id}
+                          key={dia.valor}
                           style={{
-                            fontSize: 13,
                             display: "flex",
-                            gap: 4,
-                            opacity: regraEditandoId && !isChecked ? 0.6 : 1,
+                            alignItems: "center",
+                            gap: 8,
+                            padding: "10px 16px",
+                            backgroundColor: isSelecionado ? "#37648c" : "#fff",
+                            color: isSelecionado ? "#fff" : "#111827",
+                            border: `2px solid ${isSelecionado ? "#37648c" : "#d1d5db"}`,
+                            borderRadius: 8,
+                            cursor: regraEditandoId ? "not-allowed" : "pointer",
+                            fontSize: 14,
+                            fontWeight: isSelecionado ? 600 : 500,
+                            transition: "all 0.2s",
+                            userSelect: "none",
+                            opacity: regraEditandoId && !isSelecionado ? 0.5 : 1
+                          }}
+                          onMouseEnter={(e) => {
+                            if (!isSelecionado && !regraEditandoId) {
+                              e.currentTarget.style.borderColor = "#37648c";
+                              e.currentTarget.style.backgroundColor = "#f3f4f6";
+                            }
+                          }}
+                          onMouseLeave={(e) => {
+                            if (!isSelecionado && !regraEditandoId) {
+                              e.currentTarget.style.borderColor = "#d1d5db";
+                              e.currentTarget.style.backgroundColor = "#fff";
+                            }
                           }}
                         >
                           <input
                             type="checkbox"
-                            checked={isChecked}
-                            disabled={!!regraEditandoId} // ✅ em edição, trava para não confundir
-                            onChange={() => toggleQuadraSelecionada(q.id)}
+                            checked={isSelecionado}
+                            onChange={() => toggleDiaSemana(dia.valor)}
+                            disabled={!!regraEditandoId}
+                            style={{ cursor: regraEditandoId ? "not-allowed" : "pointer" }}
                           />
-                          {formatarNomeQuadra(q)}
+                          <span>{dia.nome}</span>
                         </label>
                       );
                     })}
                   </div>
-                )}
+                  <small style={{ marginTop: 8, display: "block" }}>
+                    {regraEditandoId 
+                      ? "Você está editando uma regra específica. Para criar regras em múltiplos dias, cancele a edição e crie uma nova regra."
+                      : "Selecione um ou mais dias da semana. A mesma regra de horários será aplicada a todos os dias selecionados."}
+                  </small>
+                </div>
 
-                <small>
-                  {regraEditandoId ? (
-                    <>
-                      Você está <strong>editando</strong> uma regra específica
-                      (uma quadra + um dia). Para aplicar em várias quadras, clique{" "}
-                      em <strong>Cancelar edição</strong> e crie em lote.
-                    </>
-                  ) : (
-                    <>
-                      Ao criar uma nova regra, todas as quadras marcadas receberão
-                      a mesma faixa de horário/valor.
-                    </>
-                  )}
-                </small>
-              </div>
-
-              {/* ✅ Dia da semana (apenas na EDIÇÃO) */}
-              {regraEditandoId && (
                 <div className="form-field">
-                  <label htmlFor="diaSemana">Dia da semana (edição)</label>
-                  <select
-                    id="diaSemana"
-                    name="diaSemana"
-                    value={regraForm.diaSemana}
-                    onChange={handleChangeRegraForm}
-                  >
-                    <option value="">Selecione</option>
-                    <option value={1}>Segunda</option>
-                    <option value={2}>Terça</option>
-                    <option value={3}>Quarta</option>
-                    <option value={4}>Quinta</option>
-                    <option value={5}>Sexta</option>
-                    <option value={6}>Sábado</option>
-                    <option value={0}>Domingo</option>
-                  </select>
-                  <small>
-                    Esse campo só aparece quando você está editando uma regra já existente.
-                  </small>
-                </div>
-              )}
-
-              {/* ✅ Dias da semana (apenas na CRIAÇÃO EM LOTE) */}
-              {!regraEditandoId && (
-                <div className="form-field form-field-full">
-                  <label>Dias da semana (lote)</label>
-                  <div
-                    style={{
-                      display: "flex",
-                      flexWrap: "wrap",
-                      gap: 8,
-                      marginTop: 4,
+                  <label>Horário Inicial</label>
+                  <input
+                    type="time"
+                    value={regraForm.horaInicio}
+                    onChange={(e) => {
+                      const valor = e.target.value;
+                      // Garantir que os minutos sejam sempre 00
+                      if (valor) {
+                        const [hora, minuto] = valor.split(":");
+                        if (minuto && minuto !== "00") {
+                          const horaCorrigida = `${hora}:00`;
+                          setRegraForm({ ...regraForm, horaInicio: horaCorrigida });
+                        } else {
+                          setRegraForm({ ...regraForm, horaInicio: valor });
+                        }
+                      } else {
+                        setRegraForm({ ...regraForm, horaInicio: valor });
+                      }
                     }}
-                  >
-                    {[
-                      { valor: 1, label: "Seg" },
-                      { valor: 2, label: "Ter" },
-                      { valor: 3, label: "Qua" },
-                      { valor: 4, label: "Qui" },
-                      { valor: 5, label: "Sex" },
-                      { valor: 6, label: "Sáb" },
-                      { valor: 0, label: "Dom" },
-                    ].map((dia) => (
-                      <label
-                        key={dia.valor}
-                        style={{ fontSize: 13, display: "flex", gap: 4 }}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={diasSelecionados.includes(dia.valor)}
-                          onChange={() => toggleDiaSelecionado(dia.valor)}
-                        />
-                        {dia.label}
-                      </label>
-                    ))}
-                  </div>
-                  <small>
-                    Marque um ou mais dias. A mesma faixa de horário e preço será criada
-                    para os dias selecionados.
-                  </small>
+                    step="3600"
+                    required
+                  />
+                  <small>Apenas horas cheias (ex: 08:00, 09:00). Minutos serão automaticamente definidos como 00.</small>
+                </div>
+
+                <div className="form-field">
+                  <label>Horário Final</label>
+                  <input
+                    type="time"
+                    value={regraForm.horaFim}
+                    onChange={(e) => {
+                      const valor = e.target.value;
+                      // Garantir que os minutos sejam sempre 00
+                      if (valor) {
+                        const [hora, minuto] = valor.split(":");
+                        if (minuto && minuto !== "00") {
+                          const horaCorrigida = `${hora}:00`;
+                          setRegraForm({ ...regraForm, horaFim: horaCorrigida });
+                        } else {
+                          setRegraForm({ ...regraForm, horaFim: valor });
+                        }
+                      } else {
+                        setRegraForm({ ...regraForm, horaFim: valor });
+                      }
+                    }}
+                    step="3600"
+                    required
+                  />
+                  <small>Apenas horas cheias (ex: 22:00). O sistema criará horários até 21:00.</small>
+                </div>
+
+                <div className="form-field">
+                  <label>Preço por Hora (R$) *</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={regraForm.precoHora}
+                    onChange={(e) => setRegraForm({ ...regraForm, precoHora: e.target.value })}
+                    placeholder="Ex: 100.00"
+                    required
+                  />
+                  <small>Campo obrigatório. Informe o valor por hora (ex: 100.00)</small>
+                </div>
+              </div>
+
+              {regraForm.horaInicio && regraForm.horaFim && (
+                <div style={{ marginTop: 12, padding: 12, backgroundColor: "#f9fafb", borderRadius: 8, fontSize: 13 }}>
+                  <strong>Horários que serão criados:</strong>{" "}
+                  {gerarHorarios(regraForm.horaInicio, regraForm.horaFim).join(", ")}
                 </div>
               )}
-
-              <div className="form-field">
-                <label htmlFor="horaInicio">Hora início</label>
-                <input
-                  type="time"
-                  id="horaInicio"
-                  name="horaInicio"
-                  value={regraForm.horaInicio}
-                  onChange={handleChangeRegraForm}
-                />
-              </div>
-
-              <div className="form-field">
-                <label htmlFor="horaFim">Hora fim</label>
-                <input
-                  type="time"
-                  id="horaFim"
-                  name="horaFim"
-                  value={regraForm.horaFim}
-                  onChange={handleChangeRegraForm}
-                />
-              </div>
-
-              <div className="form-field">
-                <label htmlFor="precoHora">Preço por hora (R$)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  id="precoHora"
-                  name="precoHora"
-                  value={regraForm.precoHora}
-                  onChange={handleChangeRegraForm}
-                />
-                <small>
-                  O preço é o que “manda” na regra. Se preço/horário forem iguais, você
-                  aplica em lote facilmente.
-                </small>
-              </div>
-
-              {/* ✅ Removido: checkbox "Regra ativa" (regra já nasce ativa) */}
 
               <div className="form-actions">
                 {regraEditandoId && (
                   <button
                     type="button"
-                    className="btn-outlined"
                     onClick={resetRegraForm}
-                    disabled={salvandoRegra}
+                    className="btn-outlined"
                   >
-                    Cancelar edição
+                    Cancelar Edição
                   </button>
                 )}
-
                 <button
                   type="submit"
                   className="btn-primary"
                   disabled={salvandoRegra}
+                  style={{ backgroundColor: "#37648c", borderColor: "#37648c" }}
                 >
-                  {salvandoRegra
-                    ? "Salvando..."
-                    : regraEditandoId
-                    ? "Salvar alterações"
-                    : "Adicionar regra em lote"}
+                  {salvandoRegra ? "Salvando..." : regraEditandoId ? "Atualizar Regra" : "Criar Regra"}
                 </button>
               </div>
             </form>
 
+            {/* Lista de Regras por Dia */}
+            {regrasPorDia.map(({ valor, nome, abreviacao, regras: regrasDia }) => {
+              if (regrasDia.length === 0) return null;
 
-            {carregandoAgenda && <p>Carregando regras...</p>}
+              return (
+                <div key={valor} style={{ marginBottom: 24, padding: 16, backgroundColor: "#f9fafb", borderRadius: 8 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                    <h4 style={{ fontSize: 16, fontWeight: 600, color: "#111827" }}>{nome}</h4>
+                    <button
+                      type="button"
+                      onClick={() => abrirModalLimparDia(valor)}
+                      style={{
+                        padding: "6px 12px",
+                        backgroundColor: "#fee2e2",
+                        color: "#991b1b",
+                        border: "1px solid #fca5a5",
+                        borderRadius: 6,
+                        fontSize: 12,
+                        fontWeight: 500,
+                        cursor: "pointer"
+                      }}
+                    >
+                      Limpar {nome}
+                    </button>
+                  </div>
 
-            {!carregandoAgenda && regras.length === 0 && (
-              <p>Nenhuma regra cadastrada para esta quadra ainda.</p>
-            )}
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                    {regrasDia.map(regra => {
+                      const horarios = gerarHorarios(regra.hora_inicio, regra.hora_fim);
+                      return (
+                        <div
+                          key={regra.id}
+                          style={{
+                            padding: "12px 16px",
+                            backgroundColor: "#fff",
+                            border: "2px solid #37648c",
+                            borderRadius: 8,
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 12
+                          }}
+                        >
+                          <div>
+                            <div style={{ fontSize: 14, fontWeight: 600, color: "#111827" }}>
+                              {regra.hora_inicio} às {regra.hora_fim}
+                            </div>
+                            <div style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>
+                              {regra.preco_hora ? formatBRL(regra.preco_hora) + "/hora" : "Sem preço definido"}
+                            </div>
+                          </div>
+                          <div style={{ display: "flex", gap: 8 }}>
+                            <button
+                              type="button"
+                              onClick={() => iniciarEdicaoRegra(regra)}
+                              style={{
+                                padding: "6px 12px",
+                                backgroundColor: "#37648c",
+                                color: "#fff",
+                                border: "none",
+                                borderRadius: 6,
+                                fontSize: 12,
+                                fontWeight: 500,
+                                cursor: "pointer"
+                              }}
+                            >
+                              Editar
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => abrirModalExcluirRegra(regra.id)}
+                              style={{
+                                padding: "6px 12px",
+                                backgroundColor: "#fee2e2",
+                                color: "#991b1b",
+                                border: "1px solid #fca5a5",
+                                borderRadius: 6,
+                                fontSize: 12,
+                                fontWeight: 500,
+                                cursor: "pointer"
+                              }}
+                            >
+                              Remover
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
 
-            {!carregandoAgenda && regras.length > 0 && (
-              <div style={{ overflowX: "auto", marginTop: 8 }}>
-                <table
-                  className="tabela-simples"
-                  style={{ width: "100%", minWidth: 650 }}
-                >
-                  <thead>
-                    <tr>
-                      <th>Dia</th>
-                      <th>Início</th>
-                      <th>Fim</th>
-                      <th>Preço/hora</th>
-                      <th>Ativo</th>
-                      <th>Ações</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {regras.map((regra) => (
-                      <tr key={regra.id}>
-                        <td>{labelDiaSemana(regra.dia_semana)}</td>
-                        <td>{regra.hora_inicio}</td>
-                        <td>{regra.hora_fim}</td>
-                        <td>
-                          {regra.preco_hora != null
-                            ? `R$ ${Number(regra.preco_hora).toFixed(2)}`
-                            : "-"}
-                        </td>
-                        <td>{regra.ativo ? "Sim" : "Não"}</td>
-                        <td>
-                          <button
-                            type="button"
-                            className="btn-outlined"
-                            style={{ marginRight: 6 }}
-                            onClick={() => iniciarEdicaoRegra(regra)}
-                          >
-                            Editar
-                          </button>
-                          <button
-                            type="button"
-                            className="btn-primary"
-                            onClick={() => handleExcluirRegra(regra.id)}
-                            disabled={excluindoRegraId === regra.id}
-                          >
-                            {excluindoRegraId === regra.id
-                              ? "Removendo..."
-                              : "Desativar"}
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+            {regras.length === 0 && (
+              <div style={{ textAlign: "center", padding: 40, color: "#6b7280" }}>
+                Nenhuma regra cadastrada. Crie uma regra acima para começar.
               </div>
             )}
           </div>
+        </>
+      )}
 
-          {/* BLOQUEIOS MANUAIS */}
-          <div className="card">
-            <h3>Bloqueios manuais da quadra</h3>
+      {/* Modal de Edição */}
+      {modalEdicaoAberto && regraEditando && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(0, 0, 0, 0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+            padding: 20
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              fecharModalEdicao();
+            }
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: "#fff",
+              borderRadius: 12,
+              padding: 24,
+              maxWidth: 500,
+              width: "100%",
+              boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)"
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+              <h3 style={{ fontSize: 20, fontWeight: 600, color: "#111827" }}>
+                Editar Regra de Horários
+              </h3>
+              <button
+                type="button"
+                onClick={fecharModalEdicao}
+                style={{
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  padding: 4,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  borderRadius: 4,
+                  color: "#6b7280"
+                }}
+                onMouseEnter={(e) => e.target.style.backgroundColor = "#f3f4f6"}
+                onMouseLeave={(e) => e.target.style.backgroundColor = "transparent"}
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                  <path d="M19 6.41L17.59 5L12 10.59L6.41 5L5 6.41L10.59 12L5 17.59L6.41 19L12 13.41L17.59 19L19 17.59L13.41 12L19 6.41Z" fill="currentColor"/>
+                </svg>
+              </button>
+            </div>
 
-            {/* Form de criação de bloqueio (lote + complexo inteiro) */}
-            <form
-              className="form-grid"
-              style={{ marginTop: 8, marginBottom: 12 }}
-              onSubmit={handleSubmitBloqueio}
-            >
-              {/* Escopo do bloqueio */}
-              <div className="form-field form-field-full">
-                <label>Escopo do bloqueio</label>
-                <label
-                  style={{
-                    fontSize: 13,
-                    display: "flex",
-                    gap: 6,
-                    marginBottom: 4,
-                  }}
-                >
+            <div style={{ marginBottom: 16, padding: "12px 16px", backgroundColor: "#f9fafb", borderRadius: 8, fontSize: 14, color: "#6b7280" }}>
+              <strong style={{ color: "#111827" }}>Dia da semana:</strong> {DIAS_SEMANA.find(d => d.valor === regraEditando.dia_semana)?.nome || "—"}
+            </div>
+
+            <form onSubmit={handleSalvarEdicaoModal}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                <div>
+                  <label style={{ display: "block", fontSize: 14, fontWeight: 600, color: "#111827", marginBottom: 8 }}>
+                    Horário Inicial
+                  </label>
                   <input
-                    type="checkbox"
-                    checked={bloquearComplexoInteiro}
-                    onChange={(e) =>
-                      setBloquearComplexoInteiro(e.target.checked)
-                    }
+                    type="time"
+                    value={regraForm.horaInicio}
+                    onChange={(e) => {
+                      const valor = e.target.value;
+                      if (valor) {
+                        const [hora, minuto] = valor.split(":");
+                        if (minuto && minuto !== "00") {
+                          const horaCorrigida = `${hora}:00`;
+                          setRegraForm({ ...regraForm, horaInicio: horaCorrigida });
+                        } else {
+                          setRegraForm({ ...regraForm, horaInicio: valor });
+                        }
+                      } else {
+                        setRegraForm({ ...regraForm, horaInicio: valor });
+                      }
+                    }}
+                    step="3600"
+                    required
+                    style={{
+                      width: "100%",
+                      padding: "12px 16px",
+                      border: "1px solid #d1d5db",
+                      borderRadius: 8,
+                      fontSize: 15,
+                      outline: "none"
+                    }}
                   />
-                  Bloquear complexo inteiro (todas as quadras deste complexo)
-                </label>
-                <small>
-                  Se <strong>não</strong> marcar essa opção, o bloqueio será
-                  aplicado às quadras marcadas na lista de quadras (acima). Se
-                  nenhuma quadra estiver marcada, será usada apenas a{" "}
-                  <strong>quadra selecionada</strong>.
-                </small>
+                  <small style={{ display: "block", marginTop: 4, fontSize: 12, color: "#6b7280" }}>
+                    Apenas horas cheias (ex: 08:00, 09:00)
+                  </small>
+                </div>
+
+                <div>
+                  <label style={{ display: "block", fontSize: 14, fontWeight: 600, color: "#111827", marginBottom: 8 }}>
+                    Horário Final
+                  </label>
+                  <input
+                    type="time"
+                    value={regraForm.horaFim}
+                    onChange={(e) => {
+                      const valor = e.target.value;
+                      if (valor) {
+                        const [hora, minuto] = valor.split(":");
+                        if (minuto && minuto !== "00") {
+                          const horaCorrigida = `${hora}:00`;
+                          setRegraForm({ ...regraForm, horaFim: horaCorrigida });
+                        } else {
+                          setRegraForm({ ...regraForm, horaFim: valor });
+                        }
+                      } else {
+                        setRegraForm({ ...regraForm, horaFim: valor });
+                      }
+                    }}
+                    step="3600"
+                    required
+                    style={{
+                      width: "100%",
+                      padding: "12px 16px",
+                      border: "1px solid #d1d5db",
+                      borderRadius: 8,
+                      fontSize: 15,
+                      outline: "none"
+                    }}
+                  />
+                  <small style={{ display: "block", marginTop: 4, fontSize: 12, color: "#6b7280" }}>
+                    Apenas horas cheias (ex: 22:00)
+                  </small>
+                </div>
+
+                <div>
+                  <label style={{ display: "block", fontSize: 14, fontWeight: 600, color: "#111827", marginBottom: 8 }}>
+                    Preço por Hora (R$) *
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={regraForm.precoHora}
+                    onChange={(e) => setRegraForm({ ...regraForm, precoHora: e.target.value })}
+                    placeholder="Ex: 100.00"
+                    required
+                    style={{
+                      width: "100%",
+                      padding: "12px 16px",
+                      border: "1px solid #d1d5db",
+                      borderRadius: 8,
+                      fontSize: 15,
+                      outline: "none"
+                    }}
+                  />
+                  <small style={{ display: "block", marginTop: 4, fontSize: 12, color: "#6b7280" }}>
+                    Campo obrigatório
+                  </small>
+                </div>
+
+                {regraForm.horaInicio && regraForm.horaFim && (
+                  <div style={{ padding: 12, backgroundColor: "#f9fafb", borderRadius: 8, fontSize: 13 }}>
+                    <strong>Horários que serão atualizados:</strong>{" "}
+                    {gerarHorarios(regraForm.horaInicio, regraForm.horaFim).join(", ")}
+                  </div>
+                )}
               </div>
 
-              <div className="form-field">
-                <label htmlFor="dataBloqueio">Data</label>
-                <input
-                  type="date"
-                  id="dataBloqueio"
-                  name="data"
-                  value={bloqueioForm.data}
-                  onChange={handleChangeBloqueioForm}
-                />
-              </div>
-
-              <div className="form-field">
-                <label htmlFor="horaInicioBloqueio">Hora início</label>
-                <input
-                  type="time"
-                  id="horaInicioBloqueio"
-                  name="horaInicio"
-                  value={bloqueioForm.horaInicio}
-                  onChange={handleChangeBloqueioForm}
-                />
-              </div>
-
-              <div className="form-field">
-                <label htmlFor="horaFimBloqueio">Hora fim</label>
-                <input
-                  type="time"
-                  id="horaFimBloqueio"
-                  name="horaFim"
-                  value={bloqueioForm.horaFim}
-                  onChange={handleChangeBloqueioForm}
-                />
-              </div>
-
-              <div className="form-field form-field-full">
-                <label htmlFor="motivoBloqueio">Motivo (opcional)</label>
-                <input
-                  type="text"
-                  id="motivoBloqueio"
-                  name="motivo"
-                  placeholder="Ex.: Natal, Ano Novo, campeonato, manutenção..."
-                  value={bloqueioForm.motivo}
-                  onChange={handleChangeBloqueioForm}
-                />
-              </div>
-
-              <div className="form-actions">
+              <div style={{ display: "flex", gap: 12, marginTop: 24, justifyContent: "flex-end" }}>
+                  <button
+                    type="button"
+                    onClick={abrirModalRemoverDoModal}
+                  style={{
+                    padding: "10px 20px",
+                    backgroundColor: "#fee2e2",
+                    color: "#991b1b",
+                    border: "1px solid #fca5a5",
+                    borderRadius: 8,
+                    fontSize: 14,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    transition: "all 0.2s"
+                  }}
+                  onMouseEnter={(e) => e.target.style.backgroundColor = "#fecaca"}
+                  onMouseLeave={(e) => e.target.style.backgroundColor = "#fee2e2"}
+                >
+                  Remover Horário
+                </button>
                 <button
                   type="button"
-                  className="btn-outlined"
-                  onClick={resetBloqueioForm}
-                  disabled={salvandoBloqueio}
+                  onClick={fecharModalEdicao}
+                  style={{
+                    padding: "10px 20px",
+                    backgroundColor: "#fff",
+                    color: "#6b7280",
+                    border: "1px solid #d1d5db",
+                    borderRadius: 8,
+                    fontSize: 14,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    transition: "all 0.2s"
+                  }}
+                  onMouseEnter={(e) => {
+                    e.target.style.backgroundColor = "#f9fafb";
+                    e.target.style.borderColor = "#9ca3af";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.backgroundColor = "#fff";
+                    e.target.style.borderColor = "#d1d5db";
+                  }}
                 >
-                  Limpar
+                  Cancelar
                 </button>
                 <button
                   type="submit"
-                  className="btn-primary"
-                  disabled={salvandoBloqueio}
+                  disabled={salvandoRegra}
+                  style={{
+                    padding: "10px 20px",
+                    backgroundColor: salvandoRegra ? "#9ca3af" : "#37648c",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: 8,
+                    fontSize: 14,
+                    fontWeight: 600,
+                    cursor: salvandoRegra ? "not-allowed" : "pointer",
+                    transition: "all 0.2s"
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!salvandoRegra) {
+                      e.target.style.backgroundColor = "#2d5070";
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!salvandoRegra) {
+                      e.target.style.backgroundColor = "#37648c";
+                    }
+                  }}
                 >
-                  {salvandoBloqueio
-                    ? "Salvando..."
-                    : "Adicionar bloqueio (lote)"}
+                  {salvandoRegra ? "Salvando..." : "Salvar"}
                 </button>
               </div>
             </form>
-
-            {carregandoAgenda && <p>Carregando bloqueios...</p>}
-
-            {!carregandoAgenda && bloqueios.length === 0 && (
-              <p>Nenhum bloqueio manual cadastrado para esta quadra.</p>
-            )}
-
-            {!carregandoAgenda && bloqueios.length > 0 && (
-              <div style={{ overflowX: "auto", marginTop: 8 }}>
-                <table
-                  className="tabela-simples"
-                  style={{ width: "100%", minWidth: 520 }}
-                >
-                  <thead>
-                    <tr>
-                      <th>Data</th>
-                      <th>Início</th>
-                      <th>Fim</th>
-                      <th>Motivo</th>
-                      <th>Ações</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {bloqueios.map((b) => (
-                      <tr key={b.id}>
-                        <td>{b.data}</td>
-                        <td>{b.hora_inicio}</td>
-                        <td>{b.hora_fim}</td>
-                        <td>{b.motivo || "-"}</td>
-                        <td>
-                          <button
-                            type="button"
-                            className="btn-primary"
-                            onClick={() => handleExcluirBloqueio(b.id)}
-                            disabled={excluindoBloqueioId === b.id}
-                          >
-                            {excluindoBloqueioId === b.id
-                              ? "Removendo..."
-                              : "Remover"}
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-
-            <p style={{ fontSize: 12, color: "#666", marginTop: 8 }}>
-              <em>
-                Use bloqueios para marcar horários indisponíveis fora do
-                VaiTerPlay (ex.: feriados, reservas presenciais, eventos,
-                manutenção). Para feriados como Natal/Ano Novo, use “Bloquear
-                complexo inteiro”.
-              </em>
-            </p>
           </div>
         </div>
       )}
 
-      {!quadraSelecionadaId && empresaSelecionadaId && (
-        <p style={{ marginTop: 8, fontSize: 13, color: "#666" }}>
-          Selecione uma quadra para visualizar e configurar a agenda.
-        </p>
-      )}
+      {/* Modal de Confirmação - Limpar Todas as Regras */}
+      {modalLimparTodasAberto && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(0, 0, 0, 0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+            padding: 20
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              fecharModalLimparTodas();
+            }
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: "#fff",
+              borderRadius: 12,
+              padding: 24,
+              maxWidth: 450,
+              width: "100%",
+              boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)"
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ 
+                width: 48, 
+                height: 48, 
+                borderRadius: "50%", 
+                backgroundColor: "#fee2e2", 
+                display: "flex", 
+                alignItems: "center", 
+                justifyContent: "center",
+                marginBottom: 16
+              }}>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M12 2C6.48 2 2 6.48 2 12C2 17.52 6.48 22 12 22C17.52 22 22 17.52 22 12C22 6.48 17.52 2 12 2ZM13 17H11V15H13V17ZM13 13H11V7H13V13Z" fill="#991b1b"/>
+                </svg>
+              </div>
+              <h3 style={{ fontSize: 20, fontWeight: 600, color: "#111827", marginBottom: 8 }}>
+                Limpar Todas as Regras?
+              </h3>
+              <p style={{ fontSize: 14, color: "#6b7280", lineHeight: 1.5 }}>
+                Tem certeza que deseja remover <strong>TODAS as {regras.length} regras</strong> desta quadra? Esta ação não pode ser desfeita e todas as regras de horários serão permanentemente excluídas.
+              </p>
+            </div>
 
-      {!empresaSelecionadaId && (
-        <p style={{ marginTop: 8, fontSize: 13, color: "#666" }}>
-          Selecione um complexo/empresa acima para começar.
-        </p>
+            <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
+              <button
+                type="button"
+                onClick={fecharModalLimparTodas}
+                disabled={carregando}
+                style={{
+                  padding: "10px 20px",
+                  backgroundColor: "#fff",
+                  color: "#6b7280",
+                  border: "1px solid #d1d5db",
+                  borderRadius: 8,
+                  fontSize: 14,
+                  fontWeight: 600,
+                  cursor: carregando ? "not-allowed" : "pointer",
+                  transition: "all 0.2s"
+                }}
+                onMouseEnter={(e) => {
+                  if (!carregando) {
+                    e.target.style.backgroundColor = "#f9fafb";
+                    e.target.style.borderColor = "#9ca3af";
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!carregando) {
+                    e.target.style.backgroundColor = "#fff";
+                    e.target.style.borderColor = "#d1d5db";
+                  }
+                }}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleLimparTodasRegras}
+                disabled={carregando}
+                style={{
+                  padding: "10px 20px",
+                  backgroundColor: carregando ? "#9ca3af" : "#dc2626",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: 8,
+                  fontSize: 14,
+                  fontWeight: 600,
+                  cursor: carregando ? "not-allowed" : "pointer",
+                  transition: "all 0.2s"
+                }}
+                onMouseEnter={(e) => {
+                  if (!carregando) {
+                    e.target.style.backgroundColor = "#b91c1c";
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!carregando) {
+                    e.target.style.backgroundColor = "#dc2626";
+                  }
+                }}
+              >
+                {carregando ? "Removendo..." : "Sim, Limpar Todas"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
 }
-
-export default GestorAgendaPage;

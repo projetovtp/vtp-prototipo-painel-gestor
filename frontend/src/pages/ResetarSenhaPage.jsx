@@ -50,12 +50,12 @@ export default function ResetarSenhaPage() {
 
   function alertStyle() {
     if (tipoMsg === "sucesso")
-      return { background: "#052e16", border: "1px solid #166534", color: "#86efac" };
+      return { background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.3)", color: "#166534" };
     if (tipoMsg === "aviso")
-      return { background: "#451a03", border: "1px solid #92400e", color: "#fde68a" };
+      return { background: "rgba(245,158,11,0.1)", border: "1px solid rgba(245,158,11,0.3)", color: "#92400e" };
     if (tipoMsg === "info")
-      return { background: "#020617", border: "1px solid #1f2937", color: "#bfdbfe" };
-    return { background: "#450a0a", border: "1px solid #7f1d1d", color: "#fca5a5" };
+      return { background: "rgba(55,100,140,0.1)", border: "1px solid rgba(55,100,140,0.3)", color: "#1e3a5f" };
+    return { background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", color: "#991b1b" };
   }
 
   async function handleSubmit(e) {
@@ -122,8 +122,8 @@ export default function ResetarSenhaPage() {
   return (
     <div style={wrapperStyle}>
       <div style={cardStyle}>
-        <h1 style={{ textAlign: "center", fontSize: 22 }}>Redefinir senha</h1>
-        <p style={{ textAlign: "center", fontSize: 13, color: "#9ca3af" }}>
+        <h1 style={{ textAlign: "center", fontSize: 22, color: "#37648c" }}>Redefinir senha</h1>
+        <p style={{ textAlign: "center", fontSize: 13, color: "#6b7280" }}>
           Defina uma nova senha para sua conta.
         </p>
 
@@ -169,7 +169,17 @@ export default function ResetarSenhaPage() {
             disabled={carregando}
           />
 
-          <button type="submit" disabled={carregando} style={submitBtn(carregando)}>
+          <button 
+            type="submit" 
+            disabled={carregando} 
+            style={submitBtn(carregando)}
+            onMouseEnter={(e) => {
+              if (!carregando) e.target.style.background = "#2d5070";
+            }}
+            onMouseLeave={(e) => {
+              if (!carregando) e.target.style.background = "#37648c";
+            }}
+          >
             {carregando ? "Salvando..." : "Salvar nova senha"}
           </button>
         </form>
@@ -181,7 +191,7 @@ export default function ResetarSenhaPage() {
 function CampoSenha({ label, value, setValue, mostrar, setMostrar, inputRef, disabled }) {
   return (
     <div style={{ marginBottom: 14 }}>
-      <label style={{ fontSize: 13 }}>{label}</label>
+      <label style={{ fontSize: 13, color: "#111827" }}>{label}</label>
       <div style={{ display: "flex", gap: 8 }}>
         <input
           ref={inputRef}
@@ -191,6 +201,12 @@ function CampoSenha({ label, value, setValue, mostrar, setMostrar, inputRef, dis
           required
           disabled={disabled}
           style={inputStyle}
+          onFocus={(e) => {
+            e.target.style.borderColor = "#37648c";
+          }}
+          onBlur={(e) => {
+            e.target.style.borderColor = "#d1d5db";
+          }}
         />
         <button type="button" onClick={() => setMostrar(v => !v)} style={eyeBtn}>
           {mostrar ? "Ocultar" : "Ver"}
@@ -207,7 +223,7 @@ const wrapperStyle = {
   display: "flex",
   justifyContent: "center",
   alignItems: "center",
-  background: "#0f172a",
+  background: "#ffffff",
   padding: 16,
 };
 
@@ -216,26 +232,28 @@ const cardStyle = {
   maxWidth: 460,
   padding: 24,
   borderRadius: 16,
-  background: "#020617",
-  border: "1px solid #1f2937",
-  color: "#f9fafb",
+  background: "#ffffff",
+  border: "1px solid #e5e7eb",
+  color: "#111827",
+  boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
 };
 
 const inputStyle = {
   flex: 1,
   padding: "10px 12px",
   borderRadius: 10,
-  border: "1px solid #374151",
-  background: "#020617",
-  color: "#f9fafb",
+  border: "1px solid #d1d5db",
+  background: "#ffffff",
+  color: "#111827",
+  outline: "none",
 };
 
 const eyeBtn = {
   padding: "10px 12px",
   borderRadius: 10,
-  border: "1px solid #374151",
-  background: "#0b1220",
-  color: "#f9fafb",
+  border: "1px solid #d1d5db",
+  background: "#ffffff",
+  color: "#37648c",
   cursor: "pointer",
 };
 
@@ -244,18 +262,17 @@ const submitBtn = (loading) => ({
   padding: "10px 12px",
   borderRadius: 999,
   border: "none",
-  fontWeight: 900,
+  fontWeight: 700,
   cursor: loading ? "not-allowed" : "pointer",
-  background:
-    "linear-gradient(135deg, #22c55e 0%, #16a34a 40%, #22c55e 100%)",
-  color: "#020617",
+  background: "#37648c",
+  color: "#ffffff",
   opacity: loading ? 0.75 : 1,
 });
 
 const linkBtn = {
   background: "transparent",
   border: "none",
-  color: "#93c5fd",
+  color: "#37648c",
   cursor: "pointer",
   textDecoration: "underline",
   fontWeight: 700,

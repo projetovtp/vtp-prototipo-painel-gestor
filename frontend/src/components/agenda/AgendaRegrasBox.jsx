@@ -59,7 +59,7 @@ export default function AgendaRegrasBox({
 
   return (
     <div className="card">
-      <h3>Regras de horário da quadra</h3>
+      <h3>Regras de horários da quadra</h3>
 
       {/* LOTE: seleção de quadras */}
       <div style={{ marginTop: 10 }}>

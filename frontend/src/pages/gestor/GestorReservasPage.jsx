@@ -1,59 +1,108 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import api from "../../services/api";
 
+// Funções auxiliares
 const formatarDataBR = (isoDate) => {
   if (!isoDate) return "";
   const [ano, mes, dia] = isoDate.split("-");
   return `${dia}/${mes}/${ano}`;
 };
-const diasEntre = (inicioISO, fimISO) => {
-  if (!inicioISO || !fimISO) return null;
-  const inicio = new Date(`${inicioISO}T12:00:00`);
-  const fim = new Date(`${fimISO}T12:00:00`);
-  const diffMs = fim.getTime() - inicio.getTime();
-  return Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+const formatarMoeda = (valor) => {
+  if (!valor && valor !== 0) return "R$ 0,00";
+  return new Intl.NumberFormat("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+  }).format(valor);
 };
 
-const validarIntervalo60Dias = (inicioISO, fimISO) => {
-  // retorna { ok: true } ou { ok:false, msg:"..." }
-  if (!inicioISO || !fimISO) return { ok: true };
-
-  const d = diasEntre(inicioISO, fimISO);
-  if (d == null) return { ok: true };
-
-  if (d < 0) {
-    return { ok: false, msg: "A data fim não pode ser menor que a data início." };
-  }
-  if (d > 60) {
-    return { ok: false, msg: "O intervalo máximo permitido é de 60 dias." };
-  }
-  return { ok: true };
+const formatarCPF = (cpf) => {
+  if (!cpf) return "";
+  const cpfLimpo = cpf.replace(/\D/g, "");
+  return cpfLimpo.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
 };
 
-// ==================================
-// MODAL: CRIAR RESERVA (DESIGN CLEAN)
-// ==================================
-const CriarReservaModal = ({ aberto, onFechar, slot, quadraId, onCriado }) => {
+const formatarTelefone = (telefone) => {
+  if (!telefone) return "";
+  const telLimpo = telefone.replace(/\D/g, "");
+  if (telLimpo.length === 11) {
+    return telLimpo.replace(/(\d{2})(\d{5})(\d{4})/, "($1) $2-$3");
+  }
+  if (telLimpo.length === 10) {
+    return telLimpo.replace(/(\d{2})(\d{4})(\d{4})/, "($1) $2-$3");
+  }
+  return telefone;
+};
+
+// Obter nome do dia da semana
+const getNomeDiaSemana = (dataISO) => {
+  const dias = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+  const data = new Date(`${dataISO}T12:00:00`);
+  return dias[data.getDay()];
+};
+
+// Obter nome do mês
+const getNomeMes = (mes) => {
+  const meses = [
+    "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+    "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
+  ];
+  return meses[mes];
+};
+
+// Modal para visualizar detalhes da reserva ou criar nova reserva
+const DetalhesReservaModal = ({ aberto, onFechar, reserva, reservas, onCancelado, onCriada }) => {
+  const [cancelando, setCancelando] = useState(false);
+  const [salvando, setSalvando] = useState(false);
+  const [erro, setErro] = useState("");
+  const [reservaAtualIndex, setReservaAtualIndex] = useState(0);
+  
+  // Campos para criar nova reserva
   const [nome, setNome] = useState("");
   const [cpf, setCpf] = useState("");
   const [phone, setPhone] = useState("");
   const [valor, setValor] = useState("");
-  const [erro, setErro] = useState("");
-  const [salvando, setSalvando] = useState(false);
+
+  // Se há múltiplas reservas, usar a lista; senão, usar a reserva única
+  // Verificar se a reserva tem todasReservas (vem do slot agregado)
+  const reservasDoSlot = reserva?.todasReservas || reservas || [];
+  const listaReservas = reservasDoSlot.length > 0 ? reservasDoSlot : (reserva ? [reserva] : []);
+  const reservaAtual = listaReservas[reservaAtualIndex] || reserva;
+  const temMultiplasReservas = listaReservas.length > 1;
+
+  const isNovaReserva = reservaAtual && !reservaAtual.id;
 
   useEffect(() => {
-    if (slot) {
-      setValor(slot.preco_hora != null ? String(slot.preco_hora) : "");
-      setErro("");
+    if (aberto && isNovaReserva) {
+      setValor(reservaAtual.preco_hora ? String(reservaAtual.preco_hora) : "");
       setNome("");
       setCpf("");
       setPhone("");
+      setErro("");
     }
-  }, [slot, aberto]);
+    setReservaAtualIndex(0);
+  }, [aberto, isNovaReserva, reservaAtual]);
 
-  if (!aberto || !slot) return null;
+  if (!aberto || !reservaAtual) return null;
 
-  const handleSalvar = async () => {
+  const handleCancelar = async (reservaId) => {
+    if (!window.confirm("Tem certeza que deseja cancelar esta reserva?")) return;
+
+    try {
+      setCancelando(true);
+      setErro("");
+      await api.delete(`/gestor/reservas/${reservaId}`);
+      if (onCancelado) onCancelado();
+      onFechar();
+    } catch (error) {
+      console.error("[CANCELAR RESERVA] Erro:", error);
+      setErro(error?.response?.data?.error || "Erro ao cancelar reserva.");
+    } finally {
+      setCancelando(false);
+    }
+  };
+
+  const handleCriarReserva = async () => {
     try {
       setSalvando(true);
       setErro("");
@@ -65,9 +114,9 @@ const CriarReservaModal = ({ aberto, onFechar, slot, quadraId, onCriado }) => {
       }
 
       const body = {
-        quadraId,
-        data: slot.data,
-        hora: slot.hora_inicio,
+        quadraId: reservaAtual.quadra_id,
+        data: reservaAtual.data,
+        hora: reservaAtual.hora,
         nome,
         cpf,
         phone,
@@ -79,32 +128,58 @@ const CriarReservaModal = ({ aberto, onFechar, slot, quadraId, onCriado }) => {
 
       await api.post("/gestor/reservas", body);
 
-      if (onCriado) onCriado();
+      if (onCriada) onCriada();
       onFechar();
     } catch (error) {
-      console.error("[MODAL CRIAR] Erro:", error);
-      const msg =
-        error?.response?.data?.error || "Erro ao criar reserva. Tente novamente.";
-      setErro(msg);
+      console.error("[CRIAR RESERVA] Erro:", error);
+      setErro(error?.response?.data?.error || "Erro ao criar reserva.");
     } finally {
       setSalvando(false);
     }
   };
 
+  const statusPagamento = reservaAtual.pago_via_pix ? "Reservado" : "Pendente";
+  const nomeQuadra = reservaAtual.quadra
+    ? `${reservaAtual.quadra.tipo || "Quadra"}${reservaAtual.quadra.modalidade ? ` - ${reservaAtual.quadra.modalidade}` : ""}`
+    : "Quadra não encontrada";
+
   return (
-    <div className="modal fade show" style={styles.overlay}>
-      <div className="modal-dialog" style={styles.dialog}>
-        <div className="modal-content" style={styles.content}>
-          
-          {/* --- HEADER --- */}
-          <div style={styles.header}>
-            <div>
-              <h5 style={styles.title}>Nova Reserva</h5>
-              <div style={styles.subtitle}>
-                 {/* Exibindo data e hora de forma elegante */}
-                 {formatarDataBR(slot.data)} • <span style={{color: "#10b981", fontWeight: "700"}}>{slot.hora_inicio}</span> às {slot.hora_fim}
-              </div>
-            </div>
+    <div
+      style={{
+        position: "fixed",
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: "rgba(0, 0, 0, 0.5)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 1000,
+        padding: 20,
+      }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onFechar();
+      }}
+    >
+      <div
+        style={{
+          backgroundColor: "#fff",
+          borderRadius: 12,
+          padding: 24,
+          maxWidth: temMultiplasReservas ? 700 : 500,
+          width: "100%",
+          maxHeight: "90vh",
+          boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1)",
+          display: "flex",
+          flexDirection: "column",
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
+          <h3 style={{ fontSize: 20, fontWeight: 600, color: "#111827", margin: 0 }}>
+            {isNovaReserva ? "Nova Reserva" : temMultiplasReservas ? `Detalhe das reservas (${listaReservas.length})` : "Detalhes da Reserva"}
+          </h3>
             <button 
                 type="button" 
                 onClick={onFechar}
@@ -114,1256 +189,2154 @@ const CriarReservaModal = ({ aberto, onFechar, slot, quadraId, onCriado }) => {
                     fontSize: "1.5rem",
                     color: "#9ca3af",
                     cursor: "pointer",
-                    padding: "0 8px"
-                }}
-            >
-                &times;
+              padding: 0,
+              width: 32,
+              height: 32,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            ×
             </button>
           </div>
 
-          {/* --- BODY --- */}
-          <div style={styles.body}>
             {erro && (
-              <div className="alert alert-danger mb-3" style={{ borderRadius: "12px", fontSize: "0.9rem", border: "none", backgroundColor: "#fee2e2", color: "#b91c1c" }}>
+          <div style={{ padding: 12, backgroundColor: "#fee2e2", color: "#991b1b", borderRadius: 8, marginBottom: 16 }}>
                 {erro}
               </div>
             )}
 
-            {/* Aviso estilo "Card" sutil */}
-            <div
+        {/* Se há múltiplas reservas, mostrar todas em lista */}
+        {temMultiplasReservas && !isNovaReserva ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: 16, maxHeight: "70vh", overflowY: "auto" }}>
+            {listaReservas.map((reservaItem, index) => {
+              const statusPagamentoItem = reservaItem.pago_via_pix ? "Reservado" : "Pendente";
+              const nomeQuadraItem = reservaItem.quadra
+                ? `${reservaItem.quadra.tipo || "Quadra"}${reservaItem.quadra.modalidade ? ` - ${reservaItem.quadra.modalidade}` : ""}`
+                : "Quadra não encontrada";
+
+              return (
+                <div
+                  key={reservaItem.id || index}
               style={{
-                fontSize: "0.85rem",
-                color: "#0c4a6e",
-                backgroundColor: "#f0f9ff", // Azul bem clarinho
-                padding: "16px",
-                borderRadius: "12px",
-                border: "1px solid #bae6fd",
-                marginBottom: "24px",
-                lineHeight: "1.5"
-              }}
-            >
-              <strong>Nota:</strong> Reservas manuais (criadas pelo painel) <u>não geram repasse</u> automático. Apenas reservas via WhatsApp/PIX entram no fluxo financeiro.
+                    padding: 16,
+                    backgroundColor: "#f9fafb",
+                    borderRadius: 8,
+                    border: "1px solid #e5e7eb",
+                  }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
+                    <h4 style={{ fontSize: 16, fontWeight: 600, color: "#111827", margin: 0 }}>
+                      Reserva {index + 1}
+                    </h4>
+                    <div
+                      style={{
+                        fontSize: 12,
+                        fontWeight: 600,
+                        color: statusPagamentoItem === "Reservado" ? "#0d47a1" : "#f57f17",
+                        padding: "4px 10px",
+                        borderRadius: 6,
+                        backgroundColor: statusPagamentoItem === "Reservado" ? "#90caf9" : "#fff9c4",
+                      }}
+                    >
+                      {statusPagamentoItem}
+                    </div>
             </div>
 
-            {/* FORMULÁRIO */}
-            <div className="row g-3">
-              
-              {/* SEÇÃO: CLIENTE */}
-              <div className="col-12">
-                <div style={styles.sectionTitle}>
-                    <span style={styles.sectionBar}></span>
-                    Dados do Cliente
+                  <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                    {/* Quadra */}
+                    <div>
+                      <label style={{ fontSize: 11, fontWeight: 600, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                        Quadra
+                      </label>
+                      <div style={{ fontSize: 14, fontWeight: 500, color: "#111827", marginTop: 4 }}>
+                        {nomeQuadraItem}
                 </div>
               </div>
               
-              <div className="col-12">
-                <label style={styles.label}>Nome Completo</label>
-                <input
-                  type="text"
-                  style={styles.input}
-                  value={nome}
-                  onChange={(e) => setNome(e.target.value)}
-                  placeholder="Ex: João da Silva"
-                />
+                    {/* Data e Horário */}
+                    <div>
+                      <label style={{ fontSize: 11, fontWeight: 600, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                        Data e Horário
+                      </label>
+                      <div style={{ fontSize: 14, fontWeight: 500, color: "#111827", marginTop: 4 }}>
+                        {formatarDataBR(reservaItem.data)} às {reservaItem.hora}
+                      </div>
               </div>
 
-              <div className="col-md-6">
-                <label style={styles.label}>CPF</label>
-                <input
-                  type="text"
-                  style={styles.input}
-                  value={cpf}
-                  onChange={(e) => setCpf(e.target.value)}
-                  placeholder="Somente números"
-                />
+                    {/* Dados do Cliente */}
+                    <div>
+                      <label style={{ fontSize: 11, fontWeight: 600, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                        Dados do Cliente
+                      </label>
+                      <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 6 }}>
+                        {(reservaItem.usuario_nome || reservaItem.nome) && (
+                          <div>
+                            <span style={{ fontSize: 12, color: "#6b7280" }}>Nome: </span>
+                            <span style={{ fontSize: 13, fontWeight: 500, color: "#111827" }}>
+                              {reservaItem.usuario_nome || reservaItem.nome}
+                            </span>
               </div>
-              <div className="col-md-6">
-                <label style={styles.label}>Telefone / WhatsApp</label>
-                <input
-                  type="text"
-                  style={styles.input}
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  placeholder="(00) 00000-0000"
-                />
+                        )}
+                        {reservaItem.user_cpf && (
+                          <div>
+                            <span style={{ fontSize: 12, color: "#6b7280" }}>CPF: </span>
+                            <span style={{ fontSize: 13, fontWeight: 500, color: "#111827" }}>
+                              {formatarCPF(reservaItem.user_cpf)}
+                            </span>
               </div>
-
-              {/* SEÇÃO: FINANCEIRO */}
-              <div className="col-12">
-                <div style={styles.sectionTitle}>
-                    <span style={styles.sectionBar}></span>
-                    Financeiro
+                        )}
+                        {reservaItem.phone && (
+                          <div>
+                            <span style={{ fontSize: 12, color: "#6b7280" }}>Telefone: </span>
+                            <span style={{ fontSize: 13, fontWeight: 500, color: "#111827" }}>
+                              {formatarTelefone(reservaItem.phone)}
+                            </span>
                 </div>
+                        )}
               </div>
-              <div className="col-12">
-                <label style={styles.label}>Valor da Reserva (R$)</label>
-                <input
-                  type="number"
-                  style={styles.input}
-                  value={valor}
-                  onChange={(e) => setValor(e.target.value)}
-                  min="0"
-                  step="0.01"
-                  placeholder="0,00"
-                />
-                <small className="text-muted mt-2 d-block" style={{fontSize: "0.75rem"}}>
-                  Se deixar vazio ou zerado, o sistema registrará como cortesia/gratuito.
-                </small>
               </div>
 
+                    {/* Valor */}
+                    <div>
+                      <label style={{ fontSize: 11, fontWeight: 600, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                        Valor
+                      </label>
+                      <div style={{ fontSize: 16, fontWeight: 600, color: "#111827", marginTop: 4 }}>
+                        {formatarMoeda(reservaItem.preco_total || 0)}
             </div>
           </div>
 
-          {/* --- FOOTER --- */}
-          <div style={styles.footer}>
+                    {/* Botão Cancelar */}
             <button
               type="button"
-              style={{...styles.btnBase, ...styles.btnSecondary}}
-              onClick={onFechar}
-              disabled={salvando}
-            >
-              Cancelar
-            </button>
-            <button
-              type="button"
-              style={{...styles.btnBase, ...styles.btnPrimary}}
-              onClick={handleSalvar}
-              disabled={salvando}
-            >
-              {salvando ? "Salvando..." : "Confirmar Reserva"}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-
-// ==================================
-// MODAL: EDITAR / CANCELAR RESERVA
-// ==================================
-// ============================================================================
-// ESTILOS VISUAIS (ATUALIZADO - MAIS MODERNO)
-// ============================================================================
-const styles = {
-  overlay: {
-    display: "block",
-    // MUDANÇA: Cor mais suave (azul escuro transparente) e efeito de DESFOQUE (Blur)
-    backgroundColor: "rgba(15, 23, 42, 0.4)", 
-    backdropFilter: "blur(8px)", // Isso cria o efeito de "vidro" no fundo
-    zIndex: 1050,
-    position: "fixed", // Garante que cubra a tela toda
-    top: 0,
-    left: 0,
-    width: "100%",
-    height: "100%",
-    overflowX: "hidden",
-    overflowY: "auto",
-  },
-  dialog: {
-    maxWidth: "600px",
-    margin: "1.75rem auto", // Centraliza melhor verticalmente
-    fontFamily: "'Inter', 'Segoe UI', sans-serif",
-    position: "relative",
-    pointerEvents: "none", // Necessário para o modal bootstrap
-  },
-  content: {
-    borderRadius: "20px", // Bordas mais arredondadas (estilo iOS)
-    border: "1px solid rgba(255,255,255,0.8)", // Borda sutil
-    boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
-    backgroundColor: "#ffffff",
-    overflow: "hidden",
-    pointerEvents: "auto",
-  },
-  header: {
-    padding: "24px 32px 16px 32px", // Espaçamento maior
-    borderBottom: "none", // Removi a linha cinza do cabeçalho para limpar
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    backgroundColor: "#fff",
-  },
-  title: {
-    fontSize: "1.4rem",
-    fontWeight: "800", // Mais negrito
-    color: "#111827",
-    margin: 0,
-    letterSpacing: "-0.025em",
-  },
-  subtitle: {
-    fontSize: "0.9rem",
-    color: "#6b7280",
-    marginTop: "4px",
-    fontWeight: "500",
-  },
-  body: {
-    padding: "0 32px 32px 32px", // Alinhado com o header
-    backgroundColor: "#fff",
-  },
-  sectionTitle: {
-    fontSize: "0.85rem",
-    fontWeight: "700",
-    color: "#9ca3af", // Cinza mais claro para o título não brigar com o input
-    marginBottom: "8px",
-    marginTop: "24px",
-    textTransform: "uppercase",
-    letterSpacing: "0.05em",
-    display: "flex",
-    alignItems: "center",
-    gap: "8px",
-  },
-  // Barra verde decorativa ao lado do título
-  sectionBar: {
-    width: "4px",
-    height: "16px",
-    backgroundColor: "#10b981",
-    borderRadius: "2px",
-    display: "inline-block",
-  },
-  label: {
-    fontWeight: "600",
-    color: "#374151",
-    marginBottom: "6px",
-    fontSize: "0.9rem",
-    display: "block", // Garante que o label fique em cima
-  },
-  input: {
-    height: "50px", // Ainda maior para toque
-    borderRadius: "12px", // Mais arredondado
-    border: "1px solid #e5e7eb",
-    fontSize: "1rem",
-    paddingLeft: "16px",
-    width: "100%",
-    color: "#1f2937",
-    backgroundColor: "#f9fafb", // Fundo do input levemente cinza para contraste com o branco
-    outline: "none",
-    transition: "all 0.2s",
-  },
-  footer: {
-    padding: "24px 32px",
-    display: "flex",
-    justifyContent: "flex-end",
-    gap: "12px",
-    backgroundColor: "#fff", // Fundo branco puro
-  },
-  // BOTÕES
-  btnBase: {
-    padding: "12px 24px",
-    borderRadius: "10px",
-    fontWeight: "600",
-    fontSize: "0.95rem",
-    border: "none",
-    cursor: "pointer",
-    transition: "transform 0.1s ease",
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  btnSecondary: {
-    backgroundColor: "#f3f4f6",
-    color: "#4b5563",
-  },
-  btnPrimary: {
-    backgroundColor: "#10b981", 
-    color: "#ffffff",
-    boxShadow: "0 10px 15px -3px rgba(16, 185, 129, 0.2)", // Sombra verde suave
-  },
-  btnDanger: {
-    backgroundColor: "#fee2e2",
-    color: "#ef4444",
-  },
-  // ESTILO PARA A BARRA DE STATUS (CORRIGIDO)
-  statusBar: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: "16px",
-    backgroundColor: "#fff", // Fundo Branco
-    borderRadius: "12px",
-    marginBottom: "10px",
-    border: "2px solid #f3f4f6", // Borda sutil em vez de fundo cinza
-  },
-  statusItem: {
-    display: "flex",
-    flexDirection: "column", // ISSO GARANTE QUE O TÍTULO FIQUE EM CIMA DO VALOR
-    gap: "4px", // Espaço entre o título e o valor
-  },
-  statusLabel: {
-    fontSize: "0.7rem",
-    fontWeight: "700",
-    color: "#94a3b8",
-    textTransform: "uppercase",
-    letterSpacing: "0.05em",
-    display: "block", // Força bloco
-  },
-  statusValue: {
-    fontSize: "1rem",
-    fontWeight: "700",
-    color: "#334155",
-    display: "block", // Força bloco
-  }
-};
-
-// ==================================
-// MODAL: EDITAR / CANCELAR RESERVA 
-// ==================================
-const EditarReservaModal = ({
-  aberto,
-  onFechar,
-  reservaId,
-  onAtualizado,
-  onCancelado,
-}) => {
-  const [carregando, setCarregando] = useState(false);
-  const [salvando, setSalvando] = useState(false);
-  const [cancelando, setCancelando] = useState(false);
-  const [erro, setErro] = useState("");
-  const [dados, setDados] = useState(null);
-
-  const [quadraId, setQuadraId] = useState("");
-  const [data, setData] = useState("");
-  const [hora, setHora] = useState("");
-  const [cpf, setCpf] = useState("");
-  const [phone, setPhone] = useState("");
-  const [valor, setValor] = useState("");
-  const [origem, setOrigem] = useState("");
-  const [quadraNome, setQuadraNome] = useState("");
-
-  useEffect(() => {
-    const carregar = async () => {
-      if (!aberto || !reservaId) return;
-      try {
-        setCarregando(true);
-        setErro("");
-
-        const resp = await api.get(`/gestor/reservas/${reservaId}`);
-        const payload = resp.data || {};
-        const reserva = payload.reserva || payload || {};
-        const quadra = payload.quadra || {};
-
-        setDados(reserva);
-        setQuadraId(reserva.quadra_id || "");
-        setData(reserva.data || "");
-        
-        const horaBruta = reserva.hora || "";
-        setHora(horaBruta.length >= 5 ? horaBruta.slice(0, 5) : horaBruta);
-        
-        setCpf(reserva.user_cpf || "");
-        setPhone(reserva.phone || "");
-        setValor(reserva.preco_total != null ? String(reserva.preco_total) : "");
-        setOrigem(
-          reserva.origem
-            ? reserva.origem
-            : reserva.pago_via_pix
-            ? "whatsapp"
-            : "painel"
-        );
-        setQuadraNome(
-          quadra.nome_dinamico ||
-            quadra.nome ||
-            `${quadra.tipo || "Quadra"} ${
-              quadra.modalidade ? `- ${quadra.modalidade}` : ""
-            }`
-        );
-      } catch (error) {
-        console.error("Erro ao carregar:", error);
-        setErro("Erro ao carregar detalhes.");
-      } finally {
-        setCarregando(false);
-      }
-    };
-
-    carregar();
-  }, [aberto, reservaId]);
-
-  if (!aberto || !reservaId) return null;
-
-  const handleSalvar = async () => {
-    try {
-      setSalvando(true);
-      setErro("");
-      const body = { quadraId, data, hora, cpf, phone };
-      if (valor !== "") body.valor = Number(valor);
-
-      await api.put(`/gestor/reservas/${reservaId}`, body);
-      if (onAtualizado) onAtualizado();
-      onFechar();
-    } catch (error) {
-      const msg = error?.response?.data?.error || "Erro ao salvar alterações.";
-      setErro(msg);
-    } finally {
-      setSalvando(false);
-    }
-  };
-
-  const handleCancelarReserva = async () => {
-    if (!window.confirm("ATENÇÃO: Deseja realmente CANCELAR esta reserva?")) return;
+                      onClick={async () => {
+                        if (!window.confirm("Tem certeza que deseja cancelar esta reserva?")) return;
     try {
       setCancelando(true);
       setErro("");
-      await api.delete(`/gestor/reservas/${reservaId}`);
+                          await api.delete(`/gestor/reservas/${reservaItem.id}`);
       if (onCancelado) onCancelado();
       onFechar();
     } catch (error) {
-      setErro("Erro ao cancelar reserva.");
+                          console.error("[CANCELAR RESERVA] Erro:", error);
+                          setErro(error?.response?.data?.error || "Erro ao cancelar reserva.");
     } finally {
       setCancelando(false);
     }
-  };
-
-  return (
-    <div className="modal fade show" style={styles.overlay}>
-      <div className="modal-dialog" style={styles.dialog}>
-        <div className="modal-content" style={styles.content}>
-          
-          {/* --- CABEÇALHO --- */}
-          <div style={styles.header}>
-            <div>
-              <h5 style={styles.title}>Gerenciar Reserva</h5>
-              {quadraNome && <div style={styles.subtitle}>{quadraNome}</div>}
-            </div>
-            {/* Botão X Fechar */}
-            <button 
-                type="button" 
-                onClick={onFechar}
+                      }}
+                      disabled={cancelando}
                 style={{
-                    background: "transparent",
+                        padding: "8px 16px",
+                        backgroundColor: cancelando ? "#9ca3af" : "#dc2626",
+                        color: "#fff",
                     border: "none",
-                    fontSize: "1.5rem",
-                    color: "#9ca3af",
-                    cursor: "pointer"
-                }}
-            >
-                &times;
+                        borderRadius: 6,
+                        fontSize: 13,
+                        fontWeight: 600,
+                        cursor: cancelando ? "not-allowed" : "pointer",
+                        alignSelf: "flex-start",
+                      }}
+                    >
+                      {cancelando ? "Cancelando..." : "Cancelar Reserva"}
             </button>
           </div>
-
-          {/* --- CORPO --- */}
-          <div style={styles.body}>
-            {carregando ? (
-              <div className="text-center py-5">
-                <div className="spinner-border text-success" role="status"></div>
-                <p className="mt-2 text-muted">Buscando dados...</p>
+                </div>
+              );
+            })}
               </div>
             ) : (
-              <>
-                {erro && <div className="alert alert-danger">{erro}</div>}
+          /* Reserva única ou nova reserva */
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            {/* Quadra */}
+            <div>
+              <label style={{ fontSize: 12, fontWeight: 600, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                Quadra
+              </label>
+              <div style={{ fontSize: 16, fontWeight: 500, color: "#111827", marginTop: 4 }}>
+                {nomeQuadra}
+              </div>
+            </div>
 
-                {/* --- BARRA DE STATUS CORRIGIDA (SEM FUNDO CINZA) --- */}
-                <div style={styles.statusBar}>
-                   {/* Item 1: Origem */}
-                   <div style={styles.statusItem}>
-                      <span style={styles.statusLabel}>Origem</span>
-                      <span style={styles.statusValue}>
-                        {origem === "whatsapp" ? "WhatsApp / PIX" : "Manual / Painel"}
-                      </span>
+            {/* Data e Horário */}
+            <div>
+              <label style={{ fontSize: 12, fontWeight: 600, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                Data e Horário
+              </label>
+              <div style={{ fontSize: 16, fontWeight: 500, color: "#111827", marginTop: 4 }}>
+                {formatarDataBR(reservaAtual.data)} às {reservaAtual.hora}
+              </div>
                    </div>
                    
-                   {/* Item 2: Status */}
-                   <div style={{...styles.statusItem, alignItems: "flex-end"}}>
-                      <span style={styles.statusLabel}>Status</span>
-                      <span style={{...styles.statusValue, color: "#0ea5e9"}}>
-                        {dados?.status?.toUpperCase()}
+            {/* Dados do Cliente */}
+            {!isNovaReserva ? (
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 600, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                  Dados do Cliente
+                </label>
+                <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 8 }}>
+                  {(reservaAtual.usuario_nome || reservaAtual.nome) && (
+                    <div>
+                      <span style={{ fontSize: 13, color: "#6b7280" }}>Nome: </span>
+                      <span style={{ fontSize: 14, fontWeight: 500, color: "#111827" }}>
+                        {reservaAtual.usuario_nome || reservaAtual.nome}
                       </span>
                    </div>
+                  )}
+                  {reservaAtual.user_cpf && (
+                    <div>
+                      <span style={{ fontSize: 13, color: "#6b7280" }}>CPF: </span>
+                      <span style={{ fontSize: 14, fontWeight: 500, color: "#111827" }}>
+                        {formatarCPF(reservaAtual.user_cpf)}
+                      </span>
                 </div>
-
-                <div className="row g-3">
-                  {/* DATA E HORA */}
-                  <div className="col-12">
-                    <div style={styles.sectionTitle}>
-                        <span style={styles.sectionBar}></span>
-                        Data e Horário
+                  )}
+                  {reservaAtual.phone && (
+                    <div>
+                      <span style={{ fontSize: 13, color: "#6b7280" }}>Telefone: </span>
+                      <span style={{ fontSize: 14, fontWeight: 500, color: "#111827" }}>
+                        {formatarTelefone(reservaAtual.phone)}
+                      </span>
                     </div>
+                  )}
                   </div>
-                  <div className="col-md-6">
-                    <label style={styles.label}>Data do Jogo</label>
+                  </div>
+            ) : (
+              /* Formulário para nova reserva */
+              <>
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8, display: "block" }}>
+                    Nome do Cliente *
+                  </label>
                     <input
-                      type="date"
-                      style={styles.input}
-                      value={data}
-                      onChange={(e) => setData(e.target.value)}
+                    type="text"
+                    value={nome}
+                    onChange={(e) => setNome(e.target.value)}
+                    placeholder="Nome completo"
+                    style={{
+                      width: "100%",
+                      padding: "10px 12px",
+                      border: "1px solid #d1d5db",
+                      borderRadius: 8,
+                      fontSize: 14,
+                    }}
                     />
                   </div>
-                  <div className="col-md-6">
-                    <label style={styles.label}>Horário</label>
-                    <input
-                      type="time"
-                      style={styles.input}
-                      value={hora}
-                      onChange={(e) => setHora(e.target.value)}
-                    />
-                  </div>
-
-                  {/* CLIENTE */}
-                  <div className="col-12">
-                    <div style={styles.sectionTitle}>
-                        <span style={styles.sectionBar}></span>
-                        Dados do Cliente
-                    </div>
-                  </div>
-                  <div className="col-md-6">
-                    <label style={styles.label}>CPF</label>
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8, display: "block" }}>
+                    CPF *
+                  </label>
                     <input
                       type="text"
-                      style={styles.input}
                       value={cpf}
                       onChange={(e) => setCpf(e.target.value)}
+                    placeholder="000.000.000-00"
+                    style={{
+                      width: "100%",
+                      padding: "10px 12px",
+                      border: "1px solid #d1d5db",
+                      borderRadius: 8,
+                      fontSize: 14,
+                    }}
                     />
                   </div>
-                  <div className="col-md-6">
-                    <label style={styles.label}>Telefone / WhatsApp</label>
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8, display: "block" }}>
+                    Telefone
+                  </label>
                     <input
                       type="text"
-                      style={styles.input}
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
+                    placeholder="(00) 00000-0000"
+                    style={{
+                      width: "100%",
+                      padding: "10px 12px",
+                      border: "1px solid #d1d5db",
+                      borderRadius: 8,
+                      fontSize: 14,
+                    }}
                     />
                   </div>
-
-                  {/* FINANCEIRO */}
-                  <div className="col-12">
-                    <div style={styles.sectionTitle}>
-                        <span style={styles.sectionBar}></span>
-                        Financeiro
-                    </div>
-                  </div>
-                  <div className="col-12">
-                     <label style={styles.label}>Valor da Reserva (R$)</label>
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8, display: "block" }}>
+                    Valor
+                  </label>
                      <input
                         type="number"
-                        style={styles.input}
                         value={valor}
                         onChange={(e) => setValor(e.target.value)}
-                        min="0"
+                    placeholder="0.00"
                         step="0.01"
-                        placeholder="0,00"
-                     />
-                     <small className="text-muted mt-2 d-block" style={{fontSize: "0.75rem"}}>
-                       O valor alterado será salvo apenas nesta reserva.
-                     </small>
-                  </div>
+                    style={{
+                      width: "100%",
+                      padding: "10px 12px",
+                      border: "1px solid #d1d5db",
+                      borderRadius: 8,
+                      fontSize: 14,
+                    }}
+                  />
                 </div>
               </>
             )}
+
+            {/* Valor e Status */}
+            {!isNovaReserva && (
+              <div style={{ display: "flex", gap: 24 }}>
+                <div style={{ flex: 1 }}>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                    Valor
+                  </label>
+                  <div style={{ fontSize: 18, fontWeight: 600, color: "#111827", marginTop: 4 }}>
+                    {formatarMoeda(reservaAtual.preco_total || 0)}
+                  </div>
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                    Status do Pagamento
+                  </label>
+                  <div
+                    style={{
+                      fontSize: 14,
+                      fontWeight: 600,
+                      color: statusPagamento === "Reservado" ? "#0d47a1" : "#f57f17",
+                      marginTop: 4,
+                      padding: "4px 12px",
+                      borderRadius: 6,
+                      backgroundColor: statusPagamento === "Reservado" ? "#90caf9" : "#fff9c4",
+                      display: "inline-block",
+                    }}
+                  >
+                    {statusPagamento}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
+        )}
 
-          {/* --- RODAPÉ --- */}
-          <div style={styles.footer}>
-             {!carregando && (
-                <button
-                  type="button"
-                  style={{...styles.btnBase, ...styles.btnDanger, marginRight: "auto"}}
-                  onClick={handleCancelarReserva}
-                  disabled={salvando || cancelando}
-                >
-                  {cancelando ? "Cancelando..." : "Cancelar"}
-                </button>
-             )}
-
+        <div style={{ marginTop: 24, display: "flex", gap: 12, justifyContent: "flex-end" }}>
              <button
                 type="button"
-                style={{...styles.btnBase, ...styles.btnSecondary}}
                 onClick={onFechar}
-                disabled={salvando || cancelando}
+            style={{
+              padding: "10px 20px",
+              backgroundColor: "#f3f4f6",
+              color: "#374151",
+              border: "none",
+              borderRadius: 8,
+              fontSize: 14,
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
              >
                 Fechar
              </button>
-
+          {!isNovaReserva && !temMultiplasReservas && (
              <button
                 type="button"
-                style={{...styles.btnBase, ...styles.btnPrimary}}
-                onClick={handleSalvar}
-                disabled={salvando || cancelando}
-             >
-                {salvando ? "Salvando..." : "Salvar Alterações"}
+              onClick={() => handleCancelar(reservaAtual.id)}
+              disabled={cancelando}
+              style={{
+                padding: "10px 20px",
+                backgroundColor: cancelando ? "#9ca3af" : "#dc2626",
+                color: "#fff",
+                border: "none",
+                borderRadius: 8,
+                fontSize: 14,
+                fontWeight: 600,
+                cursor: cancelando ? "not-allowed" : "pointer",
+              }}
+            >
+              {cancelando ? "Cancelando..." : "Cancelar Reserva"}
              </button>
-          </div>
+          )}
+          {isNovaReserva && (
+            <button
+              type="button"
+              onClick={handleCriarReserva}
+              disabled={salvando}
+              style={{
+                padding: "10px 20px",
+                backgroundColor: salvando ? "#9ca3af" : "#37648c",
+                color: "#fff",
+                border: "none",
+                borderRadius: 8,
+                fontSize: 14,
+                fontWeight: 600,
+                cursor: salvando ? "not-allowed" : "pointer",
+              }}
+            >
+              {salvando ? "Salvando..." : "Criar Reserva"}
+            </button>
+          )}
         </div>
       </div>
     </div>
   );
 };
 
-
 const GestorReservasPage = () => {
-  const [empresas, setEmpresas] = useState([]);
+  const [reservas, setReservas] = useState([]);
   const [quadras, setQuadras] = useState([]);
-
-  const [empresaSelecionada, setEmpresaSelecionada] = useState("");
-  const [quadraSelecionada, setQuadraSelecionada] = useState("");
-
-  const [grade, setGrade] = useState([]);
-  const [carregandoGrade, setCarregandoGrade] = useState(false);
-
+  const [regrasHorarios, setRegrasHorarios] = useState([]); // Regras de todas as quadras
+  const [slotsPorQuadra, setSlotsPorQuadra] = useState({}); // Slots de todas as quadras por data
+  const [carregando, setCarregando] = useState(false);
+  const [carregandoSlots, setCarregandoSlots] = useState(false);
   const [erro, setErro] = useState("");
-  const [mensagemInfo, setMensagemInfo] = useState("");
 
-  const [periodo, setPeriodo] = useState("padrao");
-  const [dataBaseSemana, setDataBaseSemana] = useState("");
-  const [dataInicioCustom, setDataInicioCustom] = useState("");
-  const [dataFimCustom, setDataFimCustom] = useState("");
+  // Estados do calendário
+  const [modoVisualizacao, setModoVisualizacao] = useState("dia"); // "dia", "semana", "mes"
+  const [dataSelecionada, setDataSelecionada] = useState(() => {
+    const hoje = new Date();
+    return hoje.toISOString().split("T")[0];
+  });
+  const [mesAtual, setMesAtual] = useState(() => {
+    const hoje = new Date();
+    return new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+  });
+  const [diaClicado, setDiaClicado] = useState(null); // Para visualização semanal/mensal
 
-  // Estados dos modais
-  const [modalCriarAberto, setModalCriarAberto] = useState(false);
-  const [modalEditarAberto, setModalEditarAberto] = useState(false);
-  const [slotSelecionado, setSlotSelecionado] = useState(null);
-  const [reservaIdSelecionada, setReservaIdSelecionada] = useState(null);
+  // Modal
+  const [modalAberto, setModalAberto] = useState(false);
+  const [reservaSelecionada, setReservaSelecionada] = useState(null);
 
-  // carregar empresas/quadras
+  // Carregar reservas e regras ao montar o componente
   useEffect(() => {
-    const carregarDadosIniciais = async () => {
-      try {
-        setErro("");
-
-        const [respEmpresas, respQuadras] = await Promise.all([
-          api.get("/gestor/empresas"),
-          api.get("/gestor/quadras"),
-        ]);
-
-        const dadosEmpresas = Array.isArray(respEmpresas.data)
-          ? respEmpresas.data
-          : respEmpresas.data?.empresas || [];
-
-        const dadosQuadras = Array.isArray(respQuadras.data)
-          ? respQuadras.data
-          : respQuadras.data?.quadras || [];
-
-        setEmpresas(dadosEmpresas);
-        setQuadras(dadosQuadras);
-
-        if (!dadosEmpresas.length) {
-          setMensagemInfo(
-            "Nenhuma empresa/complexo encontrada para este gestor. Verifique o cadastro."
-          );
-        }
-      } catch (error) {
-        console.error("[GESTOR/RESERVAS] Erro ao carregar empresas/quadras:", error);
-        setErro(
-          "Erro ao carregar empresas e quadras do gestor. Tente novamente mais tarde."
-        );
-      }
-    };
-
-    carregarDadosIniciais();
+    carregarReservas();
+    carregarRegrasHorarios();
   }, []);
 
-  const quadrasFiltradas = useMemo(() => {
-    if (!empresaSelecionada) return [];
-    return quadras.filter(
-      (q) => String(q.empresa_id) === String(empresaSelecionada)
-    );
-  }, [quadras, empresaSelecionada]);
-
-  const montarIntervaloDatas = (periodoOverride, datasOverride = {}) => {
-    const periodoUsar = periodoOverride || periodo;
-
-    const baseSemana =
-      datasOverride.dataBaseSemana !== undefined
-        ? datasOverride.dataBaseSemana
-        : dataBaseSemana;
-
-    const inicioCustom =
-      datasOverride.dataInicioCustom !== undefined
-        ? datasOverride.dataInicioCustom
-        : dataInicioCustom;
-
-    const fimCustom =
-      datasOverride.dataFimCustom !== undefined
-        ? datasOverride.dataFimCustom
-        : dataFimCustom;
-
-    let dataInicioParam;
-    let dataFimParam;
-
-    if (periodoUsar === "padrao") {
-      return { dataInicioParam: undefined, dataFimParam: undefined };
+  // Carregar slots quando a data selecionada mudar (modo dia) ou quando diaClicado mudar
+  useEffect(() => {
+    if (modoVisualizacao === "dia") {
+      carregarSlotsTodasQuadras(dataSelecionada);
+    } else if (diaClicado) {
+      carregarSlotsTodasQuadras(diaClicado);
     }
+  }, [modoVisualizacao, dataSelecionada, diaClicado, quadras, reservas, regrasHorarios]);
 
-    if (periodoUsar === "semana") {
-      if (!baseSemana) {
-        return { dataInicioParam: undefined, dataFimParam: undefined };
-      }
-
-      const base = new Date(`${baseSemana}T12:00:00`);
-      const inicio = new Date(base.getTime());
-      const fim = new Date(base.getTime());
-      fim.setDate(fim.getDate() + 6);
-
-      dataInicioParam = inicio.toISOString().slice(0, 10);
-      dataFimParam = fim.toISOString().slice(0, 10);
-      return { dataInicioParam, dataFimParam };
-    }
-
-    if (periodoUsar === "intervalo") {
-      if (!inicioCustom || !fimCustom) {
-        return { dataInicioParam: undefined, dataFimParam: undefined };
-      }
-
-      dataInicioParam = inicioCustom;
-      dataFimParam = fimCustom;
-      return { dataInicioParam, dataFimParam };
-    }
-
-    return { dataInicioParam: undefined, dataFimParam: undefined };
-  };
-
-  const carregarGrade = async (
-    quadraId,
-    periodoOverride,
-    datasOverride = {}
-  ) => {
+  const carregarReservas = async () => {
     try {
-      if (!quadraId) return;
+      setCarregando(true);
+        setErro("");
 
-      setCarregandoGrade(true);
-      setErro("");
-      setMensagemInfo("");
+      const response = await api.get("/gestor/reservas");
+      const dados = response.data || {};
 
-      const { dataInicioParam, dataFimParam } = montarIntervaloDatas(
-        periodoOverride,
-        datasOverride
-      );
+      setReservas(dados.reservas || []);
+      let quadrasCarregadas = dados.quadras || [];
 
-      const resp = await api.get("/gestor/reservas/grade", {
-        params: {
-          quadraId,
-          ...(dataInicioParam ? { dataInicio: dataInicioParam } : {}),
-          ...(dataFimParam ? { dataFim: dataFimParam } : {}),
-        },
+      // Adicionar quadras de exemplo para grupos específicos
+      const quadrasExpandidas = [];
+      const gruposProcessados = new Set();
+
+      // Agrupar quadras por nome primeiro
+      const quadrasPorNome = {};
+      quadrasCarregadas.forEach((quadra) => {
+        const nomeQuadra = `${quadra.tipo || "Quadra"}${quadra.modalidade ? ` - ${quadra.modalidade}` : ""}`;
+        if (!quadrasPorNome[nomeQuadra]) {
+          quadrasPorNome[nomeQuadra] = [];
+        }
+        quadrasPorNome[nomeQuadra].push(quadra);
       });
 
-      const dadosGrade = Array.isArray(resp.data?.grade)
-        ? resp.data.grade
-        : [];
+      // Processar cada grupo
+      Object.entries(quadrasPorNome).forEach(([nomeQuadra, quadrasGrupo]) => {
+        // Indoor - Beach tennis: garantir 6 quadras
+        if (nomeQuadra.includes("Beach tennis") || nomeQuadra.includes("Beach Tennis")) {
+          const primeiraQuadra = quadrasGrupo[0];
+          // Se há menos de 6, criar quadras adicionais
+          for (let i = quadrasGrupo.length; i < 6; i++) {
+            quadrasExpandidas.push({
+              ...primeiraQuadra,
+              id: `beach-tennis-${i + 1}-${primeiraQuadra.id}`,
+            });
+          }
+        }
+        
+        // Indoor - Pádel: garantir 3 quadras
+        if (nomeQuadra.includes("Pádel") || nomeQuadra.includes("Padel")) {
+          const primeiraQuadra = quadrasGrupo[0];
+          // Se há menos de 3, criar quadras adicionais
+          for (let i = quadrasGrupo.length; i < 3; i++) {
+            quadrasExpandidas.push({
+              ...primeiraQuadra,
+              id: `padel-${i + 1}-${primeiraQuadra.id}`,
+            });
+          }
+        }
+      });
 
-      if (!dadosGrade.length) {
-        setMensagemInfo("Nenhum horário configurado para esta quadra.");
+      // Combinar quadras originais com as expandidas
+      setQuadras([...quadrasCarregadas, ...quadrasExpandidas]);
+
+      // Se não houver reservas, definir data selecionada como hoje
+      if (!dados.reservas || dados.reservas.length === 0) {
+        const hoje = new Date();
+        setDataSelecionada(hoje.toISOString().split("T")[0]);
+        }
+      } catch (error) {
+      console.error("[RESERVAS] Erro ao carregar:", error);
+      setErro(error?.response?.data?.error || "Erro ao carregar reservas.");
+    } finally {
+      setCarregando(false);
+    }
+  };
+
+  // Carregar regras de horários de todas as quadras
+  const carregarRegrasHorarios = async () => {
+    try {
+      // Primeiro, buscar todas as quadras do gestor
+      const responseQuadras = await api.get("/gestor/quadras");
+      const quadrasData = Array.isArray(responseQuadras.data) 
+        ? responseQuadras.data 
+        : responseQuadras.data?.quadras || [];
+
+      // Buscar regras para cada quadra
+      const todasRegras = [];
+      for (const quadra of quadrasData) {
+        try {
+          const responseRegras = await api.get("/gestor/agenda/regras", {
+            params: { quadraId: quadra.id }
+          });
+          const regras = responseRegras.data?.regras || [];
+          // Adicionar quadra_id a cada regra para facilitar o filtro
+          regras.forEach(regra => {
+            todasRegras.push({
+              ...regra,
+              quadra_id: quadra.id
+            });
+          });
+        } catch (error) {
+          console.error(`[REGRAS] Erro ao carregar regras da quadra ${quadra.id}:`, error);
+          // Continua para próxima quadra mesmo se houver erro
+        }
       }
 
-      setGrade(dadosGrade);
+      setRegrasHorarios(todasRegras);
     } catch (error) {
-      console.error("[GESTOR/RESERVAS] Erro ao carregar grade:", error);
-      const msgBackend =
-        error?.response?.data?.error ||
-        "Erro ao carregar a agenda desta quadra. Verifique se a agenda foi configurada.";
-      setErro(msgBackend);
-      setGrade([]);
-    } finally {
-      setCarregandoGrade(false);
+      console.error("[REGRAS] Erro ao carregar regras:", error);
+      // Não bloqueia a página se houver erro ao carregar regras
     }
   };
 
-  const handleChangeEmpresa = (e) => {
-    const novoId = e.target.value;
-    setEmpresaSelecionada(novoId);
-    setQuadraSelecionada("");
-    setGrade([]);
-    setMensagemInfo("");
-    setErro("");
+  // Verificar se uma data tem regras configuradas (baseado no dia da semana)
+  const dataTemRegras = (dataISO) => {
+    if (!dataISO || regrasHorarios.length === 0) return false;
+    
+    const data = new Date(`${dataISO}T12:00:00`);
+    const diaSemana = data.getDay(); // 0 = Domingo, 1 = Segunda, ..., 6 = Sábado
+
+    // Verificar se existe pelo menos uma regra para este dia da semana
+    return regrasHorarios.some(regra => regra.dia_semana === diaSemana);
   };
 
-  const handleChangeQuadra = (e) => {
-    const novaQuadraId = e.target.value;
-    setQuadraSelecionada(novaQuadraId);
-    setGrade([]);
-    setMensagemInfo("");
-    setErro("");
-
-    if (novaQuadraId) {
-      carregarGrade(novaQuadraId);
+  // Gerar reservas de exemplo (mock) para demonstração
+  const gerarReservasExemplo = (quadraId, dataISO, horaStr) => {
+    if (!quadras || quadras.length === 0) {
+      return {
+        status: "DISPONIVEL",
+        reserva: null,
+        bloqueio: null,
+      };
     }
-  };
-
-  const handleChangePeriodo = (e) => {
-    const novoPeriodo = e.target.value;
-    setPeriodo(novoPeriodo);
-    setMensagemInfo("");
-    setErro("");
-
-    if (quadraSelecionada) {
-      carregarGrade(quadraSelecionada, novoPeriodo, {});
+    
+    // Obter nome da quadra
+    const quadra = quadras.find(q => q.id === quadraId);
+    if (!quadra) {
+      return {
+        status: "DISPONIVEL",
+        reserva: null,
+        bloqueio: null,
+      };
     }
-  };
-
-  const handleChangeDataBaseSemana = (e) => {
-    const novaData = e.target.value;
-    setDataBaseSemana(novaData);
-    setMensagemInfo("");
-    setErro("");
-
-    if (quadraSelecionada && periodo === "semana" && novaData) {
-      carregarGrade(quadraSelecionada, "semana", {
-        dataBaseSemana: novaData,
-      });
+    
+    // Construir nome da quadra (mesma lógica de getNomeQuadra)
+    const nomeQuadra = `${quadra.tipo || "Quadra"}${quadra.modalidade ? ` - ${quadra.modalidade}` : ""}`;
+    const hora = parseInt(horaStr.split(":")[0]);
+    
+    // Padrão para "Indoor - Beach tennis" (6 quadras)
+    if (nomeQuadra.includes("Beach tennis") || nomeQuadra.includes("Beach Tennis")) {
+      // Usar um hash simples baseado no ID da quadra para distribuir os padrões
+      const hash = quadraId.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
+      const quadraNoGrupo = hash % 6; // 0 a 5 (6 quadras)
+      
+      // Horário específico: 14:00 - 1 Reserva paga, 1 Pendência, 4 Disponíveis
+      if (hora === 14) {
+        if (quadraNoGrupo === 0) {
+          // Primeira quadra: reserva paga
+          return {
+            status: "RESERVADO",
+            reserva: {
+              id: `reserva-paga-${quadraId}-${dataISO}-${horaStr}`,
+              user_cpf: "123.456.789-00",
+              phone: "(11) 98765-4321",
+              preco_total: 150,
+              pago_via_pix: true,
+              nome: "João Silva",
+              quadra_id: quadraId,
+              data: dataISO,
+              hora: horaStr,
+            },
+            bloqueio: null,
+          };
+        }
+        if (quadraNoGrupo === 1) {
+          // Segunda quadra: reserva pendente
+          return {
+            status: "RESERVADO",
+            reserva: {
+              id: `reserva-pendente-${quadraId}-${dataISO}-${horaStr}`,
+              user_cpf: "987.654.321-00",
+              phone: "(11) 91234-5678",
+              preco_total: 150,
+              pago_via_pix: false,
+              nome: "Maria Santos",
+              quadra_id: quadraId,
+              data: dataISO,
+              hora: horaStr,
+            },
+            bloqueio: null,
+          };
+        }
+        // Quadras 2, 3, 4, 5: disponíveis (não retorna nada, fica disponível)
+      }
+      
+      // Outros horários com padrões diferentes
+      if (quadraNoGrupo === 0 && (hora === 9 || hora === 10)) {
+        // Primeira quadra: bloqueada
+        return {
+          status: "BLOQUEADO",
+          bloqueio: {
+            motivo: "Bloqueado",
+            id: `bloqueio-${quadraId}-${dataISO}-${horaStr}`,
+          },
+          reserva: null,
+        };
+      }
+      if (quadraNoGrupo === 3 && (hora === 18 || hora === 19)) {
+        // Quarta quadra: reserva paga
+        return {
+          status: "RESERVADO",
+          reserva: {
+            id: `reserva-paga-${quadraId}-${dataISO}-${horaStr}`,
+            user_cpf: "111.222.333-44",
+            phone: "(11) 99876-5432",
+            preco_total: 150,
+            pago_via_pix: true,
+            nome: "Pedro Oliveira",
+            quadra_id: quadraId,
+            data: dataISO,
+            hora: horaStr,
+          },
+          bloqueio: null,
+        };
+      }
     }
-  };
-
-  const handleChangeDataInicioCustom = (e) => {
-  const novaData = e.target.value;
-  setDataInicioCustom(novaData);
-  setMensagemInfo("");
-  setErro("");
-
-  // validação (se já existe fim preenchido)
-  if (periodo === "intervalo" && novaData && dataFimCustom) {
-    const v = validarIntervalo60Dias(novaData, dataFimCustom);
-    if (!v.ok) {
-      setErro(v.msg);
-      setGrade([]);
-      return;
+    
+    // Padrão para "Indoor - Pádel" (3 quadras)
+    if (nomeQuadra.includes("Pádel") || nomeQuadra.includes("Padel")) {
+      const hash = quadraId.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
+      const quadraNoGrupo = hash % 3; // 0 a 2 (3 quadras)
+      
+      if (quadraNoGrupo === 0 && (hora === 11 || hora === 12)) {
+        // Primeira quadra: bloqueada
+        return {
+          status: "BLOQUEADO",
+          bloqueio: {
+            motivo: "Bloqueado",
+            id: `bloqueio-${quadraId}-${dataISO}-${horaStr}`,
+          },
+          reserva: null,
+        };
+      }
+      if (quadraNoGrupo === 1 && (hora === 18 || hora === 19)) {
+        // Segunda quadra: reserva paga
+        return {
+          status: "RESERVADO",
+          reserva: {
+            id: `reserva-paga-${quadraId}-${dataISO}-${horaStr}`,
+            user_cpf: "555.666.777-88",
+            phone: "(11) 97654-3210",
+            preco_total: 200,
+            pago_via_pix: true,
+            nome: "Ana Costa",
+            quadra_id: quadraId,
+            data: dataISO,
+            hora: horaStr,
+          },
+          bloqueio: null,
+        };
+      }
+      if (quadraNoGrupo === 2 && (hora === 20 || hora === 21)) {
+        // Terceira quadra: reserva pendente
+        return {
+          status: "RESERVADO",
+          reserva: {
+            id: `reserva-pendente-${quadraId}-${dataISO}-${horaStr}`,
+            user_cpf: "999.888.777-66",
+            phone: "(11) 96543-2109",
+            preco_total: 200,
+            pago_via_pix: false,
+            nome: "Carlos Mendes",
+            quadra_id: quadraId,
+            data: dataISO,
+            hora: horaStr,
+          },
+          bloqueio: null,
+        };
+      }
     }
-    if (quadraSelecionada) {
-      carregarGrade(quadraSelecionada, "intervalo", {
-        dataInicioCustom: novaData,
-        dataFimCustom,
-      });
-    }
-  }
-};
-
-const handleChangeDataFimCustom = (e) => {
-  const novaData = e.target.value;
-  setDataFimCustom(novaData);
-  setMensagemInfo("");
-  setErro("");
-
-  if (periodo === "intervalo" && dataInicioCustom && novaData) {
-    const v = validarIntervalo60Dias(dataInicioCustom, novaData);
-    if (!v.ok) {
-      setErro(v.msg);
-      setGrade([]);
-      return;
-    }
-    if (quadraSelecionada) {
-      carregarGrade(quadraSelecionada, "intervalo", {
-        dataInicioCustom,
-        dataFimCustom: novaData,
-      });
-    }
-  }
-};
-
-
-  const abrirModalCriar = (dia, slot) => {
-    setSlotSelecionado({
-      data: dia.data,
-      dia_semana: dia.dia_semana,
-      hora_inicio: slot.hora_inicio,
-      hora_fim: slot.hora_fim,
-      preco_hora: slot.preco_hora,
+    
+    // Para outras quadras ou horários, verificar se há reserva real
+    const reservaReal = reservas.find((r) => {
+      const reservaData = r.data?.split("T")[0] || r.data;
+      const reservaHora = r.hora || r.hora_inicio || "";
+      return (
+        r.quadra_id === quadraId &&
+        reservaData === dataISO &&
+        reservaHora.startsWith(horaStr.split(":")[0])
+      );
     });
-    setModalCriarAberto(true);
+    
+    if (reservaReal) {
+      return {
+        status: "RESERVADO",
+        reserva: {
+          id: reservaReal.id,
+          user_cpf: reservaReal.user_cpf,
+          phone: reservaReal.phone,
+          preco_total: reservaReal.preco_total,
+          pago_via_pix: reservaReal.pago_via_pix,
+          nome: reservaReal.nome || reservaReal.user_name,
+        },
+        bloqueio: null,
+      };
+    }
+    
+    // Disponível (verde)
+    return {
+      status: "DISPONIVEL",
+      reserva: null,
+      bloqueio: null,
+    };
   };
 
-  const abrirModalEditar = (slot) => {
-    if (!slot.reserva || !slot.reserva.id) {
-      console.warn(
-        "[GESTOR/RESERVAS] Slot reservado sem id de reserva vinculado."
-      );
+  // Gerar slots de exemplo (mock) para uma data específica
+  const gerarSlotsMock = (dataISO) => {
+    if (!dataISO || quadras.length === 0) return {};
+
+    const slotsAgrupados = {};
+    const data = new Date(`${dataISO}T12:00:00`);
+    const diaSemana = data.getDay();
+
+    // Gerar horários de 08:00 até 22:00 (hora em hora)
+    const horarios = [];
+    for (let hora = 8; hora <= 22; hora++) {
+      horarios.push({
+        hora: `${String(hora).padStart(2, "0")}:00`,
+        hora_fim: `${String(hora + 1).padStart(2, "0")}:00`,
+      });
+    }
+
+    // Para cada quadra, gerar slots baseado nas regras
+    quadras.forEach((quadra) => {
+      const regrasQuadra = regrasHorarios.filter((r) => r.quadra_id === quadra.id && r.dia_semana === diaSemana);
+      
+      const slotsDoDia = [];
+      
+      if (regrasQuadra.length === 0) {
+        // Se não há regras, gerar horários de exemplo (08:00 até 22:00)
+        for (let hora = 8; hora < 22; hora++) {
+          const horaStr = `${String(hora).padStart(2, "0")}:00`;
+          const horaFimStr = `${String(hora + 1).padStart(2, "0")}:00`;
+          
+          // Gerar reserva de exemplo
+          const exemploReserva = gerarReservasExemplo(quadra.id, dataISO, horaStr);
+
+          slotsDoDia.push({
+            data: dataISO,
+            hora: horaStr,
+            hora_fim: horaFimStr,
+            status: exemploReserva.status,
+            preco_hora: 100,
+            reserva: exemploReserva.reserva,
+            bloqueio: exemploReserva.bloqueio,
+          });
+        }
+      } else {
+        // Para cada regra, gerar slots de hora em hora
+        regrasQuadra.forEach((regra) => {
+          const horaInicio = parseInt(regra.hora_inicio.split(":")[0]);
+          const horaFim = parseInt(regra.hora_fim.split(":")[0]);
+          
+          for (let hora = horaInicio; hora < horaFim; hora++) {
+            const horaStr = `${String(hora).padStart(2, "0")}:00`;
+            const horaFimStr = `${String(hora + 1).padStart(2, "0")}:00`;
+            
+            // Gerar reserva de exemplo
+            const exemploReserva = gerarReservasExemplo(quadra.id, dataISO, horaStr);
+
+            slotsDoDia.push({
+              data: dataISO,
+              hora: horaStr,
+              hora_fim: horaFimStr,
+              status: exemploReserva.status,
+              preco_hora: regra.preco_hora || 100,
+              reserva: exemploReserva.reserva,
+              bloqueio: exemploReserva.bloqueio,
+            });
+          }
+        });
+      }
+
+      slotsAgrupados[quadra.id] = slotsDoDia.sort((a, b) => a.hora.localeCompare(b.hora));
+    });
+
+    return slotsAgrupados;
+  };
+
+  // Carregar slots de todas as quadras para uma data específica (usando mock)
+  const carregarSlotsTodasQuadras = (dataISO) => {
+    if (!dataISO || quadras.length === 0) {
+      setSlotsPorQuadra({});
       return;
     }
-    setReservaIdSelecionada(slot.reserva.id);
-    setModalEditarAberto(true);
+    
+    setCarregandoSlots(true);
+    
+    // Gerar slots mockados imediatamente (sem delay)
+    const slotsAgrupados = gerarSlotsMock(dataISO);
+    setSlotsPorQuadra(slotsAgrupados);
+    setCarregandoSlots(false);
   };
 
-     // ----------------------------------------
-  // RENDERIZAÇÃO DA GRADE ESTILO CINEMA
-  // ----------------------------------------
-  const renderCinema = () => {
-    if (!quadraSelecionada) {
-      return (
-        <p className="text-muted mt-3">
-          Selecione um complexo e uma quadra para visualizar a agenda.
-        </p>
-      );
+  // Filtrar reservas por data
+  const reservasFiltradas = useMemo(() => {
+    if (modoVisualizacao === "dia") {
+      return reservas.filter((r) => r.data === dataSelecionada);
+    } else if (modoVisualizacao === "semana") {
+      if (!diaClicado) return [];
+      return reservas.filter((r) => r.data === diaClicado);
+    } else if (modoVisualizacao === "mes") {
+      if (!diaClicado) return [];
+      return reservas.filter((r) => r.data === diaClicado);
+    }
+    return [];
+  }, [reservas, modoVisualizacao, dataSelecionada, diaClicado]);
+
+  // Agrupar reservas por quadra
+  const reservasPorQuadra = useMemo(() => {
+    const agrupadas = {};
+    reservasFiltradas.forEach((reserva) => {
+      const quadraId = reserva.quadra_id;
+      if (!agrupadas[quadraId]) {
+        agrupadas[quadraId] = [];
+      }
+      agrupadas[quadraId].push(reserva);
+    });
+    return agrupadas;
+  }, [reservasFiltradas]);
+
+  // Obter nome da quadra
+  const getNomeQuadra = (quadraId) => {
+    const quadra = quadras.find((q) => q.id === quadraId);
+    if (!quadra) return "Quadra não encontrada";
+    return `${quadra.tipo || "Quadra"}${quadra.modalidade ? ` - ${quadra.modalidade}` : ""}`;
+  };
+
+  // Agrupar quadras por nome (tipo + modalidade)
+  const agruparQuadrasPorNome = () => {
+    const grupos = {};
+    
+    quadras.forEach((quadra) => {
+      const nomeGrupo = getNomeQuadra(quadra.id);
+      if (!grupos[nomeGrupo]) {
+        grupos[nomeGrupo] = [];
+      }
+      grupos[nomeGrupo].push(quadra);
+    });
+    
+    return grupos;
+  };
+
+  // Agregar slots de um grupo de quadras
+  const agregarSlotsGrupo = (quadrasGrupo, dataISO) => {
+    const slotsAgregados = {};
+    
+    // Para cada horário, contar quantas quadras estão disponíveis/reservadas/bloqueadas
+    quadrasGrupo.forEach((quadra) => {
+      const slots = slotsPorQuadra[quadra.id] || [];
+      slots.forEach((slot) => {
+        const hora = slot.hora || slot.hora_inicio || "";
+        if (!slotsAgregados[hora]) {
+          slotsAgregados[hora] = {
+            hora: hora,
+            hora_fim: slot.hora_fim || (() => {
+              const h = parseInt(hora.split(":")[0]);
+              return `${String(h + 1).padStart(2, "0")}:00`;
+            })(),
+            disponiveis: 0,
+            reservadasPagas: 0,
+            reservadasPendentes: 0,
+            bloqueadas: 0,
+            total: quadrasGrupo.length,
+            reservas: [],
+            bloqueios: [],
+            preco_hora: slot.preco_hora || 100,
+          };
+        }
+        
+        const status = (slot.status || "").toUpperCase();
+        if (status === "DISPONIVEL" || status === "LIVRE") {
+          slotsAgregados[hora].disponiveis++;
+        } else if (status === "RESERVADO" || status === "RESERVADA") {
+          // Separar reservas pagas de pendentes
+          if (slot.reserva?.pago_via_pix === true) {
+            slotsAgregados[hora].reservadasPagas++;
+          } else {
+            slotsAgregados[hora].reservadasPendentes++;
+          }
+          if (slot.reserva) {
+            slotsAgregados[hora].reservas.push(slot.reserva);
+          }
+        } else if (status === "BLOQUEADO" || status === "BLOQUEADA") {
+          slotsAgregados[hora].bloqueadas++;
+          if (slot.bloqueio) {
+            slotsAgregados[hora].bloqueios.push(slot.bloqueio);
+          }
+        }
+      });
+    });
+    
+    return Object.values(slotsAgregados).sort((a, b) => a.hora.localeCompare(b.hora));
+  };
+
+  // Gerar dias do mês para visualização mensal
+  const gerarDiasDoMes = () => {
+    const ano = mesAtual.getFullYear();
+    const mes = mesAtual.getMonth();
+    const primeiroDia = new Date(ano, mes, 1);
+    const ultimoDia = new Date(ano, mes + 1, 0);
+    const diasNoMes = ultimoDia.getDate();
+    const diaInicialSemana = primeiroDia.getDay();
+
+    const dias = [];
+
+    // Dias vazios antes do primeiro dia
+    for (let i = 0; i < diaInicialSemana; i++) {
+      dias.push(null);
     }
 
-    if (carregandoGrade) {
-      return <p className="mt-3">Carregando horários...</p>;
+    // Dias do mês
+    for (let dia = 1; dia <= diasNoMes; dia++) {
+      const dataISO = `${ano}-${String(mes + 1).padStart(2, "0")}-${String(dia).padStart(2, "0")}`;
+      const temRegras = dataTemRegras(dataISO);
+      const reservasDoDia = reservas.filter((r) => r.data === dataISO);
+      dias.push({
+        dia,
+        data: dataISO,
+        temRegras,
+        temReservas: reservasDoDia.length > 0,
+        quantidadeReservas: reservasDoDia.length,
+      });
     }
 
-    if (erro) {
-      return (
-        <p className="mt-3 text-danger" style={{ fontWeight: 600 }}>
-          {erro}
-        </p>
-      );
+    return dias;
+  };
+
+  // Gerar dias da semana para visualização semanal
+  const gerarDiasDaSemana = () => {
+    const hoje = new Date();
+    const diaSemana = hoje.getDay();
+    const inicioSemana = new Date(hoje);
+    inicioSemana.setDate(hoje.getDate() - diaSemana);
+
+    const dias = [];
+    for (let i = 0; i < 7; i++) {
+      const dia = new Date(inicioSemana);
+      dia.setDate(inicioSemana.getDate() + i);
+      const dataISO = dia.toISOString().split("T")[0];
+      const temRegras = dataTemRegras(dataISO);
+      const reservasDoDia = reservas.filter((r) => r.data === dataISO);
+      dias.push({
+        dia: dia.getDate(),
+        data: dataISO,
+        nomeDia: getNomeDiaSemana(dataISO),
+        temRegras,
+        temReservas: reservasDoDia.length > 0,
+        quantidadeReservas: reservasDoDia.length,
+      });
     }
+    return dias;
+  };
 
-    if (mensagemInfo) {
-      return (
-        <p className="mt-3 text-muted" style={{ fontStyle: "italic" }}>
-          {mensagemInfo}
-        </p>
-      );
-    }
+  // Navegação do calendário
+  const avancarMes = () => {
+    setMesAtual(new Date(mesAtual.getFullYear(), mesAtual.getMonth() + 1, 1));
+  };
 
-    if (!grade || !grade.length) {
-      return null;
-    }
+  const retrocederMes = () => {
+    setMesAtual(new Date(mesAtual.getFullYear(), mesAtual.getMonth() - 1, 1));
+  };
 
-    // Normaliza o status enviado pelo backend ('disponivel' | 'reservado' | 'bloqueado')
-    const normalizarStatus = (slot) => {
-      const raw = (slot.status || "").toString().toLowerCase().trim();
+  const avancarSemana = () => {
+    const novaData = new Date(dataSelecionada);
+    novaData.setDate(novaData.getDate() + 7);
+    setDataSelecionada(novaData.toISOString().split("T")[0]);
+  };
 
-      if (raw === "reservado" || raw === "reservada") return "reservado";
-      if (raw === "bloqueado" || raw === "bloqueada") return "bloqueado";
+  const retrocederSemana = () => {
+    const novaData = new Date(dataSelecionada);
+    novaData.setDate(novaData.getDate() - 7);
+    setDataSelecionada(novaData.toISOString().split("T")[0]);
+  };
 
-      return "disponivel";
-    };
+  const avancarDia = () => {
+    const novaData = new Date(`${dataSelecionada}T12:00:00`);
+    novaData.setDate(novaData.getDate() + 1);
+    setDataSelecionada(novaData.toISOString().split("T")[0]);
+  };
 
-    // Identifica origem da reserva (Painel x WhatsApp)
-    const obterOrigemSlot = (slot) => {
-      const origem = (slot?.reserva?.origem || "").toString().toLowerCase().trim();
+  const retrocederDia = () => {
+    const novaData = new Date(`${dataSelecionada}T12:00:00`);
+    novaData.setDate(novaData.getDate() - 1);
+    setDataSelecionada(novaData.toISOString().split("T")[0]);
+  };
 
-      if (origem === "whatsapp") return "W";
-      if (origem === "painel") return "P";
+  const irParaHoje = () => {
+    const hoje = new Date();
+    setDataSelecionada(hoje.toISOString().split("T")[0]);
+    setMesAtual(new Date(hoje.getFullYear(), hoje.getMonth(), 1));
+    setDiaClicado(null);
+  };
 
-      if (slot?.reserva?.pago_via_pix) return "W";
-      return "P";
-    };
-
-    // Cor do slot conforme status
-    const getCorSlot = (slot) => {
-      const statusNorm = normalizarStatus(slot);
-
-      if (statusNorm === "disponivel") return "#198754"; // verde
-      if (statusNorm === "reservado") return "#dc3545";  // vermelho
-      if (statusNorm === "bloqueado") return "#6c757d";  // cinza
-
-      return "#6c757d";
-    };
-
+  // Renderizar visualização diária
+  const renderVisualizacaoDiaria = () => {
+    // Verificar se a data selecionada tem regras configuradas
+    if (carregandoSlots) {
     return (
-      <div className="mt-4">
-        <h5 className="mb-3">Agenda estilo cinema</h5>
+        <div style={{ textAlign: "center", padding: 40, color: "#6b7280" }}>
+          Carregando horários...
+        </div>
+      );
+    }
 
-        <div
-          style={{
-            borderRadius: "8px",
-            border: "1px solid #dee2e6",
-            padding: "16px",
-            backgroundColor: "#f8f9fa",
-          }}
-        >
-          {grade.map((dia) => (
-            <div key={dia.data} className="mb-4">
-              <div
-                style={{
-                  fontWeight: 600,
-                  marginBottom: "8px",
-                  fontSize: "0.95rem",
-                }}
-              >
-                {formatarDataBR(dia.data)}
-              </div>
+    // Agrupar quadras por nome
+    const gruposQuadras = agruparQuadrasPorNome();
 
-              <div
-                style={{
-                  display: "flex",
-                  flexWrap: "wrap",
-                  gap: "8px",
-                }}
-              >
-                {dia.slots && dia.slots.length ? (
-                  dia.slots.map((slot) => {
-                    const statusNorm = normalizarStatus(slot);
+    // Renderizar slots agrupados
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+        {Object.entries(gruposQuadras).map(([nomeGrupo, quadrasGrupo]) => {
+          const slotsAgregados = agregarSlotsGrupo(quadrasGrupo, dataSelecionada);
+          const totalQuadras = quadrasGrupo.length;
+
+          return (
+            <div key={nomeGrupo} style={{ backgroundColor: "#fff", borderRadius: 12, padding: 20, border: "1px solid #e5e7eb" }}>
+              <h4 style={{ fontSize: 18, fontWeight: 600, color: "#111827", marginBottom: 4 }}>
+                {nomeGrupo}
+              </h4>
+              {totalQuadras > 1 && (
+                <p style={{ fontSize: 12, color: "#6b7280", marginBottom: 16 }}>
+                  {totalQuadras} quadras
+                </p>
+              )}
+              {slotsAgregados.length === 0 ? (
+                <div style={{ textAlign: "center", padding: 20, color: "#6b7280" }}>
+                  Nenhum horário disponível para esta data.
+                </div>
+              ) : (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
+                  {slotsAgregados.map((slotAgregado, index) => {
+                  // Calcular quantidades
+                  const totalReservadas = (slotAgregado.reservadasPagas || 0) + (slotAgregado.reservadasPendentes || 0);
+                  const temDisponivel = slotAgregado.disponiveis > 0;
+                  const temReservadaPaga = slotAgregado.reservadasPagas > 0;
+                  const temReservadaPendente = slotAgregado.reservadasPendentes > 0;
+                  const temBloqueada = slotAgregado.bloqueadas > 0;
+                  
+                  // Determinar quantos status diferentes existem
+                  const statusCount = [temDisponivel, temReservadaPaga, temReservadaPendente].filter(Boolean).length;
+                  const temMultiplosStatus = statusCount > 1;
+                  
+                  // Determinar status principal para interação
+                  let status = "DISPONIVEL";
+                  let descricao = "";
+                  
+                  if (slotAgregado.bloqueadas === totalQuadras) {
+                    status = "BLOQUEADO";
+                    descricao = "Bloqueado";
+                  } else if (totalReservadas > 0) {
+                    status = "RESERVADO";
+                    const partes = [];
+                    if (slotAgregado.reservadasPagas > 0) partes.push(`${slotAgregado.reservadasPagas} paga(s)`);
+                    if (slotAgregado.reservadasPendentes > 0) partes.push(`${slotAgregado.reservadasPendentes} pendente(s)`);
+                    if (slotAgregado.disponiveis > 0) partes.push(`${slotAgregado.disponiveis} disponível(eis)`);
+                    descricao = partes.join(", ");
+                  } else if (slotAgregado.disponiveis > 0) {
+                    status = "DISPONIVEL";
+                    descricao = totalQuadras > 1 
+                      ? `${slotAgregado.disponiveis} de ${totalQuadras} disponíveis`
+                      : "Disponível";
+                  }
+
+                  const horaFim = slotAgregado.hora_fim;
+                  const horaSlot = slotAgregado.hora;
+
+                  // Se tem múltiplos status, criar divisão visual
+                  if (temMultiplosStatus && !temBloqueada) {
+                    const totalAtivo = slotAgregado.disponiveis + totalReservadas;
+                    const porcentagemDisponivel = (slotAgregado.disponiveis / totalAtivo) * 100;
+                    const porcentagemPaga = (slotAgregado.reservadasPagas / totalAtivo) * 100;
+                    const porcentagemPendente = (slotAgregado.reservadasPendentes / totalAtivo) * 100;
 
                     return (
                       <div
-                        key={`${dia.data}-${slot.hora_inicio}`}
-                        style={{
-                          minWidth: "80px",
-                          textAlign: "center",
-                          padding: "6px 8px",
-                          borderRadius: "4px",
-                          backgroundColor: getCorSlot(slot),
-                          color: "#fff",
-                          fontSize: "0.85rem",
-                          cursor:
-                            statusNorm === "bloqueado"
-                              ? "not-allowed"
-                              : "pointer",
-                          opacity: statusNorm === "bloqueado" ? 0.7 : 1,
-                        }}
+                        key={index}
                         onClick={() => {
-                          if (statusNorm === "bloqueado") return;
-                          if (statusNorm === "disponivel") {
-                            abrirModalCriar(dia, slot);
-                          } else if (statusNorm === "reservado") {
-                            abrirModalEditar(slot);
+                          if (status === "DISPONIVEL" || status === "LIVRE") {
+                            const primeiraQuadra = quadrasGrupo[0];
+                            setReservaSelecionada({
+                              quadra_id: primeiraQuadra.id,
+                              data: dataSelecionada,
+                              hora: horaSlot,
+                              preco_hora: slotAgregado.preco_hora || 0,
+                              quadra: primeiraQuadra,
+                              grupoQuadras: totalQuadras > 1 ? quadrasGrupo : null,
+                            });
+                            setModalAberto(true);
+                          } else if (status === "RESERVADO" || status === "RESERVADA") {
+                            if (slotAgregado.reservas && slotAgregado.reservas.length > 0) {
+                              const reservasCompletas = slotAgregado.reservas.map((res) => {
+                                const quadraReserva = quadras.find(q => q.id === res.quadra_id) || quadrasGrupo[0];
+                                return {
+                                  ...res,
+                                  quadra: quadraReserva,
+                                  data: res.data || dataSelecionada,
+                                  hora: res.hora || horaSlot,
+                                  nome: res.nome || res.usuario_nome || res.user_name || "Cliente",
+                                };
+                              });
+                              setReservaSelecionada({
+                                ...reservasCompletas[0],
+                                todasReservas: reservasCompletas,
+                              });
+                              setModalAberto(true);
+                            }
                           }
                         }}
+          style={{
+                          border: "2px solid #d1d5db",
+                          borderRadius: 8,
+                          padding: 0,
+                          minWidth: 120,
+                          overflow: "hidden",
+                          cursor: "pointer",
+                          transition: "all 0.2s",
+                          display: "flex",
+                          flexDirection: "column",
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.transform = "scale(1.05)";
+                          e.currentTarget.style.boxShadow = "0 4px 8px rgba(0,0,0,0.2)";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.transform = "scale(1)";
+                          e.currentTarget.style.boxShadow = "none";
+                        }}
                       >
-                        <div style={{ fontWeight: 600 }}>
-                          {slot.hora_inicio} - {slot.hora_fim}
-                        </div>
-
-                        <div
-                          style={{
-                            fontSize: "0.7rem",
-                            display: "flex",
-                            justifyContent: "center",
-                            alignItems: "center",
-                            gap: "6px",
-                          }}
-                        >
-                          <span>
-                            {statusNorm === "disponivel" && "Disponível"}
-                            {statusNorm === "reservado" && "Reservada"}
-                            {statusNorm === "bloqueado" && "Bloqueada"}
-                          </span>
-
-                          {statusNorm === "reservado" && (
-                            <span
-                              title={
-                                obterOrigemSlot(slot) === "W"
-                                  ? "Reserva via WhatsApp / PIX"
-                                  : "Reserva criada pelo Painel"
-                              }
-                              style={{
-                                fontSize: "0.65rem",
-                                padding: "1px 6px",
-                                borderRadius: "999px",
-                                backgroundColor: "rgba(255,255,255,0.25)",
-                                border: "1px solid rgba(255,255,255,0.35)",
+                        {/* Divisão visual horizontal */}
+                        <div style={{ display: "flex", width: "100%", height: "100%" }}>
+                          {temDisponivel && (
+              <div
+                style={{
+                                backgroundColor: "#c8e6c9",
+                                borderRight: statusCount > 1 ? "1px solid #2e7d32" : "none",
+                                flex: porcentagemDisponivel,
+                                minHeight: 60,
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                flexDirection: "column",
+                                padding: "8px 4px",
                               }}
                             >
-                              {obterOrigemSlot(slot)}
-                            </span>
+                              <div style={{ fontSize: 10, fontWeight: 700, color: "#1b5e20", marginBottom: 2 }}>
+                                {horaSlot} - {horaFim}
+              </div>
+                              <div style={{ fontSize: 9, fontWeight: 500, color: "#1b5e20" }}>
+                                {slotAgregado.disponiveis} disp.
+                              </div>
+                            </div>
+                          )}
+                          {temReservadaPaga && (
+              <div
+                style={{
+                                backgroundColor: "#90caf9",
+                                borderRight: temReservadaPendente ? "1px solid #42a5f5" : "none",
+                                flex: porcentagemPaga,
+                                minHeight: 60,
+                  display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                flexDirection: "column",
+                                padding: "8px 4px",
+                              }}
+                            >
+                              <div style={{ fontSize: 10, fontWeight: 700, color: "#0d47a1", marginBottom: 2 }}>
+                                {!temDisponivel && `${horaSlot} - ${horaFim}`}
+                              </div>
+                              <div style={{ fontSize: 9, fontWeight: 500, color: "#0d47a1" }}>
+                                {slotAgregado.reservadasPagas} paga(s)
+                              </div>
+                            </div>
+                          )}
+                          {temReservadaPendente && (
+                            <div
+                              style={{
+                                backgroundColor: "#fff9c4",
+                                flex: porcentagemPendente,
+                                minHeight: 60,
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                flexDirection: "column",
+                                padding: "8px 4px",
+                              }}
+                            >
+                              <div style={{ fontSize: 10, fontWeight: 700, color: "#f57f17", marginBottom: 2 }}>
+                                {!temDisponivel && !temReservadaPaga && `${horaSlot} - ${horaFim}`}
+                              </div>
+                              <div style={{ fontSize: 9, fontWeight: 500, color: "#f57f17" }}>
+                                {slotAgregado.reservadasPendentes} pend.
+                              </div>
+                            </div>
                           )}
                         </div>
+                        {/* Descrição completa abaixo */}
+                        <div style={{ 
+                          padding: "4px 8px", 
+                          backgroundColor: "#f9fafb", 
+                          fontSize: 9, 
+                          color: "#6b7280",
+                          textAlign: "center",
+                          borderTop: "1px solid #e5e7eb"
+                        }}>
+                          {descricao}
+                        </div>
+                        {slotAgregado.preco_hora && (
+                          <div style={{ 
+                            padding: "2px 8px", 
+                            fontSize: 8, 
+                            color: "#9ca3af",
+                            textAlign: "center"
+                          }}>
+                            {formatarMoeda(slotAgregado.preco_hora)}
+                          </div>
+                        )}
                       </div>
                     );
-                  })
-                ) : (
-                  <span className="text-muted">
-                    Nenhum horário configurado para este dia.
-                  </span>
-                )}
-              </div>
+                  }
+
+                  // Renderização normal (sem divisão)
+                  let bgColor = "#c8e6c9";
+                  let borderColor = "#2e7d32";
+                  let textColor = "#1b5e20";
+                  
+                  if (slotAgregado.bloqueadas === totalQuadras) {
+                    bgColor = "#ffcdd2";
+                    borderColor = "#c62828";
+                    textColor = "#b71c1c";
+                  } else if (totalReservadas > 0 && !temDisponivel) {
+                    bgColor = "#90caf9";
+                    borderColor = "#42a5f5";
+                    textColor = "#0d47a1";
+                  }
+
+                    return (
+                      <div
+                      key={index}
+                      onClick={() => {
+                        if (status === "DISPONIVEL" || status === "LIVRE") {
+                          const primeiraQuadra = quadrasGrupo[0];
+                          setReservaSelecionada({
+                            quadra_id: primeiraQuadra.id,
+                            data: dataSelecionada,
+                            hora: horaSlot,
+                            preco_hora: slotAgregado.preco_hora || 0,
+                            quadra: primeiraQuadra,
+                            grupoQuadras: totalQuadras > 1 ? quadrasGrupo : null,
+                          });
+                          setModalAberto(true);
+                        } else if (status === "RESERVADO" || status === "RESERVADA") {
+                          if (slotAgregado.reservas && slotAgregado.reservas.length > 0) {
+                            const reservasCompletas = slotAgregado.reservas.map((res) => {
+                              const quadraReserva = quadras.find(q => q.id === res.quadra_id) || quadrasGrupo[0];
+                              return {
+                                ...res,
+                                quadra: quadraReserva,
+                                data: res.data || diaClicado,
+                                hora: res.hora || horaSlot,
+                                nome: res.nome || res.usuario_nome || res.user_name || "Cliente",
+                              };
+                            });
+                            setReservaSelecionada({
+                              ...reservasCompletas[0],
+                              todasReservas: reservasCompletas,
+                            });
+                            setModalAberto(true);
+                          }
+                        }
+                      }}
+                        style={{
+                        backgroundColor: bgColor,
+                        border: `2px solid ${borderColor}`,
+                        borderRadius: 8,
+                        padding: "12px 16px",
+                        color: textColor,
+                        fontWeight: 600,
+                        fontSize: 13,
+                        cursor: status === "BLOQUEADO" || status === "BLOQUEADA" ? "not-allowed" : "pointer",
+                        minWidth: 120,
+                          textAlign: "center",
+                        transition: "all 0.2s",
+                        opacity: status === "BLOQUEADO" || status === "BLOQUEADA" ? 0.7 : 1,
+                      }}
+                      onMouseEnter={(e) => {
+                        if (status !== "BLOQUEADO" && status !== "BLOQUEADA") {
+                          e.currentTarget.style.transform = "scale(1.05)";
+                          e.currentTarget.style.boxShadow = "0 4px 8px rgba(0,0,0,0.2)";
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.transform = "scale(1)";
+                        e.currentTarget.style.boxShadow = "none";
+                      }}
+                    >
+                      <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>
+                        {horaSlot} - {horaFim}
+                        </div>
+                      <div style={{ fontSize: 11, fontWeight: 500 }}>
+                        {descricao}
+                      </div>
+                      {slotAgregado.preco_hora && (
+                        <div style={{ fontSize: 10, marginTop: 4 }}>
+                          {formatarMoeda(slotAgregado.preco_hora)}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
+  // Renderizar visualização semanal
+  const renderVisualizacaoSemanal = () => {
+    const diasSemana = gerarDiasDaSemana();
+
+    if (diaClicado) {
+      return renderDetalhesDoDia(diaClicado);
+    }
+
+    return (
+      <div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 12, marginBottom: 24 }}>
+          {["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"].map((dia) => (
+            <div key={dia} style={{ textAlign: "center", fontSize: 12, fontWeight: 600, color: "#6b7280", padding: 8 }}>
+              {dia}
             </div>
           ))}
+          {diasSemana.map((dia) => {
+            // Só mostrar dias que têm regras configuradas
+            if (!dia.temRegras) {
+              return (
+                <div
+                  key={dia.data}
+                          style={{
+                    padding: 16,
+                    backgroundColor: "#f9fafb",
+                    border: "2px solid #e5e7eb",
+                    borderRadius: 8,
+                    textAlign: "center",
+                    opacity: 0.5,
+                  }}
+                >
+                  <div style={{ fontSize: 12, color: "#9ca3af", marginBottom: 4 }}>{dia.nomeDia}</div>
+                  <div style={{ fontSize: 18, fontWeight: 600, color: "#9ca3af", marginBottom: 4 }}>
+                    {dia.dia}
+                  </div>
+                  <div style={{ fontSize: 10, color: "#9ca3af" }}>Sem regras</div>
+                </div>
+              );
+            }
+
+            return (
+              <button
+                key={dia.data}
+                type="button"
+                onClick={() => setDiaClicado(dia.data)}
+                              style={{
+                  padding: 16,
+                  backgroundColor: dia.temReservas ? "#dbeafe" : "#fff",
+                  border: `2px solid ${dia.temReservas ? "#3b82f6" : "#e5e7eb"}`,
+                  borderRadius: 8,
+                  cursor: "pointer",
+                  textAlign: "center",
+                  transition: "all 0.2s",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = dia.temReservas ? "#bfdbfe" : "#f9fafb";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = dia.temReservas ? "#dbeafe" : "#fff";
+                }}
+              >
+                <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 4 }}>{dia.nomeDia}</div>
+                <div style={{ fontSize: 18, fontWeight: 600, color: "#111827", marginBottom: 4 }}>
+                  {dia.dia}
+                        </div>
+                {dia.temReservas && (
+                  <div style={{ fontSize: 11, color: "#3b82f6", fontWeight: 600 }}>
+                    {dia.quantidadeReservas} reserva{dia.quantidadeReservas !== 1 ? "s" : ""}
+                      </div>
+                )}
+              </button>
+            );
+          })}
+              </div>
+      </div>
+    );
+  };
+
+  // Renderizar visualização mensal
+  const renderVisualizacaoMensal = () => {
+    const diasMes = gerarDiasDoMes();
+
+    if (diaClicado) {
+      return renderDetalhesDoDia(diaClicado);
+    }
+
+    return (
+      <div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 8, marginBottom: 24 }}>
+          {["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"].map((dia) => (
+            <div key={dia} style={{ textAlign: "center", fontSize: 12, fontWeight: 600, color: "#6b7280", padding: 8 }}>
+              {dia}
+            </div>
+          ))}
+          {diasMes.map((dia, index) => {
+            if (!dia) return <div key={index}></div>;
+            
+            // Se não tem regras, mostrar desabilitado
+            if (!dia.temRegras) {
+              return (
+                <div
+                  key={dia.dia}
+                  style={{
+                    padding: 12,
+                    backgroundColor: "#f9fafb",
+                    border: "2px solid #e5e7eb",
+                    borderRadius: 8,
+                    textAlign: "center",
+                    minHeight: 60,
+                    opacity: 0.5,
+                  }}
+                >
+                  <div style={{ fontSize: 14, fontWeight: 600, color: "#9ca3af", marginBottom: 4 }}>
+                    {dia.dia}
+                  </div>
+                  <div style={{ fontSize: 9, color: "#9ca3af" }}>Sem regras</div>
+                </div>
+              );
+            }
+
+            return (
+              <button
+                key={dia.dia}
+                type="button"
+                onClick={() => setDiaClicado(dia.data)}
+                style={{
+                  padding: 12,
+                  backgroundColor: dia.temReservas ? "#dbeafe" : "#fff",
+                  border: `2px solid ${dia.temReservas ? "#3b82f6" : "#e5e7eb"}`,
+                  borderRadius: 8,
+                  cursor: "pointer",
+                  textAlign: "center",
+                  minHeight: 60,
+                  transition: "all 0.2s",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = dia.temReservas ? "#bfdbfe" : "#f9fafb";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = dia.temReservas ? "#dbeafe" : "#fff";
+                }}
+              >
+                <div style={{ fontSize: 14, fontWeight: 600, color: "#111827", marginBottom: 4 }}>
+                  {dia.dia}
+                </div>
+                {dia.temReservas && (
+                  <div style={{ fontSize: 10, color: "#3b82f6", fontWeight: 600 }}>
+                    {dia.quantidadeReservas}
+                  </div>
+                )}
+              </button>
+            );
+          })}
         </div>
       </div>
     );
   };
+
+  // Renderizar detalhes de um dia específico (usado na visualização semanal/mensal)
+  const renderDetalhesDoDia = (dataISO) => {
+    if (carregandoSlots) {
   return (
-    <div style={{ padding: "24px" }}>
-      <div
+        <div>
+          <button
+            type="button"
+            onClick={() => setDiaClicado(null)}
         style={{
-          backgroundColor: "#ffffff",
-          borderRadius: "8px",
-          padding: "20px",
-          boxShadow: "0 2px 6px rgba(15, 23, 42, 0.08)",
-        }}
-      >
-        <h4 style={{ marginBottom: "8px" }}>Editar Agenda / Reservas</h4>
-        <p
+              marginBottom: 16,
+              padding: "8px 16px",
+              backgroundColor: "#f3f4f6",
+              color: "#374151",
+              border: "none",
+              borderRadius: 8,
+              fontSize: 14,
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            ← Voltar
+          </button>
+          <div style={{ textAlign: "center", padding: 40, color: "#6b7280" }}>
+            Carregando horários...
+          </div>
+        </div>
+      );
+    }
+
+    // Renderizar slots de todas as quadras (mesma lógica da visualização diária)
+    return (
+      <div>
+        <button
+          type="button"
+          onClick={() => setDiaClicado(null)}
           style={{
-            marginBottom: "20px",
-            color: "#6c757d",
-            fontSize: "0.9rem",
+            marginBottom: 16,
+            padding: "8px 16px",
+            backgroundColor: "#f3f4f6",
+            color: "#374151",
+            border: "none",
+            borderRadius: 8,
+            fontSize: 14,
+            fontWeight: 600,
+            cursor: "pointer",
           }}
         >
-          Escolha primeiro o complexo e, em seguida, a quadra para visualizar a
-          agenda em formato cinema. Os horários são montados a partir da Agenda
-          (regras de horário) e dos Bloqueios.
+          ← Voltar
+        </button>
+        <h3 style={{ fontSize: 18, fontWeight: 600, color: "#111827", marginBottom: 20 }}>
+          Horários de {formatarDataBR(dataISO)}
+        </h3>
+        {/* Agrupar quadras por nome */}
+        {(() => {
+          const gruposQuadras = agruparQuadrasPorNome();
+          return (
+            <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+              {Object.entries(gruposQuadras).map(([nomeGrupo, quadrasGrupo]) => {
+                const slotsAgregados = agregarSlotsGrupo(quadrasGrupo, dataISO);
+                const totalQuadras = quadrasGrupo.length;
+
+                return (
+                  <div key={nomeGrupo} style={{ backgroundColor: "#fff", borderRadius: 12, padding: 20, border: "1px solid #e5e7eb" }}>
+                    <h4 style={{ fontSize: 18, fontWeight: 600, color: "#111827", marginBottom: 4 }}>
+                      {nomeGrupo}
+                    </h4>
+                    {totalQuadras > 1 && (
+                      <p style={{ fontSize: 12, color: "#6b7280", marginBottom: 16 }}>
+                        {totalQuadras} quadras
+                      </p>
+                    )}
+                    {slotsAgregados.length === 0 ? (
+                      <div style={{ textAlign: "center", padding: 20, color: "#6b7280" }}>
+                        Nenhum horário disponível para esta data.
+                      </div>
+                    ) : (
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
+                        {slotsAgregados.map((slotAgregado, index) => {
+                          // Calcular quantidades
+                          const totalReservadas = (slotAgregado.reservadasPagas || 0) + (slotAgregado.reservadasPendentes || 0);
+                          const temDisponivel = slotAgregado.disponiveis > 0;
+                          const temReservadaPaga = slotAgregado.reservadasPagas > 0;
+                          const temReservadaPendente = slotAgregado.reservadasPendentes > 0;
+                          const temBloqueada = slotAgregado.bloqueadas > 0;
+                          
+                          // Determinar quantos status diferentes existem
+                          const statusCount = [temDisponivel, temReservadaPaga, temReservadaPendente].filter(Boolean).length;
+                          const temMultiplosStatus = statusCount > 1;
+                          
+                          // Determinar status principal para interação
+                          let status = "DISPONIVEL";
+                          let descricao = "";
+                          
+                          if (slotAgregado.bloqueadas === totalQuadras) {
+                            status = "BLOQUEADO";
+                            descricao = "Bloqueado";
+                          } else if (totalReservadas > 0) {
+                            status = "RESERVADO";
+                            const partes = [];
+                            if (slotAgregado.reservadasPagas > 0) partes.push(`${slotAgregado.reservadasPagas} paga(s)`);
+                            if (slotAgregado.reservadasPendentes > 0) partes.push(`${slotAgregado.reservadasPendentes} pendente(s)`);
+                            if (slotAgregado.disponiveis > 0) partes.push(`${slotAgregado.disponiveis} disponível(eis)`);
+                            descricao = partes.join(", ");
+                          } else if (slotAgregado.disponiveis > 0) {
+                            status = "DISPONIVEL";
+                            descricao = totalQuadras > 1 
+                              ? `${slotAgregado.disponiveis} de ${totalQuadras} disponíveis`
+                              : "Disponível";
+                          }
+
+                          const horaFim = slotAgregado.hora_fim;
+                          const horaSlot = slotAgregado.hora;
+
+                          // Se tem múltiplos status, criar divisão visual
+                          if (temMultiplosStatus && !temBloqueada) {
+                            const totalAtivo = slotAgregado.disponiveis + totalReservadas;
+                            const porcentagemDisponivel = (slotAgregado.disponiveis / totalAtivo) * 100;
+                            const porcentagemPaga = (slotAgregado.reservadasPagas / totalAtivo) * 100;
+                            const porcentagemPendente = (slotAgregado.reservadasPendentes / totalAtivo) * 100;
+
+                            return (
+                              <div
+                                key={index}
+                                onClick={() => {
+                                  if (status === "DISPONIVEL" || status === "LIVRE") {
+                                    const primeiraQuadra = quadrasGrupo[0];
+                                    setReservaSelecionada({
+                                      quadra_id: primeiraQuadra.id,
+                                      data: dataISO,
+                                      hora: horaSlot,
+                                      preco_hora: slotAgregado.preco_hora || 0,
+                                      quadra: primeiraQuadra,
+                                      grupoQuadras: totalQuadras > 1 ? quadrasGrupo : null,
+                                    });
+                                    setModalAberto(true);
+                                  } else if (status === "RESERVADO" || status === "RESERVADA") {
+                                    if (slotAgregado.reservas && slotAgregado.reservas.length > 0) {
+                                      const reservasCompletas = slotAgregado.reservas.map((res) => {
+                                        const quadraReserva = quadras.find(q => q.id === res.quadra_id) || quadrasGrupo[0];
+                                        return {
+                                          ...res,
+                                          quadra: quadraReserva,
+                                        };
+                                      });
+                                      setReservaSelecionada({
+                                        ...reservasCompletas[0],
+                                        todasReservas: reservasCompletas,
+                                      });
+                                      setModalAberto(true);
+                                    }
+                                  }
+                                }}
+            style={{
+                                  border: "2px solid #d1d5db",
+                                  borderRadius: 8,
+                                  padding: 0,
+                                  minWidth: 120,
+                                  overflow: "hidden",
+                                  cursor: "pointer",
+                                  transition: "all 0.2s",
+                                  display: "flex",
+                                  flexDirection: "column",
+                                }}
+                                onMouseEnter={(e) => {
+                                  e.currentTarget.style.transform = "scale(1.05)";
+                                  e.currentTarget.style.boxShadow = "0 4px 8px rgba(0,0,0,0.2)";
+                                }}
+                                onMouseLeave={(e) => {
+                                  e.currentTarget.style.transform = "scale(1)";
+                                  e.currentTarget.style.boxShadow = "none";
+                                }}
+                              >
+                                {/* Divisão visual horizontal */}
+                                <div style={{ display: "flex", width: "100%", height: "100%" }}>
+                                  {temDisponivel && (
+                                    <div
+                                      style={{
+                                        backgroundColor: "#c8e6c9",
+                                        borderRight: statusCount > 1 ? "1px solid #2e7d32" : "none",
+                                        flex: porcentagemDisponivel,
+                                        minHeight: 60,
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        flexDirection: "column",
+                                        padding: "8px 4px",
+                                      }}
+                                    >
+                                      <div style={{ fontSize: 10, fontWeight: 700, color: "#1b5e20", marginBottom: 2 }}>
+                                        {horaSlot} - {horaFim}
+                                      </div>
+                                      <div style={{ fontSize: 9, fontWeight: 500, color: "#1b5e20" }}>
+                                        {slotAgregado.disponiveis} disp.
+                                      </div>
+          </div>
+        )}
+                                  {temReservadaPaga && (
+                                    <div
+                                      style={{
+                                        backgroundColor: "#90caf9",
+                                        borderRight: temReservadaPendente ? "1px solid #42a5f5" : "none",
+                                        flex: porcentagemPaga,
+                                        minHeight: 60,
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        flexDirection: "column",
+                                        padding: "8px 4px",
+                                      }}
+                                    >
+                                      <div style={{ fontSize: 10, fontWeight: 700, color: "#0d47a1", marginBottom: 2 }}>
+                                        {!temDisponivel && `${horaSlot} - ${horaFim}`}
+                                      </div>
+                                      <div style={{ fontSize: 9, fontWeight: 500, color: "#0d47a1" }}>
+                                        {slotAgregado.reservadasPagas} paga(s)
+                                      </div>
+                                    </div>
+                                  )}
+                                  {temReservadaPendente && (
+                                    <div
+                                      style={{
+                                        backgroundColor: "#fff9c4",
+                                        flex: porcentagemPendente,
+                                        minHeight: 60,
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        flexDirection: "column",
+                                        padding: "8px 4px",
+                                      }}
+                                    >
+                                      <div style={{ fontSize: 10, fontWeight: 700, color: "#f57f17", marginBottom: 2 }}>
+                                        {!temDisponivel && !temReservadaPaga && `${horaSlot} - ${horaFim}`}
+        </div>
+                                      <div style={{ fontSize: 9, fontWeight: 500, color: "#f57f17" }}>
+                                        {slotAgregado.reservadasPendentes} pend.
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                                {/* Descrição completa abaixo */}
+                                <div style={{ 
+                                  padding: "4px 8px", 
+                                  backgroundColor: "#f9fafb", 
+                                  fontSize: 9, 
+                                  color: "#6b7280",
+                                  textAlign: "center",
+                                  borderTop: "1px solid #e5e7eb"
+                                }}>
+                                  {descricao}
+                                </div>
+                                {slotAgregado.preco_hora && (
+                                  <div style={{ 
+                                    padding: "2px 8px", 
+                                    fontSize: 8, 
+                                    color: "#9ca3af",
+                                    textAlign: "center"
+                                  }}>
+                                    {formatarMoeda(slotAgregado.preco_hora)}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          }
+
+                          // Renderização normal (sem divisão)
+                          let bgColor = "#c8e6c9";
+                          let borderColor = "#2e7d32";
+                          let textColor = "#1b5e20";
+                          
+                          if (slotAgregado.bloqueadas === totalQuadras) {
+                            bgColor = "#ffcdd2";
+                            borderColor = "#c62828";
+                            textColor = "#b71c1c";
+                          } else if (totalReservadas > 0 && !temDisponivel) {
+                            bgColor = "#90caf9";
+                            borderColor = "#42a5f5";
+                            textColor = "#0d47a1";
+                          }
+
+                          return (
+                            <div
+                              key={index}
+                              onClick={() => {
+                                if (status === "DISPONIVEL" || status === "LIVRE") {
+                                  const primeiraQuadra = quadrasGrupo[0];
+                                  setReservaSelecionada({
+                                    quadra_id: primeiraQuadra.id,
+                                    data: dataISO,
+                                    hora: horaSlot,
+                                    preco_hora: slotAgregado.preco_hora || 0,
+                                    quadra: primeiraQuadra,
+                                    grupoQuadras: totalQuadras > 1 ? quadrasGrupo : null,
+                                  });
+                                  setModalAberto(true);
+                                } else if (status === "RESERVADO" || status === "RESERVADA") {
+                                  if (slotAgregado.reservas && slotAgregado.reservas.length > 0) {
+                                    const reservasCompletas = slotAgregado.reservas.map((res) => {
+                                      const quadraReserva = quadras.find(q => q.id === res.quadra_id) || quadrasGrupo[0];
+                                      return {
+                                        ...res,
+                                        quadra: quadraReserva,
+                                      };
+                                    });
+                                    setReservaSelecionada({
+                                      ...reservasCompletas[0],
+                                      todasReservas: reservasCompletas,
+                                    });
+                                    setModalAberto(true);
+                                  }
+                                }
+                              }}
+                              style={{
+                                backgroundColor: bgColor,
+                                border: `2px solid ${borderColor}`,
+                                borderRadius: 8,
+                                padding: "12px 16px",
+                                color: textColor,
+                                fontWeight: 600,
+                                fontSize: 13,
+                                cursor: status === "BLOQUEADO" || status === "BLOQUEADA" ? "not-allowed" : "pointer",
+                                minWidth: 120,
+                                textAlign: "center",
+                                transition: "all 0.2s",
+                                opacity: status === "BLOQUEADO" || status === "BLOQUEADA" ? 0.7 : 1,
+                              }}
+                              onMouseEnter={(e) => {
+                                if (status !== "BLOQUEADO" && status !== "BLOQUEADA") {
+                                  e.currentTarget.style.transform = "scale(1.05)";
+                                  e.currentTarget.style.boxShadow = "0 4px 8px rgba(0,0,0,0.2)";
+                                }
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.transform = "scale(1)";
+                                e.currentTarget.style.boxShadow = "none";
+                              }}
+                            >
+                              <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>
+                                {horaSlot} - {horaFim}
+                              </div>
+                              <div style={{ fontSize: 11, fontWeight: 500 }}>
+                                {descricao}
+                              </div>
+                              {slotAgregado.preco_hora && (
+                                <div style={{ fontSize: 10, marginTop: 4 }}>
+                                  {formatarMoeda(slotAgregado.preco_hora)}
+          </div>
+        )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })()}
+      </div>
+    );
+  };
+
+  return (
+    <div style={{ padding: 24 }}>
+      <div style={{ backgroundColor: "#fff", borderRadius: 12, padding: 24, boxShadow: "0 2px 6px rgba(0,0,0,0.1)" }}>
+        <h2 style={{ fontSize: 24, fontWeight: 700, color: "#111827", marginBottom: 8 }}>
+          Reservas
+        </h2>
+        <p style={{ fontSize: 14, color: "#6b7280", marginBottom: 24 }}>
+          Visualize e gerencie todas as reservas de todas as suas quadras
         </p>
 
         {erro && (
-          <div
-            style={{
-              padding: "8px 12px",
-              borderRadius: "4px",
-              backgroundColor: "#ffe5e5",
-              color: "#b00020",
-              fontSize: "0.85rem",
-              marginBottom: "16px",
-              fontWeight: 500,
-            }}
-          >
+          <div style={{ padding: 12, backgroundColor: "#fee2e2", color: "#991b1b", borderRadius: 8, marginBottom: 24 }}>
             {erro}
           </div>
         )}
 
-        <div className="mb-3">
-          <label
-            htmlFor="select-periodo"
-            className="form-label"
-            style={{ fontWeight: 600 }}
-          >
-            Período
-          </label>
-          <select
-            id="select-periodo"
-            className="form-select"
-            value={periodo}
-            onChange={handleChangePeriodo}
-          >
-            <option value="padrao">Hoje + 6 dias (padrão)</option>
-            <option value="semana">Semana (7 dias a partir da data)</option>
-            <option value="intervalo">Intervalo personalizado</option>
-          </select>
-        </div>
-
-        {periodo === "semana" && (
-          <div className="mb-3">
-            <label
-              htmlFor="data-base-semana"
-              className="form-label"
-              style={{ fontWeight: 600 }}
+        {/* Controles de visualização */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24, flexWrap: "wrap", gap: 16 }}>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button
+              type="button"
+              onClick={() => {
+                setModoVisualizacao("dia");
+                setDiaClicado(null);
+              }}
+              style={{
+                padding: "8px 16px",
+                backgroundColor: modoVisualizacao === "dia" ? "#37648c" : "#f3f4f6",
+                color: modoVisualizacao === "dia" ? "#fff" : "#374151",
+                border: "none",
+                borderRadius: 8,
+                fontSize: 14,
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
             >
-              Data base da semana
-            </label>
-            <input
-              id="data-base-semana"
-              type="date"
-              className="form-control"
-              value={dataBaseSemana}
-              onChange={handleChangeDataBaseSemana}
-            />
-          </div>
-        )}
-
-        {periodo === "intervalo" && (
-          <div className="mb-3 d-flex" style={{ gap: "12px" }}>
-            <div style={{ flex: 1 }}>
-              <label
-                htmlFor="data-inicio-custom"
-                className="form-label"
-                style={{ fontWeight: 600 }}
-              >
-                Data início
-              </label>
-              <input
-                id="data-inicio-custom"
-                type="date"
-                className="form-control"
-                value={dataInicioCustom}
-                onChange={handleChangeDataInicioCustom}
-              />
+              Dia
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setModoVisualizacao("semana");
+                setDiaClicado(null);
+              }}
+              style={{
+                padding: "8px 16px",
+                backgroundColor: modoVisualizacao === "semana" ? "#37648c" : "#f3f4f6",
+                color: modoVisualizacao === "semana" ? "#fff" : "#374151",
+                border: "none",
+                borderRadius: 8,
+                fontSize: 14,
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              Semana
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setModoVisualizacao("mes");
+                setDiaClicado(null);
+              }}
+              style={{
+                padding: "8px 16px",
+                backgroundColor: modoVisualizacao === "mes" ? "#37648c" : "#f3f4f6",
+                color: modoVisualizacao === "mes" ? "#fff" : "#374151",
+                border: "none",
+                borderRadius: 8,
+                fontSize: 14,
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              Mês
+            </button>
             </div>
-            <div style={{ flex: 1 }}>
-              <label
-                htmlFor="data-fim-custom"
-                className="form-label"
-                style={{ fontWeight: 600 }}
-              >
-                Data fim
-              </label>
-              <input
-                id="data-fim-custom"
-                type="date"
-                className="form-control"
-                value={dataFimCustom}
-                onChange={handleChangeDataFimCustom}
-              />
-            </div>
-          </div>
-        )}
 
-        {/* FILTROS COMPLEXO + QUADRA LADO A LADO */}
-        <div
+          {/* Navegação */}
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            {modoVisualizacao === "dia" && (
+              <>
+                <button
+                  type="button"
+                  onClick={retrocederDia}
+                  style={{
+                    padding: "8px 12px",
+                    backgroundColor: "#f3f4f6",
+                    color: "#374151",
+                    border: "none",
+                    borderRadius: 8,
+                    fontSize: 14,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                  }}
+                >
+                  ←
+                </button>
+              <input
+                type="date"
+                  value={dataSelecionada}
+                  onChange={(e) => setDataSelecionada(e.target.value)}
+                  style={{
+                    padding: "8px 12px",
+                    border: "1px solid #d1d5db",
+                    borderRadius: 8,
+                    fontSize: 14,
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={avancarDia}
+                  style={{
+                    padding: "8px 12px",
+                    backgroundColor: "#f3f4f6",
+                    color: "#374151",
+                    border: "none",
+                    borderRadius: 8,
+                    fontSize: 14,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                  }}
+                >
+                  →
+                </button>
+              </>
+            )}
+
+            {modoVisualizacao === "semana" && (
+              <>
+                <button
+                  type="button"
+                  onClick={retrocederSemana}
           style={{
-            display: "flex",
-            gap: "20px",
-            marginBottom: "24px",
-            marginTop: "8px",
-          }}
-        >
-          <div style={{ flex: 1 }}>
-            <label
-              htmlFor="select-empresa"
-              className="form-label"
+                    padding: "8px 12px",
+                    backgroundColor: "#f3f4f6",
+                    color: "#374151",
+                    border: "none",
+                    borderRadius: 8,
+                    fontSize: 14,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                  }}
+                >
+                  ←
+                </button>
+                <button
+                  type="button"
+                  onClick={irParaHoje}
               style={{
+                    padding: "8px 16px",
+                    backgroundColor: "#f3f4f6",
+                    color: "#374151",
+                    border: "none",
+                    borderRadius: 8,
+                    fontSize: 14,
                 fontWeight: 600,
-                marginBottom: "8px",
-                display: "block",
-              }}
-            >
-              Complexo / Empresa
-            </label>
-            <select
-              id="select-empresa"
-              className="form-select"
-              value={empresaSelecionada}
-              onChange={handleChangeEmpresa}
-              style={{ width: "100%", padding: "8px" }}
-            >
-              <option value="">Selecione o complexo...</option>
-              {empresas.map((emp) => (
-                <option key={emp.id} value={emp.id}>
-                  {emp.nome || emp.nome_fantasia || "Sem nome"}
-                </option>
-              ))}
-            </select>
-          </div>
+                    cursor: "pointer",
+                  }}
+                >
+                  Hoje
+                </button>
+                <button
+                  type="button"
+                  onClick={avancarSemana}
+                  style={{
+                    padding: "8px 12px",
+                    backgroundColor: "#f3f4f6",
+                    color: "#374151",
+                    border: "none",
+                    borderRadius: 8,
+                    fontSize: 14,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                  }}
+                >
+                  →
+                </button>
+              </>
+            )}
 
-          <div style={{ flex: 1 }}>
-            <label
-              htmlFor="select-quadra"
-              className="form-label"
+            {modoVisualizacao === "mes" && (
+              <>
+                <button
+                  type="button"
+                  onClick={retrocederMes}
               style={{
+                    padding: "8px 12px",
+                    backgroundColor: "#f3f4f6",
+                    color: "#374151",
+                    border: "none",
+                    borderRadius: 8,
+                    fontSize: 14,
                 fontWeight: 600,
-                marginBottom: "8px",
-                display: "block",
-              }}
-            >
-              Quadra
-            </label>
-            <select
-              id="select-quadra"
-              className="form-select"
-              value={quadraSelecionada}
-              onChange={handleChangeQuadra}
-              disabled={!empresaSelecionada}
-              style={{ width: "100%", padding: "8px" }}
-            >
-              <option value="">
-                {empresaSelecionada
-                  ? "Selecione a quadra..."
-                  : "Selecione primeiro o complexo"}
-              </option>
-              {quadrasFiltradas.map((q) => (
-                <option key={q.id} value={q.id}>
-                  {q.nome || `${q.tipo} - ${q.modalidade || ""}`}
-                </option>
-              ))}
-            </select>
+                    cursor: "pointer",
+                  }}
+                >
+                  ←
+                </button>
+                <div style={{ fontSize: 16, fontWeight: 600, color: "#111827", minWidth: 200, textAlign: "center" }}>
+                  {getNomeMes(mesAtual.getMonth())} {mesAtual.getFullYear()}
+                </div>
+                <button
+                  type="button"
+                  onClick={avancarMes}
+                  style={{
+                    padding: "8px 12px",
+                    backgroundColor: "#f3f4f6",
+                    color: "#374151",
+                    border: "none",
+                    borderRadius: 8,
+                    fontSize: 14,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                  }}
+                >
+                  →
+                </button>
+                <button
+                  type="button"
+                  onClick={irParaHoje}
+                  style={{
+                    padding: "8px 16px",
+                    backgroundColor: "#f3f4f6",
+                    color: "#374151",
+                    border: "none",
+                    borderRadius: 8,
+                    fontSize: 14,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    marginLeft: 8,
+                  }}
+                >
+                  Hoje
+                </button>
+              </>
+            )}
           </div>
         </div>
 
-        {renderCinema()}
+        {/* Conteúdo da visualização */}
+        {carregando ? (
+          <div style={{ textAlign: "center", padding: 40 }}>
+            <div style={{ fontSize: 16, color: "#6b7280" }}>Carregando reservas...</div>
+          </div>
+        ) : (
+          <>
+            {modoVisualizacao === "dia" && renderVisualizacaoDiaria()}
+            {modoVisualizacao === "semana" && renderVisualizacaoSemanal()}
+            {modoVisualizacao === "mes" && renderVisualizacaoMensal()}
+          </>
+        )}
       </div>
 
-      {/* MODAIS */}
-      <CriarReservaModal
-        aberto={modalCriarAberto}
-        onFechar={() => setModalCriarAberto(false)}
-        slot={slotSelecionado}
-        quadraId={quadraSelecionada}
-        onCriado={() => {
-          if (quadraSelecionada) {
-            carregarGrade(quadraSelecionada);
-          }
+      {/* Modal de detalhes */}
+      <DetalhesReservaModal
+        aberto={modalAberto}
+        onFechar={() => {
+          setModalAberto(false);
+          setReservaSelecionada(null);
         }}
-      />
-
-      <EditarReservaModal
-        aberto={modalEditarAberto}
-        onFechar={() => setModalEditarAberto(false)}
-        reservaId={reservaIdSelecionada}
-        onAtualizado={() => {
-          if (quadraSelecionada) {
-            carregarGrade(quadraSelecionada);
-          }
-        }}
+        reserva={reservaSelecionada}
+        reservas={reservaSelecionada?.todasReservas}
         onCancelado={() => {
-          if (quadraSelecionada) {
-            carregarGrade(quadraSelecionada);
+          carregarReservas();
+          if (modoVisualizacao === "dia") {
+            carregarSlotsTodasQuadras(dataSelecionada);
+          } else if (diaClicado) {
+            carregarSlotsTodasQuadras(diaClicado);
+          }
+        }}
+        onCriada={() => {
+          carregarReservas();
+          if (modoVisualizacao === "dia") {
+            carregarSlotsTodasQuadras(dataSelecionada);
+          } else if (diaClicado) {
+            carregarSlotsTodasQuadras(diaClicado);
           }
         }}
       />
