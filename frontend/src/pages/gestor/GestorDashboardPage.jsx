@@ -1109,18 +1109,12 @@ export default function GestorDashboardPage() {
           <div style={{ fontSize: 24, fontWeight: 900, color: "#37648c" }}>
             {reservasHoje}
           </div>
-          <div style={{ fontSize: 10, color: "#666", marginTop: 4 }}>
-            Reservas agendadas
-          </div>
         </div>
 
         <div className="card" style={{ gridColumn: "2 / 3", marginTop: 0, padding: "10px 12px", display: "flex", flexDirection: "column", justifyContent: "center" }}>
-          <div style={{ fontSize: 11, color: "#666", marginBottom: 4 }}>PIX recebido hoje</div>
+          <div style={{ fontSize: 11, color: "#666", marginBottom: 4 }}>Total Recebido Hoje</div>
           <div style={{ fontSize: 24, fontWeight: 900, color: "#37648c" }}>
             {formatBRL(pixHoje)}
-          </div>
-          <div style={{ fontSize: 10, color: "#666", marginTop: 4 }}>
-            Total recebido via PIX
           </div>
         </div>
 
@@ -1128,9 +1122,6 @@ export default function GestorDashboardPage() {
           <div style={{ fontSize: 11, color: "#666", marginBottom: 4 }}>Taxa de ocupação das quadras</div>
           <div style={{ fontSize: 24, fontWeight: 900, color: "#37648c" }}>
             {taxaOcupacao}%
-          </div>
-          <div style={{ fontSize: 10, color: "#666", marginTop: 4 }}>
-            Ocupação média hoje
           </div>
         </div>
 

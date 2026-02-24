@@ -264,26 +264,32 @@ export default function GestorConfiguracoesQuadrasPage() {
   }
 
 
-  async function handleToggleStatus(quadra) {
+  async function handleExcluirQuadra(quadra) {
+    if (!window.confirm(`Tem certeza que deseja excluir a quadra "${quadra.nome || quadra.apelido || 'Quadra'}"? Esta ação não pode ser desfeita.`)) {
+      return;
+    }
+
     try {
       setErro("");
 
-      const estaAtiva = String(quadra.status || "").toLowerCase() === "ativa";
+      // TODO: Quando integrar com API real, usar:
+      // await api.delete(`/gestor/quadras/${quadra.id}`);
 
-      const rota = estaAtiva
-        ? `/gestor/quadras/${quadra.id}/desativar`
-        : `/gestor/quadras/${quadra.id}/reativar`;
+      // Simulação de exclusão
+      await new Promise((resolve) => setTimeout(resolve, 500));
 
-      await api.patch(rota);
+      // Remover a quadra da lista local
+      setQuadras(prev => prev.filter(q => q.id !== quadra.id));
 
-      if (usuario?.id) {
-        await carregarQuadras(usuario.id);
-      }
+      setMensagemSucesso("Quadra excluída com sucesso!");
+      setTimeout(() => {
+        setMensagemSucesso("");
+      }, 3000);
     } catch (err) {
-      console.error("[GESTOR/QUADRAS] Erro ao alterar status da quadra:", err);
+      console.error("[GESTOR/QUADRAS] Erro ao excluir quadra:", err);
       const mensagem =
         err.response?.data?.error ||
-        "Erro ao alterar status da quadra. Tente novamente.";
+        "Erro ao excluir quadra. Tente novamente.";
       setErro(mensagem);
     }
   }
@@ -550,11 +556,11 @@ export default function GestorConfiguracoesQuadrasPage() {
                         </button>
 
                         <button
-                          onClick={() => handleToggleStatus(quadra)}
+                          onClick={() => handleExcluirQuadra(quadra)}
                           style={{
                             flex: 1,
                             padding: "8px 16px",
-                            backgroundColor: estaAtiva ? "#ef4444" : "#10b981",
+                            backgroundColor: "#ef4444",
                             color: "#ffffff",
                             border: "none",
                             borderRadius: 8,
@@ -564,13 +570,13 @@ export default function GestorConfiguracoesQuadrasPage() {
                             transition: "all 0.2s"
                           }}
                           onMouseEnter={(e) => {
-                            e.target.style.backgroundColor = estaAtiva ? "#dc2626" : "#059669";
+                            e.target.style.backgroundColor = "#dc2626";
                           }}
                           onMouseLeave={(e) => {
-                            e.target.style.backgroundColor = estaAtiva ? "#ef4444" : "#10b981";
+                            e.target.style.backgroundColor = "#ef4444";
                           }}
                         >
-                          {estaAtiva ? "Desativar" : "Reativar"}
+                          Excluir
                         </button>
                       </div>
                     </div>
