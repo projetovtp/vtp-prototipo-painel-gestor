@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { useDevice } from "../../hooks/useDevice";
 
 // Função para gerar PDF (simulação - em produção usar biblioteca como jsPDF)
 function exportarParaPDF(periodo, dataInicio, dataFim, dadosRelatorio) {
@@ -21,6 +22,7 @@ function formatDateBR(yyyyMmDd) {
 }
 
 export default function GestorRelatoriosPage() {
+  const { isMobile, isTablet } = useDevice();
   const hoje = new Date();
   const [periodo, setPeriodo] = useState("mes");
   const [dataInicio, setDataInicio] = useState("");
@@ -214,25 +216,46 @@ export default function GestorRelatoriosPage() {
 
   return (
     <div className="page">
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24, position: "relative" }}>
-        <h1 style={{ fontSize: 24, fontWeight: 700, color: "#111827" }}>Relatórios</h1>
+      <div style={{ 
+        display: "flex", 
+        flexDirection: (isMobile || isTablet) ? "column" : "row",
+        justifyContent: "space-between", 
+        alignItems: (isMobile || isTablet) ? "flex-start" : "flex-start", 
+        gap: (isMobile || isTablet) ? 16 : 0,
+        marginBottom: 24, 
+        position: "relative" 
+      }}>
+        <h1 style={{ fontSize: (isMobile || isTablet) ? 20 : 24, fontWeight: 700, color: "#111827" }}>Relatórios</h1>
         
         {/* Filtros - Canto superior direito */}
-        <div ref={calendarioRef} style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 12, position: "relative" }}>
+        <div ref={calendarioRef} style={{ 
+          display: "flex", 
+          flexDirection: "column", 
+          alignItems: (isMobile || isTablet) ? "flex-start" : "flex-end", 
+          gap: 12, 
+          position: "relative",
+          width: (isMobile || isTablet) ? "100%" : "auto"
+        }}>
           {/* Botões de período rápido */}
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <div style={{ 
+            display: "flex", 
+            gap: 8, 
+            flexWrap: "wrap",
+            width: (isMobile || isTablet) ? "100%" : "auto"
+          }}>
             <button
               onClick={() => setPeriodo("hoje")}
               style={{
-                padding: "6px 14px",
+                padding: (isMobile || isTablet) ? "8px 12px" : "6px 14px",
                 border: periodo === "hoje" ? "2px solid #37648c" : "1px solid #d1d5db",
                 borderRadius: 6,
-                fontSize: 13,
+                fontSize: (isMobile || isTablet) ? 12 : 13,
                 fontWeight: periodo === "hoje" ? 600 : 400,
                 cursor: "pointer",
                 backgroundColor: periodo === "hoje" ? "#37648c" : "#fff",
                 color: periodo === "hoje" ? "#fff" : "#111827",
-                transition: "all 0.2s"
+                transition: "all 0.2s",
+                whiteSpace: "nowrap"
               }}
             >
               Hoje
@@ -240,15 +263,16 @@ export default function GestorRelatoriosPage() {
             <button
               onClick={() => setPeriodo("semana")}
               style={{
-                padding: "6px 14px",
+                padding: (isMobile || isTablet) ? "8px 12px" : "6px 14px",
                 border: periodo === "semana" ? "2px solid #37648c" : "1px solid #d1d5db",
                 borderRadius: 6,
-                fontSize: 13,
+                fontSize: (isMobile || isTablet) ? 12 : 13,
                 fontWeight: periodo === "semana" ? 600 : 400,
                 cursor: "pointer",
                 backgroundColor: periodo === "semana" ? "#37648c" : "#fff",
                 color: periodo === "semana" ? "#fff" : "#111827",
-                transition: "all 0.2s"
+                transition: "all 0.2s",
+                whiteSpace: "nowrap"
               }}
             >
               Esta Semana
@@ -256,15 +280,16 @@ export default function GestorRelatoriosPage() {
             <button
               onClick={() => setPeriodo("mes")}
               style={{
-                padding: "6px 14px",
+                padding: (isMobile || isTablet) ? "8px 12px" : "6px 14px",
                 border: periodo === "mes" ? "2px solid #37648c" : "1px solid #d1d5db",
                 borderRadius: 6,
-                fontSize: 13,
+                fontSize: (isMobile || isTablet) ? 12 : 13,
                 fontWeight: periodo === "mes" ? 600 : 400,
                 cursor: "pointer",
                 backgroundColor: periodo === "mes" ? "#37648c" : "#fff",
                 color: periodo === "mes" ? "#fff" : "#111827",
-                transition: "all 0.2s"
+                transition: "all 0.2s",
+                whiteSpace: "nowrap"
               }}
             >
               Este Mês
@@ -275,15 +300,16 @@ export default function GestorRelatoriosPage() {
                 setMostrarCalendario(true);
               }}
               style={{
-                padding: "6px 14px",
+                padding: (isMobile || isTablet) ? "8px 12px" : "6px 14px",
                 border: periodo === "custom" ? "2px solid #37648c" : "1px solid #d1d5db",
                 borderRadius: 6,
-                fontSize: 13,
+                fontSize: (isMobile || isTablet) ? 12 : 13,
                 fontWeight: periodo === "custom" ? 600 : 400,
                 cursor: "pointer",
                 backgroundColor: periodo === "custom" ? "#37648c" : "#fff",
                 color: periodo === "custom" ? "#fff" : "#111827",
-                transition: "all 0.2s"
+                transition: "all 0.2s",
+                whiteSpace: "nowrap"
               }}
             >
               Personalizado
@@ -309,22 +335,42 @@ export default function GestorRelatoriosPage() {
 
           {/* Calendário */}
           {periodo === "custom" && mostrarCalendario && (
-            <div
-              style={{
-                position: "absolute",
-                top: "100%",
-                right: 0,
-                marginTop: 8,
-                backgroundColor: "#fff",
-                borderRadius: 12,
-                boxShadow: "0 10px 25px rgba(0, 0, 0, 0.15)",
-                border: "1px solid #e5e7eb",
-                padding: 20,
-                zIndex: 1000,
-                minWidth: 320,
-                animation: "fadeIn 0.2s ease-in"
-              }}
-            >
+            <>
+              {(isMobile || isTablet) && (
+                <div
+                  style={{
+                    position: "fixed",
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    backgroundColor: "rgba(0, 0, 0, 0.5)",
+                    zIndex: 999
+                  }}
+                  onClick={() => setMostrarCalendario(false)}
+                />
+              )}
+              <div
+                style={{
+                  position: (isMobile || isTablet) ? "fixed" : "absolute",
+                  top: (isMobile || isTablet) ? "50%" : "100%",
+                  left: (isMobile || isTablet) ? "50%" : "auto",
+                  right: (isMobile || isTablet) ? "auto" : 0,
+                  transform: (isMobile || isTablet) ? "translate(-50%, -50%)" : "none",
+                  marginTop: (isMobile || isTablet) ? 0 : 8,
+                  backgroundColor: "#fff",
+                  borderRadius: 12,
+                  boxShadow: "0 10px 25px rgba(0, 0, 0, 0.15)",
+                  border: "1px solid #e5e7eb",
+                  padding: (isMobile || isTablet) ? 16 : 20,
+                  zIndex: 1000,
+                  minWidth: (isMobile || isTablet) ? "90vw" : 320,
+                  maxWidth: (isMobile || isTablet) ? "90vw" : "none",
+                  maxHeight: (isMobile || isTablet) ? "90vh" : "none",
+                  overflowY: (isMobile || isTablet) ? "auto" : "visible",
+                  animation: "fadeIn 0.2s ease-in"
+                }}
+              >
               {/* Cabeçalho do calendário */}
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
                 <button
@@ -478,36 +524,45 @@ export default function GestorRelatoriosPage() {
                 </button>
               </div>
             </div>
+            </>
           )}
         </div>
       </div>
 
       {/* Header com título e botão exportar */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 32 }}>
+      <div style={{ 
+        display: "flex", 
+        flexDirection: (isMobile || isTablet) ? "column" : "row",
+        justifyContent: "space-between", 
+        alignItems: (isMobile || isTablet) ? "flex-start" : "center", 
+        gap: (isMobile || isTablet) ? 16 : 0,
+        marginBottom: 32 
+      }}>
         <div>
-          <h2 style={{ fontSize: 20, fontWeight: 700, color: "#111827", marginBottom: 4 }}>
+          <h2 style={{ fontSize: (isMobile || isTablet) ? 18 : 20, fontWeight: 700, color: "#111827", marginBottom: 4 }}>
             {periodo === "hoje" ? "Relatório do Dia" : periodo === "semana" ? "Relatório Semanal" : periodo === "mes" ? "Relatório Mensal" : "Relatório Personalizado"}
           </h2>
-          <p style={{ fontSize: 14, color: "#6b7280" }}>
+          <p style={{ fontSize: (isMobile || isTablet) ? 13 : 14, color: "#6b7280" }}>
             {dataInicio && dataFim ? `${formatDateBR(dataInicio)}${dataInicio !== dataFim ? ` - ${formatDateBR(dataFim)}` : ""}` : "Período selecionado"}
           </p>
         </div>
         <button
           onClick={() => exportarParaPDF(periodo, dataInicio, dataFim, dadosRelatorio)}
           style={{
-            padding: "12px 24px",
+            padding: (isMobile || isTablet) ? "10px 16px" : "12px 24px",
             backgroundColor: "#ef4444",
             color: "#fff",
             border: "none",
             borderRadius: 10,
-            fontSize: 14,
+            fontSize: (isMobile || isTablet) ? 13 : 14,
             fontWeight: 600,
             cursor: "pointer",
             display: "flex",
             alignItems: "center",
-            gap: 10,
+            gap: 8,
             transition: "all 0.2s",
-            boxShadow: "0 2px 8px rgba(239, 68, 68, 0.2)"
+            boxShadow: "0 2px 8px rgba(239, 68, 68, 0.2)",
+            width: (isMobile || isTablet) ? "100%" : "auto"
           }}
           onMouseEnter={(e) => {
             e.target.style.backgroundColor = "#dc2626";
@@ -531,13 +586,20 @@ export default function GestorRelatoriosPage() {
       </div>
 
       {/* Cards de resumo - Hierarquia principal melhorada */}
-      <div style={{ display: "grid", gridTemplateColumns: periodo === "hoje" ? "repeat(2, 1fr)" : "repeat(4, 1fr)", gap: 24, marginBottom: 40 }}>
+      <div style={{ 
+        display: "grid", 
+        gridTemplateColumns: (isMobile || isTablet) 
+          ? (periodo === "hoje" ? "1fr" : "repeat(2, 1fr)") 
+          : (periodo === "hoje" ? "repeat(2, 1fr)" : "repeat(4, 1fr)"), 
+        gap: (isMobile || isTablet) ? 16 : 24, 
+        marginBottom: 40 
+      }}>
         <div className="card" style={{ 
           marginTop: 0, 
-          padding: "28px",
+          padding: (isMobile || isTablet) ? "20px" : "28px",
           background: periodo === "hoje" ? "linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)" : "linear-gradient(135deg, #37648c 0%, #2d4f6f 100%)",
           color: "#fff",
-          gridColumn: periodo === "hoje" ? "span 2" : "span 1",
+          gridColumn: (isMobile || isTablet) ? "span 1" : (periodo === "hoje" ? "span 2" : "span 1"),
           borderRadius: 16,
           boxShadow: "0 8px 24px rgba(55, 100, 140, 0.25)",
           position: "relative",
@@ -551,7 +613,7 @@ export default function GestorRelatoriosPage() {
               </svg>
               <div style={{ fontSize: 14, opacity: 0.95, fontWeight: 500 }}>Total de Reservas</div>
             </div>
-            <div style={{ fontSize: periodo === "hoje" ? 56 : 42, fontWeight: 800, lineHeight: 1.1, letterSpacing: "-1px" }}>
+            <div style={{ fontSize: (isMobile || isTablet) ? (periodo === "hoje" ? 40 : 32) : (periodo === "hoje" ? 56 : 42), fontWeight: 800, lineHeight: 1.1, letterSpacing: "-1px" }}>
               {dadosRelatorio.totalReservas}
             </div>
             <div style={{ fontSize: 12, opacity: 0.8, marginTop: 8 }}>
@@ -562,7 +624,7 @@ export default function GestorRelatoriosPage() {
         
         <div className="card" style={{ 
           marginTop: 0, 
-          padding: "28px",
+          padding: (isMobile || isTablet) ? "20px" : "28px",
           background: periodo === "hoje" ? "linear-gradient(135deg, #10b981 0%, #059669 100%)" : "#fff",
           color: periodo === "hoje" ? "#fff" : "#111827",
           border: periodo === "hoje" ? "none" : "1px solid #e5e7eb",
@@ -581,7 +643,7 @@ export default function GestorRelatoriosPage() {
               </svg>
               <div style={{ fontSize: 14, color: periodo === "hoje" ? "rgba(255,255,255,0.95)" : "#6b7280", fontWeight: 500 }}>Total Receita</div>
             </div>
-            <div style={{ fontSize: periodo === "hoje" ? 56 : 42, fontWeight: 800, lineHeight: 1.1, color: periodo === "hoje" ? "#fff" : "#37648c", letterSpacing: "-1px" }}>
+            <div style={{ fontSize: (isMobile || isTablet) ? (periodo === "hoje" ? 40 : 32) : (periodo === "hoje" ? 56 : 42), fontWeight: 800, lineHeight: 1.1, color: periodo === "hoje" ? "#fff" : "#37648c", letterSpacing: "-1px" }}>
               {formatBRL(dadosRelatorio.totalReceita)}
             </div>
             <div style={{ fontSize: 12, color: periodo === "hoje" ? "rgba(255,255,255,0.8)" : "#9ca3af", marginTop: 8 }}>
@@ -615,7 +677,7 @@ export default function GestorRelatoriosPage() {
                 </svg>
                 <div style={{ fontSize: 14, color: "#6b7280", fontWeight: 500 }}>Reservas Canceladas</div>
               </div>
-              <div style={{ fontSize: 42, fontWeight: 800, color: "#ef4444", lineHeight: 1.1, letterSpacing: "-1px" }}>
+              <div style={{ fontSize: (isMobile || isTablet) ? 32 : 42, fontWeight: 800, color: "#ef4444", lineHeight: 1.1, letterSpacing: "-1px" }}>
                 {dadosRelatorio.reservasCanceladas}
               </div>
               <div style={{ fontSize: 12, color: "#9ca3af", marginTop: 8 }}>
@@ -645,7 +707,7 @@ export default function GestorRelatoriosPage() {
                 </svg>
                 <div style={{ fontSize: 14, color: "#6b7280", fontWeight: 500 }}>Taxa de Ocupação</div>
               </div>
-              <div style={{ fontSize: 42, fontWeight: 800, color: "#37648c", lineHeight: 1.1, letterSpacing: "-1px" }}>
+              <div style={{ fontSize: (isMobile || isTablet) ? 32 : 42, fontWeight: 800, color: "#37648c", lineHeight: 1.1, letterSpacing: "-1px" }}>
                 {dadosRelatorio.taxaOcupacao}%
               </div>
               <div style={{ fontSize: 12, color: "#9ca3af", marginTop: 8 }}>
@@ -663,31 +725,31 @@ export default function GestorRelatoriosPage() {
           <div className="card" style={{ 
             marginTop: 0, 
             marginBottom: 24, 
-            padding: "28px",
+            padding: (isMobile || isTablet) ? "20px" : "28px",
             borderRadius: 16,
             border: "1px solid #e5e7eb",
             boxShadow: "0 2px 8px rgba(0, 0, 0, 0.06)"
           }}>
             <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24 }}>
               <div style={{
-                width: 40,
-                height: 40,
+                width: (isMobile || isTablet) ? 32 : 40,
+                height: (isMobile || isTablet) ? 32 : 40,
                 borderRadius: 10,
                 backgroundColor: "#f0f9ff",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center"
               }}>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ color: "#37648c" }}>
+                <svg width={isMobile || isTablet ? "18" : "20"} height={isMobile || isTablet ? "18" : "20"} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ color: "#37648c" }}>
                   <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2"/>
                   <polyline points="12 6 12 12 16 14" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
                 </svg>
               </div>
-              <h3 style={{ fontSize: 20, fontWeight: 700, margin: 0, color: "#111827" }}>
+              <h3 style={{ fontSize: (isMobile || isTablet) ? 18 : 20, fontWeight: 700, margin: 0, color: "#111827" }}>
                 Reservas por Horário
               </h3>
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 20 }}>
+            <div style={{ display: "grid", gridTemplateColumns: (isMobile || isTablet) ? "repeat(2, 1fr)" : "repeat(3, 1fr)", gap: (isMobile || isTablet) ? 12 : 20 }}>
               {dadosRelatorio.reservasPorHora.map((item, index) => (
                 <div
                   key={index}
@@ -711,7 +773,7 @@ export default function GestorRelatoriosPage() {
                   }}
                 >
                   <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 12, fontWeight: 600 }}>{item.hora}</div>
-                  <div style={{ fontSize: 32, fontWeight: 800, color: item.reservas > 0 ? "#37648c" : "#9ca3af", lineHeight: 1.2 }}>{item.reservas}</div>
+                  <div style={{ fontSize: (isMobile || isTablet) ? 24 : 32, fontWeight: 800, color: item.reservas > 0 ? "#37648c" : "#9ca3af", lineHeight: 1.2 }}>{item.reservas}</div>
                   <div style={{ fontSize: 12, color: "#9ca3af", marginTop: 8 }}>reservas</div>
                 </div>
               ))}
@@ -722,27 +784,34 @@ export default function GestorRelatoriosPage() {
           <div className="card" style={{ 
             marginTop: 0, 
             marginBottom: 24, 
-            padding: "28px",
+            padding: (isMobile || isTablet) ? "20px" : "28px",
             borderRadius: 16,
             border: "1px solid #e5e7eb",
             boxShadow: "0 2px 8px rgba(0, 0, 0, 0.06)"
           }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
+            <div style={{ 
+              display: "flex", 
+              flexDirection: (isMobile || isTablet) ? "column" : "row",
+              alignItems: (isMobile || isTablet) ? "flex-start" : "center",
+              justifyContent: "space-between", 
+              gap: (isMobile || isTablet) ? 12 : 0,
+              marginBottom: 24 
+            }}>
               <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                 <div style={{
-                  width: 40,
-                  height: 40,
+                  width: (isMobile || isTablet) ? 32 : 40,
+                  height: (isMobile || isTablet) ? 32 : 40,
                   borderRadius: 10,
                   backgroundColor: "#f0fdf4",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center"
                 }}>
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ color: "#059669" }}>
+                  <svg width={isMobile || isTablet ? "18" : "20"} height={isMobile || isTablet ? "18" : "20"} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ color: "#059669" }}>
                     <path d="M9 11l3 3L22 4M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>
                 </div>
-                <h3 style={{ fontSize: 20, fontWeight: 700, margin: 0, color: "#111827" }}>
+                <h3 style={{ fontSize: (isMobile || isTablet) ? 18 : 20, fontWeight: 700, margin: 0, color: "#111827" }}>
                   Reservas de Hoje
                 </h3>
               </div>
@@ -775,43 +844,54 @@ export default function GestorRelatoriosPage() {
                     e.currentTarget.style.boxShadow = "none";
                   }}
                 >
-                  <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-                    <div style={{
-                      width: 56,
-                      height: 56,
-                      borderRadius: 12,
-                      background: "linear-gradient(135deg, #37648c 0%, #2d4f6f 100%)",
-                      color: "#fff",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontSize: 15,
-                      fontWeight: 700,
-                      boxShadow: "0 4px 12px rgba(55, 100, 140, 0.3)"
-                    }}>
-                      {reserva.hora}
-                    </div>
-                    <div>
-                      <div style={{ fontSize: 16, fontWeight: 600, color: "#111827", marginBottom: 6 }}>
-                        {reserva.cliente}
-                      </div>
-                      <div style={{ fontSize: 13, color: "#6b7280", display: "flex", alignItems: "center", gap: 6 }}>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                          <path d="M3 21h18M5 21V7l8-4v14M19 21V11l-6-4M9 9v0M9 15v0M15 11v0M15 17v0" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-                        </svg>
-                        {reserva.quadra}
-                      </div>
-                    </div>
-                  </div>
                   <div style={{ 
-                    fontSize: 20, 
-                    fontWeight: 700, 
-                    color: "#059669",
-                    padding: "8px 16px",
-                    backgroundColor: "#f0fdf4",
-                    borderRadius: 8
+                    display: "flex", 
+                    flexDirection: (isMobile || isTablet) ? "column" : "row",
+                    alignItems: (isMobile || isTablet) ? "flex-start" : "center",
+                    justifyContent: "space-between", 
+                    gap: (isMobile || isTablet) ? 12 : 0,
+                    width: "100%"
                   }}>
-                    {formatBRL(reserva.valor)}
+                    <div style={{ display: "flex", alignItems: "center", gap: 12, flex: 1 }}>
+                      <div style={{
+                        width: (isMobile || isTablet) ? 48 : 56,
+                        height: (isMobile || isTablet) ? 48 : 56,
+                        borderRadius: 12,
+                        background: "linear-gradient(135deg, #37648c 0%, #2d4f6f 100%)",
+                        color: "#fff",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontSize: (isMobile || isTablet) ? 13 : 15,
+                        fontWeight: 700,
+                        boxShadow: "0 4px 12px rgba(55, 100, 140, 0.3)",
+                        flexShrink: 0
+                      }}>
+                        {reserva.hora}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: (isMobile || isTablet) ? 14 : 16, fontWeight: 600, color: "#111827", marginBottom: 6 }}>
+                          {reserva.cliente}
+                        </div>
+                        <div style={{ fontSize: (isMobile || isTablet) ? 12 : 13, color: "#6b7280", display: "flex", alignItems: "center", gap: 6 }}>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M3 21h18M5 21V7l8-4v14M19 21V11l-6-4M9 9v0M9 15v0M15 11v0M15 17v0" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                          </svg>
+                          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{reserva.quadra}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div style={{ 
+                      fontSize: (isMobile || isTablet) ? 18 : 20, 
+                      fontWeight: 700, 
+                      color: "#059669",
+                      padding: (isMobile || isTablet) ? "6px 12px" : "8px 16px",
+                      backgroundColor: "#f0fdf4",
+                      borderRadius: 8,
+                      whiteSpace: "nowrap"
+                    }}>
+                      {formatBRL(reserva.valor)}
+                    </div>
                   </div>
                 </div>
               ))}
@@ -825,30 +905,38 @@ export default function GestorRelatoriosPage() {
             <div className="card" style={{ 
               marginTop: 0, 
               marginBottom: 24, 
-              padding: "28px",
+              padding: (isMobile || isTablet) ? "20px" : "28px",
               borderRadius: 16,
               border: "1px solid #e5e7eb",
-              boxShadow: "0 2px 8px rgba(0, 0, 0, 0.06)"
+              boxShadow: "0 2px 8px rgba(0, 0, 0, 0.06)",
+              overflowX: (isMobile || isTablet) ? "auto" : "visible"
             }}>
               <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 28 }}>
                 <div style={{
-                  width: 40,
-                  height: 40,
+                  width: (isMobile || isTablet) ? 32 : 40,
+                  height: (isMobile || isTablet) ? 32 : 40,
                   borderRadius: 10,
                   backgroundColor: "#f0f9ff",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center"
                 }}>
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ color: "#37648c" }}>
+                  <svg width={isMobile || isTablet ? "18" : "20"} height={isMobile || isTablet ? "18" : "20"} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ color: "#37648c" }}>
                     <path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>
                 </div>
-                <h3 style={{ fontSize: 20, fontWeight: 700, margin: 0, color: "#111827" }}>
+                <h3 style={{ fontSize: (isMobile || isTablet) ? 18 : 20, fontWeight: 700, margin: 0, color: "#111827" }}>
                   Reservas por Dia da Semana
                 </h3>
               </div>
-              <div style={{ display: "flex", alignItems: "flex-end", gap: 16, height: 240, padding: "0 8px" }}>
+              <div style={{ 
+                display: "flex", 
+                alignItems: "flex-end", 
+                gap: (isMobile || isTablet) ? 8 : 16, 
+                height: (isMobile || isTablet) ? 180 : 240, 
+                padding: "0 8px",
+                minWidth: (isMobile || isTablet) ? "500px" : "auto"
+              }}>
                 {dadosRelatorio.reservasPorDia.map((item, index) => {
                   const maxReservas = Math.max(...dadosRelatorio.reservasPorDia.map(d => d.reservas));
                   const altura = (item.reservas / maxReservas) * 100;
@@ -898,30 +986,30 @@ export default function GestorRelatoriosPage() {
           {/* Top quadras - Para todos exceto hoje */}
           <div className="card" style={{ 
             marginTop: 0, 
-            padding: "28px",
+            padding: (isMobile || isTablet) ? "20px" : "28px",
             borderRadius: 16,
             border: "1px solid #e5e7eb",
             boxShadow: "0 2px 8px rgba(0, 0, 0, 0.06)"
           }}>
             <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 28 }}>
               <div style={{
-                width: 40,
-                height: 40,
+                width: (isMobile || isTablet) ? 32 : 40,
+                height: (isMobile || isTablet) ? 32 : 40,
                 borderRadius: 10,
                 backgroundColor: "#fef3c7",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center"
               }}>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ color: "#f59e0b" }}>
+                <svg width={isMobile || isTablet ? "18" : "20"} height={isMobile || isTablet ? "18" : "20"} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ color: "#f59e0b" }}>
                   <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
               </div>
-              <h3 style={{ fontSize: 20, fontWeight: 700, margin: 0, color: "#111827" }}>
+              <h3 style={{ fontSize: (isMobile || isTablet) ? 18 : 20, fontWeight: 700, margin: 0, color: "#111827" }}>
                 Quadras Mais Utilizadas
               </h3>
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 20 }}>
+            <div style={{ display: "grid", gridTemplateColumns: (isMobile || isTablet) ? "1fr" : "repeat(2, 1fr)", gap: (isMobile || isTablet) ? 16 : 20 }}>
               {dadosRelatorio.topQuadras.map((quadra, index) => {
                 const medalColors = [
                   { bg: "linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)", border: "#f59e0b" },
@@ -933,7 +1021,7 @@ export default function GestorRelatoriosPage() {
                   <div
                     key={index}
                     style={{
-                      padding: "24px",
+                      padding: (isMobile || isTablet) ? "20px" : "24px",
                       background: index < 3 ? medalColors[index].bg : "#fff",
                       color: index < 3 ? "#fff" : "#111827",
                       borderRadius: 16,
@@ -958,7 +1046,7 @@ export default function GestorRelatoriosPage() {
                     <div style={{ position: "relative", zIndex: 1 }}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
                         <div>
-                          <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 8, opacity: index < 3 ? 1 : 0.95 }}>
+                          <div style={{ fontSize: (isMobile || isTablet) ? 16 : 18, fontWeight: 700, marginBottom: 8, opacity: index < 3 ? 1 : 0.95 }}>
                             {quadra.nome}
                           </div>
                           <div style={{ fontSize: 13, opacity: index < 3 ? 0.9 : 0.7, display: "flex", alignItems: "center", gap: 6 }}>
@@ -969,15 +1057,15 @@ export default function GestorRelatoriosPage() {
                           </div>
                         </div>
                         <div style={{
-                          width: 48,
-                          height: 48,
+                          width: (isMobile || isTablet) ? 40 : 48,
+                          height: (isMobile || isTablet) ? 40 : 48,
                           borderRadius: 12,
                           background: index < 3 ? "rgba(255, 255, 255, 0.25)" : "#37648c",
                           color: "#fff",
                           display: "flex",
                           alignItems: "center",
                           justifyContent: "center",
-                          fontSize: 20,
+                          fontSize: (isMobile || isTablet) ? 18 : 20,
                           fontWeight: 800,
                           boxShadow: "0 4px 12px rgba(0, 0, 0, 0.15)"
                         }}>
@@ -989,7 +1077,7 @@ export default function GestorRelatoriosPage() {
                         borderTop: index < 3 ? "1px solid rgba(255, 255, 255, 0.2)" : "1px solid #e5e7eb",
                         marginTop: 16
                       }}>
-                        <div style={{ fontSize: 24, fontWeight: 800, color: index < 3 ? "#fff" : "#059669", lineHeight: 1.2 }}>
+                        <div style={{ fontSize: (isMobile || isTablet) ? 20 : 24, fontWeight: 800, color: index < 3 ? "#fff" : "#059669", lineHeight: 1.2 }}>
                           {formatBRL(quadra.receita)}
                         </div>
                         <div style={{ fontSize: 12, opacity: index < 3 ? 0.8 : 0.6, marginTop: 6 }}>

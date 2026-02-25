@@ -10,6 +10,14 @@
 
 body {
   background-color: #f5f5f5;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch; /* Melhora scroll em iOS */
+}
+
+html {
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 /* Layout base */
@@ -112,6 +120,24 @@ body {
 
 .layout-content {
   padding: 24px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  flex: 1;
+  min-height: 0;
+}
+
+/* Garantir scroll em mobile e tablet */
+@media (max-width: 1024px) {
+  .layout-content {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  .layout-main {
+    overflow-y: auto;
+    overflow-x: hidden;
+    min-height: 0;
+  }
 }
 /* ---------- Cartões e formulários ---------- */
 

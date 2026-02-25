@@ -72,6 +72,10 @@ export default function MobileLayout() {
   const menuRef = React.useRef(null);
   const [mostrarNotificacoes, setMostrarNotificacoes] = useState(false);
   const notificacoesRef = React.useRef(null);
+  const headerRef = React.useRef(null);
+  const footerRef = React.useRef(null);
+  const [headerHeight, setHeaderHeight] = React.useState(80);
+  const [footerHeight, setFooterHeight] = React.useState(60);
 
   // Determina aba ativa baseado na rota
   React.useEffect(() => {
@@ -141,6 +145,22 @@ export default function MobileLayout() {
 
   const notificacoes = gerarNotificacoes();
 
+  // Medir alturas do header e footer
+  React.useEffect(() => {
+    const updateHeights = () => {
+      if (headerRef.current) {
+        setHeaderHeight(headerRef.current.offsetHeight);
+      }
+      if (footerRef.current) {
+        setFooterHeight(footerRef.current.offsetHeight);
+      }
+    };
+
+    updateHeights();
+    window.addEventListener("resize", updateHeights);
+    return () => window.removeEventListener("resize", updateHeights);
+  }, []);
+
   // Fechar menu ao clicar fora
   React.useEffect(() => {
     function handleClickOutside(event) {
@@ -171,16 +191,23 @@ export default function MobileLayout() {
       overflow: "hidden"
     }}>
       {/* Header fixo no topo */}
-      <div style={{
-        backgroundColor: "#37648c",
-        color: "#fff",
-        padding: "12px 16px",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
-        zIndex: 100
-      }}>
+      <div 
+        ref={headerRef}
+        style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          right: 0,
+          backgroundColor: "#37648c",
+          color: "#fff",
+          padding: "12px 16px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+          zIndex: 1000,
+          flexShrink: 0
+        }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <div
             style={{
@@ -277,7 +304,7 @@ export default function MobileLayout() {
                   borderRadius: 12,
                   boxShadow: "0 4px 20px rgba(0, 0, 0, 0.15)",
                   border: "1px solid #e5e7eb",
-                  zIndex: 1000,
+                  zIndex: 1001,
                   overflow: "hidden",
                   display: "flex",
                   flexDirection: "column"
@@ -363,25 +390,40 @@ export default function MobileLayout() {
         </div>
       </div>
 
-      {/* Conteúdo principal */}
+      {/* Conteúdo principal - com padding para header e footer fixos */}
       <div style={{
-        flex: 1,
-        overflow: "hidden",
+        position: "fixed",
+        top: `${headerHeight}px`, // Altura dinâmica do header fixo
+        bottom: `${footerHeight}px`, // Altura dinâmica do footer fixo
+        left: 0,
+        right: 0,
+        overflowY: "auto",
+        overflowX: "hidden",
         display: "flex",
-        flexDirection: "column"
+        flexDirection: "column",
+        WebkitOverflowScrolling: "touch",
+        backgroundColor: "#f0f2f5"
       }}>
         <Outlet />
       </div>
 
-      {/* Bottom Navigation - Similar ao WhatsApp */}
-      <div style={{
-        backgroundColor: "#fff",
-        borderTop: "1px solid #e5e7eb",
-        display: "flex",
-        justifyContent: "space-around",
-        padding: "8px 0",
-        boxShadow: "0 -2px 8px rgba(0,0,0,0.05)"
-      }}>
+      {/* Bottom Navigation - Similar ao WhatsApp - FIXO */}
+      <div 
+        ref={footerRef}
+        style={{
+          position: "fixed",
+          bottom: 0,
+          left: 0,
+          right: 0,
+          backgroundColor: "#fff",
+          borderTop: "1px solid #e5e7eb",
+          display: "flex",
+          justifyContent: "space-around",
+          padding: "8px 0",
+          boxShadow: "0 -2px 8px rgba(0,0,0,0.05)",
+          zIndex: 1000,
+          flexShrink: 0
+        }}>
         <button
           onClick={() => {
             navigate("/gestor/mensagens");

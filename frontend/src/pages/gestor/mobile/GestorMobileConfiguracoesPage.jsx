@@ -42,7 +42,7 @@ export default function GestorMobileConfiguracoesPage() {
       display: "flex",
       flexDirection: "column",
       backgroundColor: "#f0f2f5",
-      overflow: "hidden"
+      minHeight: 0
     }}>
       <div style={{
         padding: "16px",

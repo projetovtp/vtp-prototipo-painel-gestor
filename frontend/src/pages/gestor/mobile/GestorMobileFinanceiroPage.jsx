@@ -12,7 +12,7 @@ export default function GestorMobileFinanceiroPage() {
       display: "flex",
       flexDirection: "column",
       backgroundColor: "#f0f2f5",
-      overflow: "hidden"
+      minHeight: 0
     }}>
       {/* Cards principais */}
       <div style={{

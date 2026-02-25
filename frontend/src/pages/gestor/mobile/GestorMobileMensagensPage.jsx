@@ -12,6 +12,7 @@ export default function GestorMobileMensagensPage() {
     {
       id: 1,
       nome: "João Silva",
+      telefone: "(11) 98765-4321",
       ultimaMensagem: "Obrigado pela reserva!",
       hora: "14:30",
       naoLidas: 2,
@@ -21,6 +22,7 @@ export default function GestorMobileMensagensPage() {
     {
       id: 2,
       nome: "Maria Santos",
+      telefone: "(11) 91234-5678",
       ultimaMensagem: "Posso cancelar minha reserva?",
       hora: "13:15",
       naoLidas: 0,
@@ -30,6 +32,7 @@ export default function GestorMobileMensagensPage() {
     {
       id: 3,
       nome: "Pedro Costa",
+      telefone: "(11) 99876-5432",
       ultimaMensagem: "Qual o horário disponível?",
       hora: "12:00",
       naoLidas: 1,
@@ -39,6 +42,7 @@ export default function GestorMobileMensagensPage() {
     {
       id: 4,
       nome: "Ana Lima",
+      telefone: "(11) 97654-3210",
       ultimaMensagem: "Confirmado para amanhã",
       hora: "Ontem",
       naoLidas: 0,
@@ -48,6 +52,7 @@ export default function GestorMobileMensagensPage() {
     {
       id: 5,
       nome: "Carlos Souza",
+      telefone: "(11) 94567-8901",
       ultimaMensagem: "Preciso de mais informações",
       hora: "Ontem",
       naoLidas: 3,
@@ -55,6 +60,7 @@ export default function GestorMobileMensagensPage() {
       tipo: "cliente"
     }
   ];
+  
 
   const conversasFiltradas = conversas.filter(conv => {
     const matchBusca = conv.nome.toLowerCase().includes(busca.toLowerCase());
@@ -77,7 +83,7 @@ export default function GestorMobileMensagensPage() {
       display: "flex",
       flexDirection: "column",
       backgroundColor: "#fff",
-      overflow: "hidden"
+      minHeight: 0
     }}>
       {/* Barra de busca */}
       <div style={{

@@ -1,7 +1,11 @@
 import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import api from "../../services/api";
+import { useDevice } from "../../hooks/useDevice";
 
 export default function GestorConfiguracoesPage() {
+  const navigate = useNavigate();
+  const { isMobile, isTablet } = useDevice();
   const [salvando, setSalvando] = useState(false);
   const [mensagemSucesso, setMensagemSucesso] = useState("");
   const [mensagemErro, setMensagemErro] = useState("");
@@ -216,8 +220,36 @@ export default function GestorConfiguracoesPage() {
 
   return (
     <div className="page">
-      <div style={{ marginBottom: 12 }}>
-        <h1 style={{ fontSize: 20, fontWeight: 700, color: "#111827" }}>Configurações do Complexo</h1>
+      <div style={{ marginBottom: 12, display: "flex", alignItems: "center", gap: 12 }}>
+        <button
+          onClick={() => navigate("/gestor/configuracoes")}
+          style={{
+            background: "transparent",
+            border: "none",
+            cursor: "pointer",
+            padding: "8px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            borderRadius: 8,
+            color: "#6b7280",
+            transition: "all 0.2s"
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = "#f3f4f6";
+            e.currentTarget.style.color = "#111827";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = "transparent";
+            e.currentTarget.style.color = "#6b7280";
+          }}
+          title="Voltar para Configurações"
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M19 12H5M12 19l-7-7 7-7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </button>
+        <h1 style={{ fontSize: (isMobile || isTablet) ? 18 : 20, fontWeight: 700, color: "#111827", margin: 0 }}>Configurações do Complexo</h1>
       </div>
 
       {mensagemSucesso && (
@@ -233,10 +265,15 @@ export default function GestorConfiguracoesPage() {
       )}
 
       {/* Container com dois cards lado a lado */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginTop: 0 }}>
+      <div style={{ 
+        display: "grid", 
+        gridTemplateColumns: (isMobile || isTablet) ? "1fr" : "1fr 1fr", 
+        gap: 16, 
+        marginTop: 0
+      }}>
         {/* Dados do Complexo - Card Esquerdo */}
-        <div className="card" style={{ marginTop: 0, marginBottom: 16, padding: "16px 20px" }}>
-          <h3 style={{ fontSize: 20, fontWeight: 600, marginBottom: 12, color: "#111827" }}>
+        <div className="card" style={{ marginTop: 0, marginBottom: 16, padding: (isMobile || isTablet) ? "12px 16px" : "16px 20px" }}>
+          <h3 style={{ fontSize: (isMobile || isTablet) ? 18 : 20, fontWeight: 600, marginBottom: 12, color: "#111827" }}>
             Dados do Complexo
           </h3>
           
@@ -353,8 +390,8 @@ export default function GestorConfiguracoesPage() {
         </div>
 
         {/* Endereço - Card Direito */}
-        <div className="card" style={{ marginTop: 0, marginBottom: 16, padding: "16px 20px" }}>
-          <h3 style={{ fontSize: 20, fontWeight: 600, marginBottom: 12, color: "#111827" }}>
+        <div className="card" style={{ marginTop: 0, marginBottom: 16, padding: (isMobile || isTablet) ? "12px 16px" : "16px 20px" }}>
+          <h3 style={{ fontSize: (isMobile || isTablet) ? 18 : 20, fontWeight: 600, marginBottom: 12, color: "#111827" }}>
             Endereço
           </h3>
           
@@ -376,7 +413,7 @@ export default function GestorConfiguracoesPage() {
             </div>
 
             {/* Cidade e Estado - duas colunas */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <div style={{ display: "grid", gridTemplateColumns: (isMobile || isTablet) ? "1fr" : "1fr 1fr", gap: 10 }}>
               <div className="form-field" style={{ gap: 4 }}>
                 <label style={{ fontSize: 13, marginBottom: 2 }}>Cidade *</label>
                 <input
@@ -472,7 +509,7 @@ export default function GestorConfiguracoesPage() {
             </div>
 
             {/* Número e Complemento - duas colunas */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <div style={{ display: "grid", gridTemplateColumns: (isMobile || isTablet) ? "1fr" : "1fr 1fr", gap: 10 }}>
               <div className="form-field" style={{ gap: 4 }}>
                 <label style={{ fontSize: 13, marginBottom: 2 }}>Número *</label>
                 <input
@@ -512,13 +549,13 @@ export default function GestorConfiguracoesPage() {
       </div>
 
       {/* Dados Financeiros */}
-      <div className="card" style={{ marginTop: 0 }}>
-        <h3 style={{ fontSize: 20, fontWeight: 600, marginBottom: 12, color: "#111827" }}>
+      <div className="card" style={{ marginTop: 0, padding: (isMobile || isTablet) ? "12px 16px" : "20px 24px" }}>
+        <h3 style={{ fontSize: (isMobile || isTablet) ? 18 : 20, fontWeight: 600, marginBottom: 12, color: "#111827" }}>
           Dados Financeiros
         </h3>
         
-        <div className="form-grid">
-          <div className="form-field" style={{ gridColumn: "span 2" }}>
+        <div className="form-grid" style={{ gridTemplateColumns: (isMobile || isTablet) ? "1fr" : "1fr 1fr" }}>
+          <div className="form-field" style={{ gridColumn: (isMobile || isTablet) ? "span 1" : "span 2" }}>
             <label>Chave PIX * (CPF, CNPJ, email ou telefone)</label>
             <input
               type="text"
@@ -531,7 +568,7 @@ export default function GestorConfiguracoesPage() {
             </span>
           </div>
 
-          <div className="form-field" style={{ gridColumn: "span 2" }}>
+          <div className="form-field" style={{ gridColumn: (isMobile || isTablet) ? "span 1" : "span 2" }}>
             <label>Nome do Titular *</label>
             <input
               type="text"
@@ -553,7 +590,7 @@ export default function GestorConfiguracoesPage() {
             disabled={salvando}
             style={{ backgroundColor: "#37648c", borderColor: "#37648c" }}
           >
-            {salvando ? "Salvando..." : "Salvar Dados Financeiros"}
+            {salvando ? "Salvando..." : "Salvar"}
           </button>
         </div>
       </div>

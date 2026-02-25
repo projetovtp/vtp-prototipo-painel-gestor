@@ -31,6 +31,7 @@ import GestorClientesPage from "./pages/gestor/GestorClientesPage";
 import GestorRelatoriosPage from "./pages/gestor/GestorRelatoriosPage";
 import GestorConfiguracoesPage from "./pages/gestor/GestorConfiguracoesPage";
 import GestorConfiguracoesQuadrasPage from "./pages/gestor/GestorConfiguracoesQuadrasPage";
+import GestorConfiguracoesSelecaoPage from "./pages/gestor/GestorConfiguracoesSelecaoPage";
 import GestorAjudaPage from "./pages/gestor/GestorAjudaPage";
 
 // 🔹 Agenda do Gestor (visualização tipo cinema + filtros)
@@ -127,7 +128,7 @@ function App() {
         <Route path="agenda/editar" element={<GestorAgendaEditPage />} />
 
         {/* Reservas */}
-igi        <Route path="reservas" element={<GestorReservasPage />} />
+        <Route path="reservas" element={<GestorReservasPage />} />
 
         {/* Clientes */}
         <Route path="clientes" element={<GestorClientesPage />} />
@@ -139,7 +140,7 @@ igi        <Route path="reservas" element={<GestorReservasPage />} />
         <Route path="financeiro" element={<GestorFinanceiroPage />} />
 
         {/* Configurações */}
-        <Route path="configuracoes" element={<GestorConfiguracoesPage />} />
+        <Route path="configuracoes" element={<GestorConfiguracoesSelecaoPage />} />
         <Route path="configuracoes/complexo" element={<GestorConfiguracoesPage />} />
         <Route path="configuracoes/quadras" element={<GestorConfiguracoesQuadrasPage />} />
 

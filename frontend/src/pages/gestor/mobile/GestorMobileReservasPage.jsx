@@ -54,7 +54,7 @@ export default function GestorMobileReservasPage() {
       display: "flex",
       flexDirection: "column",
       backgroundColor: "#f0f2f5",
-      overflow: "hidden"
+      minHeight: 0
     }}>
       {/* Filtros */}
       <div style={{

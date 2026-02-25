@@ -3,10 +3,12 @@ import React, { useEffect, useState } from "react";
 import api from "../../services/api";
 import { useAuth } from "../../context/AuthContext";
 import { useNavigate } from "react-router-dom";
+import { useDevice } from "../../hooks/useDevice";
 
 export default function GestorConfiguracoesQuadrasPage() {
   const { usuario } = useAuth();
   const navigate = useNavigate();
+  const { isMobile, isTablet } = useDevice();
 
   const [quadras, setQuadras] = useState([]);
   const [empresas, setEmpresas] = useState([]);
@@ -311,8 +313,38 @@ export default function GestorConfiguracoesQuadrasPage() {
 
   return (
     <div className="page">
-      <div className="page-header">
-        <h1 className="page-title">Quadras</h1>
+      <div className="page-header" style={{ marginBottom: 16 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
+          <button
+            onClick={() => navigate("/gestor/configuracoes")}
+            style={{
+              background: "transparent",
+              border: "none",
+              cursor: "pointer",
+              padding: "8px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              borderRadius: 8,
+              color: "#6b7280",
+              transition: "all 0.2s"
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = "#f3f4f6";
+              e.currentTarget.style.color = "#111827";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = "transparent";
+              e.currentTarget.style.color = "#6b7280";
+            }}
+            title="Voltar para Configurações"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M19 12H5M12 19l-7-7 7-7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </button>
+          <h1 className="page-title" style={{ margin: 0 }}>Configurações das Quadras</h1>
+        </div>
         <button className="btn-primary" onClick={handleNovaQuadra}>
           + Adicionar Quadra
         </button>
@@ -390,8 +422,8 @@ export default function GestorConfiguracoesQuadrasPage() {
             <div key={empresa.id} className="empresa-bloco">
               <div className="quadras-grid" style={{
                 display: "grid",
-                gridTemplateColumns: "repeat(2, 1fr)",
-                gap: 20
+                gridTemplateColumns: (isMobile || isTablet) ? "1fr" : "repeat(2, 1fr)",
+                gap: (isMobile || isTablet) ? 16 : 20
               }}>
                 {empresa.quadras.map((quadra) => {
                   const statusLower = String(quadra.status || "").toLowerCase();
@@ -407,14 +439,14 @@ export default function GestorConfiguracoesQuadrasPage() {
                     <div key={quadra.id} style={{
                       backgroundColor: "#ffffff",
                       borderRadius: 12,
-                      padding: 24,
-                      minHeight: "320px",
+                      padding: (isMobile || isTablet) ? 16 : 24,
+                      minHeight: (isMobile || isTablet) ? "auto" : "320px",
                       height: "100%",
                       boxShadow: "0 2px 8px rgba(0, 0, 0, 0.06)",
                       border: "1px solid #e5e7eb",
                       display: "flex",
                       flexDirection: "column",
-                      gap: 16,
+                      gap: (isMobile || isTablet) ? 12 : 16,
                       transition: "all 0.2s"
                     }}
                     onMouseEnter={(e) => {
@@ -459,9 +491,9 @@ export default function GestorConfiguracoesQuadrasPage() {
                       {/* Informações em grid compacto */}
                       <div style={{
                         display: "grid",
-                        gridTemplateColumns: "repeat(2, 1fr)",
-                        gap: 12,
-                        padding: "16px",
+                        gridTemplateColumns: (isMobile || isTablet) ? "1fr" : "repeat(2, 1fr)",
+                        gap: (isMobile || isTablet) ? 10 : 12,
+                        padding: (isMobile || isTablet) ? "12px" : "16px",
                         backgroundColor: "#f9fafb",
                         borderRadius: 8,
                         flex: 1,
@@ -504,7 +536,7 @@ export default function GestorConfiguracoesQuadrasPage() {
                         )}
 
                         {quadra.modalidades && quadra.modalidades.length > 0 && (
-                          <div style={{ display: "flex", alignItems: "flex-start", gap: 6, gridColumn: quadra.modalidades.length > 2 ? "span 2" : "span 1" }}>
+                          <div style={{ display: "flex", alignItems: "flex-start", gap: 6, gridColumn: (isMobile || isTablet) ? "span 1" : (quadra.modalidades.length > 2 ? "span 2" : "span 1") }}>
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ color: "#6b7280", flexShrink: 0, marginTop: 2 }}>
                               <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75M13 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                             </svg>
@@ -612,13 +644,14 @@ export default function GestorConfiguracoesQuadrasPage() {
             style={{
               backgroundColor: "#fff",
               borderRadius: 12,
-              padding: 24,
+              padding: (isMobile || isTablet) ? 16 : 24,
               maxWidth: 600,
               width: "100%",
               maxHeight: "90vh",
               boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1)",
               display: "flex",
               flexDirection: "column",
+              overflowY: "auto"
             }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -660,7 +693,7 @@ export default function GestorConfiguracoesQuadrasPage() {
             )}
 
             <form onSubmit={handleSubmit}>
-              <div className="form-grid">
+              <div className="form-grid" style={{ gridTemplateColumns: (isMobile || isTablet) ? "1fr" : "1fr 1fr" }}>
                 {/* Estrutura */}
                 <div className="form-field">
                   <label htmlFor="estrutura">Estrutura *</label>
@@ -731,7 +764,7 @@ export default function GestorConfiguracoesQuadrasPage() {
                 </div>
 
                 {/* Modalidade */}
-                <div className="form-field" style={{ gridColumn: "span 2" }}>
+                <div className="form-field" style={{ gridColumn: (isMobile || isTablet) ? "span 1" : "span 2" }}>
                   <label htmlFor="modalidade-input" style={{ marginBottom: 8, display: "block", fontSize: 14, fontWeight: 500, color: "#111827" }}>
                     Modalidade *
                   </label>
@@ -879,7 +912,7 @@ export default function GestorConfiguracoesQuadrasPage() {
                 </div>
 
                 {/* Apelido */}
-                <div className="form-field" style={{ gridColumn: "span 2" }}>
+                <div className="form-field" style={{ gridColumn: (isMobile || isTablet) ? "span 1" : "span 2" }}>
                   <label htmlFor="apelido">Apelido</label>
                   <input
                     id="apelido"
@@ -910,7 +943,13 @@ export default function GestorConfiguracoesQuadrasPage() {
                 </div>
               </div>
 
-              <div style={{ display: "flex", gap: 12, justifyContent: "flex-end", marginTop: 24 }}>
+              <div style={{ 
+                display: "flex", 
+                flexDirection: (isMobile || isTablet) ? "column" : "row",
+                gap: 12, 
+                justifyContent: "flex-end", 
+                marginTop: 24 
+              }}>
                 <button
                   type="button"
                   onClick={handleFecharModal}

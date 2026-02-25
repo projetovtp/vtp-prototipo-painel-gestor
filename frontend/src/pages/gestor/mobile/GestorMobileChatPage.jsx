@@ -2,19 +2,108 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 
+function formatBRL(v) {
+  const n = Number(v || 0);
+  return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
+function formatDateBR(yyyyMmDd) {
+  if (!yyyyMmDd) return "—";
+  const s = String(yyyyMmDd).slice(0, 10);
+  const [y, m, d] = s.split("-");
+  if (!y || !m || !d) return s;
+  return `${d}/${m}/${y}`;
+}
+
+function formatHora(hora) {
+  if (!hora) return "—";
+  return String(hora).slice(0, 5);
+}
+
+function formatStatus(status) {
+  const statusMap = {
+    paid: "Pago",
+    pending: "Pendente",
+    canceled: "Cancelado"
+  };
+  return statusMap[status] || status;
+}
+
 export default function GestorMobileChatPage() {
   const { chatId } = useParams();
   const navigate = useNavigate();
   const [mensagem, setMensagem] = useState("");
   const mensagensContainerRef = useRef(null);
+  
+  // Estados para o modal de histórico
+  const [modalHistoricoAberto, setModalHistoricoAberto] = useState(false);
+  const [historicoReservas, setHistoricoReservas] = useState([]);
+  const [carregandoHistorico, setCarregandoHistorico] = useState(false);
 
   // Mock de dados do contato
   const contato = {
     id: parseInt(chatId),
     nome: "João Silva",
+    telefone: "(11) 98765-4321",
     avatar: null,
     online: true
   };
+  
+  // Função para abrir modal e carregar histórico do contato
+  async function abrirHistoricoContato() {
+    setModalHistoricoAberto(true);
+    setCarregandoHistorico(true);
+
+    try {
+      // Mock de histórico de reservas
+      const agora = new Date();
+      const duasHorasAtras = new Date(agora.getTime() - 2 * 60 * 60 * 1000);
+
+      const mockHistorico = [
+        {
+          id: 1,
+          data: agora.toISOString().split('T')[0],
+          hora: "18:00",
+          tipoQuadra: "Futebol - Campo Society",
+          valor: 150.00,
+          status: "paid",
+          empresa: "Complexo Esportivo ABC",
+          created_at: duasHorasAtras.toISOString()
+        },
+        {
+          id: 2,
+          data: agora.toISOString().split('T')[0],
+          hora: "20:00",
+          tipoQuadra: "Futebol - Campo Society",
+          valor: 150.00,
+          status: "pending",
+          empresa: "Complexo Esportivo ABC",
+          created_at: duasHorasAtras.toISOString()
+        },
+        {
+          id: 3,
+          data: "2024-01-05",
+          hora: "19:00",
+          tipoQuadra: "Futebol - Campo Society",
+          valor: 150.00,
+          status: "paid",
+          empresa: "Complexo Esportivo ABC",
+          created_at: duasHorasAtras.toISOString()
+        }
+      ];
+
+      setHistoricoReservas(mockHistorico);
+    } catch (error) {
+      console.error("[HISTÓRICO] Erro ao carregar:", error);
+    } finally {
+      setCarregandoHistorico(false);
+    }
+  }
+
+  function fecharModalHistorico() {
+    setModalHistoricoAberto(false);
+    setHistoricoReservas([]);
+  }
 
   // Mock de mensagens
   const [mensagens, setMensagens] = useState([
@@ -78,7 +167,7 @@ export default function GestorMobileChatPage() {
       flexDirection: "column",
       backgroundColor: "#efeae2",
       backgroundImage: "url('data:image/svg+xml,%3Csvg width=\"100\" height=\"100\" xmlns=\"http://www.w3.org/2000/svg\"%3E%3Cdefs%3E%3Cpattern id=\"grid\" width=\"100\" height=\"100\" patternUnits=\"userSpaceOnUse\"%3E%3Cpath d=\"M 100 0 L 0 0 0 100\" fill=\"none\" stroke=\"%23e5e7eb\" stroke-width=\"1\" opacity=\"0.3\"/%3E%3C/pattern%3E%3C/defs%3E%3Crect width=\"100\" height=\"100\" fill=\"url(%23grid)\"/%3E%3C/svg%3E')",
-      overflow: "hidden"
+      minHeight: 0
     }}>
       {/* Header do chat */}
       <div style={{
@@ -127,6 +216,7 @@ export default function GestorMobileChatPage() {
           </div>
         </div>
         <button
+          onClick={abrirHistoricoContato}
           style={{
             background: "transparent",
             border: "none",
@@ -137,9 +227,14 @@ export default function GestorMobileChatPage() {
             alignItems: "center",
             justifyContent: "center"
           }}
+          title="Ver Histórico"
         >
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            <polyline points="14 2 14 8 20 8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            <line x1="16" y1="13" x2="8" y2="13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            <line x1="16" y1="17" x2="8" y2="17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            <polyline points="10 9 9 9 8 9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
         </button>
       </div>
@@ -331,6 +426,133 @@ export default function GestorMobileChatPage() {
           ➤
         </button>
       </div>
+
+      {/* Modal de Histórico */}
+      {modalHistoricoAberto && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(0, 0, 0, 0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+            padding: 20
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) fecharModalHistorico();
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: "#fff",
+              borderRadius: 12,
+              padding: 20,
+              maxWidth: "90vw",
+              width: "100%",
+              maxHeight: "90vh",
+              overflowY: "auto",
+              boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1)"
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Cabeçalho do Modal */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+              <div>
+                <h2 style={{ fontSize: 18, fontWeight: 700, color: "#111827", marginBottom: 4 }}>
+                  Histórico de Reservas
+                </h2>
+                <div style={{ fontSize: 13, color: "#6b7280" }}>
+                  {contato.nome} • {contato.telefone}
+                </div>
+              </div>
+              <button
+                onClick={fecharModalHistorico}
+                style={{
+                  padding: "8px",
+                  borderRadius: 6,
+                  backgroundColor: "transparent",
+                  border: "none",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center"
+                }}
+              >
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2">
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+              </button>
+            </div>
+
+            {/* Lista de Reservas */}
+            {carregandoHistorico ? (
+              <div style={{ textAlign: "center", padding: 40 }}>
+                <div>Carregando histórico...</div>
+              </div>
+            ) : historicoReservas.length === 0 ? (
+              <div style={{ textAlign: "center", padding: 40 }}>
+                <div style={{ color: "#6b7280", fontSize: 14 }}>Nenhuma reserva encontrada.</div>
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                {historicoReservas.map((reserva) => (
+                  <div
+                    key={reserva.id}
+                    style={{
+                      backgroundColor: "#f9fafb",
+                      borderRadius: 8,
+                      padding: 16,
+                      border: "1px solid #e5e7eb"
+                    }}
+                  >
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
+                      <div>
+                        <div style={{ fontSize: 14, fontWeight: 600, color: "#111827", marginBottom: 4 }}>
+                          {reserva.tipoQuadra}
+                        </div>
+                        <div style={{ fontSize: 12, color: "#6b7280" }}>
+                          {formatDateBR(reserva.data)} às {formatHora(reserva.hora)}
+                        </div>
+                      </div>
+                      <span
+                        style={{
+                          padding: "4px 10px",
+                          borderRadius: 12,
+                          fontSize: 11,
+                          fontWeight: 500,
+                          backgroundColor:
+                            reserva.status === "paid"
+                              ? "#d1fae5"
+                              : reserva.status === "pending"
+                              ? "#fef3c7"
+                              : "#fee2e2",
+                          color:
+                            reserva.status === "paid"
+                              ? "#065f46"
+                              : reserva.status === "pending"
+                              ? "#92400e"
+                              : "#991b1b"
+                        }}
+                      >
+                        {formatStatus(reserva.status)}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: 16, fontWeight: 600, color: "#111827" }}>
+                      {formatBRL(reserva.valor)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
