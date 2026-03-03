@@ -33,6 +33,7 @@ import GestorConfiguracoesPage from "./pages/gestor/GestorConfiguracoesPage";
 import GestorConfiguracoesQuadrasPage from "./pages/gestor/GestorConfiguracoesQuadrasPage";
 import GestorConfiguracoesSelecaoPage from "./pages/gestor/GestorConfiguracoesSelecaoPage";
 import GestorAjudaPage from "./pages/gestor/GestorAjudaPage";
+import GestorRegrasSelecaoPage from "./pages/gestor/GestorRegrasSelecaoPage";
 
 // 🔹 Agenda do Gestor (visualização tipo cinema + filtros)
 import GestorAgendaPage from "./pages/gestor/GestorAgendaPage";
@@ -121,7 +122,8 @@ function App() {
         />
 
         {/* Agenda do Gestor (visualização tipo cinema + filtros) */}
-        <Route path="regras-de-horarios" element={<GestorAgendaPage />} />
+        <Route path="regras-de-horarios" element={<GestorRegrasSelecaoPage />} />
+        <Route path="regras-de-horarios/regras" element={<GestorAgendaPage />} />
         <Route path="regras-de-horarios/bloqueios" element={<GestorBloqueiosPage />} />
 
         {/* Página de edição da agenda (regras de horários + bloqueios) */}

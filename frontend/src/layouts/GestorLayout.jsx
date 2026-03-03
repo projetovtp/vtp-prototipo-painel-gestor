@@ -1,6 +1,6 @@
 // src/layouts/GestorLayout.jsx
 import React, { useState, useEffect } from "react";
-import { Outlet, NavLink, useLocation } from "react-router-dom";
+import { Outlet, NavLink, useLocation, useNavigate } from "react-router-dom";
 import PainelHeader from "../components/PainelHeader";
 import logoVaiTerPlay from "../assets/Design sem nome (4).png";
 
@@ -63,6 +63,7 @@ const novaReserva = {
 
 function GestorLayout() {
   const location = useLocation();
+  const navigate = useNavigate();
   const [configuracoesAberto, setConfiguracoesAberto] = useState(false);
   const [regrasHorariosAberto, setRegrasHorariosAberto] = useState(false);
   
@@ -73,6 +74,7 @@ function GestorLayout() {
 
   // Verificar se está em uma rota de configurações para abrir o submenu
   const isConfiguracoesRoute = location.pathname.startsWith("/gestor/configuracoes");
+  // Usa qualquer rota de regras de horários apenas para controlar abertura do submenu (não para deixar o item principal ativo)
   const isRegrasHorariosRoute = location.pathname.startsWith("/gestor/regras-de-horarios");
   
   useEffect(() => {
@@ -134,62 +136,6 @@ function GestorLayout() {
             <span>Dashboard</span>
           </NavLink>
 
-          <div>
-            <div
-              onClick={() => setRegrasHorariosAberto(!regrasHorariosAberto)}
-              className={isRegrasHorariosRoute ? "menu-link active" : "menu-link"}
-              style={{ cursor: "pointer" }}
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M19 4H5C3.89 4 3 4.9 3 6V20C3 21.1 3.89 22 5 22H19C20.1 22 21 21.1 21 20V6C21 4.9 20.1 4 19 4ZM19 20H5V9H19V20ZM7 11H9V13H7V11ZM11 11H13V13H11V11ZM15 11H17V13H15V11ZM7 15H9V17H7V15ZM11 15H13V17H11V15ZM15 15H17V17H15V15Z" fill="currentColor"/>
-              </svg>
-              <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                <span>Regra de Horários</span>
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  style={{
-                    transform: regrasHorariosAberto ? "rotate(90deg)" : "rotate(0deg)",
-                    transition: "transform 0.2s",
-                    flexShrink: 0
-                  }}
-                >
-                  <polyline points="9 18 15 12 9 6"></polyline>
-                </svg>
-              </div>
-            </div>
-            
-            {regrasHorariosAberto && (
-              <div style={{ marginLeft: 24, marginTop: 2, display: "flex", flexDirection: "column", gap: 2 }}>
-                <NavLink
-                  to="/gestor/regras-de-horarios"
-                  end
-                  className={({ isActive }) =>
-                    isActive ? "menu-link active" : "menu-link"
-                  }
-                  style={{ fontSize: 14, padding: "6px 12px" }}
-                >
-                  <span>Regra de Horários</span>
-                </NavLink>
-                <NavLink
-                  to="/gestor/regras-de-horarios/bloqueios"
-                  className={({ isActive }) =>
-                    isActive ? "menu-link active" : "menu-link"
-                  }
-                  style={{ fontSize: 14, padding: "6px 12px" }}
-                >
-                  <span>Bloqueio de Horários</span>
-                </NavLink>
-              </div>
-            )}
-          </div>
-
           <NavLink
             to="/gestor/reservas"
             className={({ isActive }) =>
@@ -226,6 +172,65 @@ function GestorLayout() {
             <span>Relatórios</span>
           </NavLink>
 
+          <div>
+            <div
+              onClick={() => {
+                setRegrasHorariosAberto(!regrasHorariosAberto);
+                navigate("/gestor/regras-de-horarios");
+              }}
+              className="menu-link"
+              style={{ cursor: "pointer" }}
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M19 4H5C3.89 4 3 4.9 3 6V20C3 21.1 3.89 22 5 22H19C20.1 22 21 21.1 21 20V6C21 4.9 20.1 4 19 4ZM19 20H5V9H19V20ZM7 11H9V13H7V11ZM11 11H13V13H11V11ZM15 11H17V13H15V11ZM7 15H9V17H7V15ZM11 15H13V17H11V15ZM15 15H17V17H15V15Z" fill="currentColor"/>
+              </svg>
+              <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                <span>Regra de Horários</span>
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  style={{
+                    transform: regrasHorariosAberto ? "rotate(90deg)" : "rotate(0deg)",
+                    transition: "transform 0.2s",
+                    flexShrink: 0
+                  }}
+                >
+                  <polyline points="9 18 15 12 9 6"></polyline>
+                </svg>
+              </div>
+            </div>
+            
+            {regrasHorariosAberto && (
+              <div style={{ marginLeft: 24, marginTop: 2, display: "flex", flexDirection: "column", gap: 2 }}>
+                <NavLink
+                  to="/gestor/regras-de-horarios/regras"
+                  end
+                  className={({ isActive }) =>
+                    isActive ? "menu-link active" : "menu-link"
+                  }
+                  style={{ fontSize: 14, padding: "6px 12px" }}
+                >
+                  <span>Regra de Horários</span>
+                </NavLink>
+                <NavLink
+                  to="/gestor/regras-de-horarios/bloqueios"
+                  className={({ isActive }) =>
+                    isActive ? "menu-link active" : "menu-link"
+                  }
+                  style={{ fontSize: 14, padding: "6px 12px" }}
+                >
+                  <span>Bloqueio de Horários</span>
+                </NavLink>
+              </div>
+            )}
+          </div>
+
           <NavLink
             to="/gestor/financeiro"
             className={({ isActive }) =>
@@ -240,7 +245,10 @@ function GestorLayout() {
 
           <div>
             <div
-              onClick={() => setConfiguracoesAberto(!configuracoesAberto)}
+              onClick={() => {
+                setConfiguracoesAberto(!configuracoesAberto);
+                navigate("/gestor/configuracoes");
+              }}
               className={isConfiguracoesRoute ? "menu-link active" : "menu-link"}
               style={{ cursor: "pointer" }}
             >

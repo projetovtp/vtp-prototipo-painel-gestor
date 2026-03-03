@@ -17,6 +17,20 @@ function formatDateBR(yyyyMmDd) {
   return `${d}/${m}/${y}`;
 }
 
+function formatHora(hora) {
+  if (!hora) return "—";
+  return String(hora).slice(0, 5); // Retorna apenas HH:MM
+}
+
+function formatStatus(status) {
+  const statusMap = {
+    paid: "Pago",
+    pending: "Pendente",
+    canceled: "Cancelado"
+  };
+  return statusMap[status] || status;
+}
+
 // Dados mockados para ilustração
 const mockContatos = [
   {
@@ -694,6 +708,16 @@ export default function GestorDashboardPage() {
   const [notificacoesPendentes] = useState(2); // Mock
   const [filtroMensagens, setFiltroMensagens] = useState("tudo"); // "tudo" ou "nao-lidas"
   
+  // Estados para o modal de histórico
+  const [modalHistoricoAberto, setModalHistoricoAberto] = useState(false);
+  const [contatoHistorico, setContatoHistorico] = useState(null);
+  const [historicoReservas, setHistoricoReservas] = useState([]);
+  const [carregandoHistorico, setCarregandoHistorico] = useState(false);
+  
+  // Estados para o modal de confirmação de cancelamento
+  const [modalConfirmacaoAberto, setModalConfirmacaoAberto] = useState(false);
+  const [reservaParaCancelar, setReservaParaCancelar] = useState(null);
+  
   // Estados para Reservas
   const [reservas, setReservas] = useState([]);
   const [quadras, setQuadras] = useState([]);
@@ -1097,6 +1121,121 @@ export default function GestorDashboardPage() {
   if (filtroMensagens === "nao-lidas") {
     outrosContatos = outrosContatos.filter(c => c.naoLidas > 0);
   }
+
+  // Função para abrir modal e carregar histórico do contato
+  const abrirHistoricoContato = async (contato) => {
+    try {
+      setContatoHistorico(contato);
+      setModalHistoricoAberto(true);
+      setCarregandoHistorico(true);
+      setHistoricoReservas([]);
+
+      // Mock de histórico de reservas
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      const agora = new Date();
+      const duasHorasAtras = new Date(agora.getTime() - 2 * 60 * 60 * 1000); // 2 horas atrás - pode cancelar
+      const vinteCincoHorasAtras = new Date(agora.getTime() - 25 * 60 * 60 * 1000); // 25 horas atrás - não pode cancelar
+      const tresDiasAtras = new Date(agora.getTime() - 3 * 24 * 60 * 60 * 1000); // 3 dias atrás - não pode cancelar
+
+      const mockHistorico = [
+        {
+          id: 1,
+          data: agora.toISOString().split('T')[0],
+          hora: "18:00",
+          tipoQuadra: "Futebol - Campo Society",
+          valor: 150.00,
+          status: "paid",
+          created_at: duasHorasAtras.toISOString() // Criada há 2h - pode cancelar
+        },
+        {
+          id: 2,
+          data: agora.toISOString().split('T')[0],
+          hora: "20:00",
+          tipoQuadra: "Futebol - Campo Society",
+          valor: 150.00,
+          status: "pending",
+          created_at: duasHorasAtras.toISOString() // Criada há 2h - pode cancelar
+        },
+        {
+          id: 3,
+          data: "2024-01-05",
+          hora: "19:00",
+          tipoQuadra: "Futebol - Campo Society",
+          valor: 150.00,
+          status: "paid",
+          created_at: vinteCincoHorasAtras.toISOString() // Criada há 25h - não pode cancelar
+        }
+      ];
+
+      setHistoricoReservas(mockHistorico);
+      setCarregandoHistorico(false);
+    } catch (error) {
+      console.error("[HISTÓRICO] Erro ao carregar:", error);
+      setCarregandoHistorico(false);
+    }
+  };
+
+  const fecharModalHistorico = () => {
+    setModalHistoricoAberto(false);
+    setContatoHistorico(null);
+    setHistoricoReservas([]);
+  };
+
+  // Função para verificar se pode cancelar a reserva
+  const podeCancelar = (reserva) => {
+    // Só pode cancelar se status for pending ou paid
+    if (reserva.status !== "pending" && reserva.status !== "paid") {
+      return false;
+    }
+
+    // Verifica se passou 24 horas desde a criação da reserva
+    if (!reserva.created_at) {
+      return false;
+    }
+
+    const agora = new Date();
+    const dataCriacao = new Date(reserva.created_at);
+    const horasDesdeCriacao = (agora - dataCriacao) / (1000 * 60 * 60);
+
+    return horasDesdeCriacao <= 24;
+  };
+
+  // Função para abrir modal de confirmação
+  const abrirModalConfirmacao = (reserva) => {
+    setReservaParaCancelar(reserva);
+    setModalConfirmacaoAberto(true);
+  };
+
+  const fecharModalConfirmacao = () => {
+    setModalConfirmacaoAberto(false);
+    setReservaParaCancelar(null);
+  };
+
+  // Função para cancelar reserva
+  const confirmarCancelamento = async () => {
+    if (!reservaParaCancelar) return;
+
+    try {
+      // Aqui faria a chamada à API para cancelar
+      // await api.delete(`/gestor/reservas/${reservaParaCancelar.id}`);
+      
+      // Atualizar o status da reserva no histórico
+      setHistoricoReservas(prev => 
+        prev.map(r => 
+          r.id === reservaParaCancelar.id 
+            ? { ...r, status: "canceled" }
+            : r
+        )
+      );
+
+      fecharModalConfirmacao();
+      // Recarregar dados se necessário
+    } catch (error) {
+      console.error("[CANCELAR] Erro ao cancelar:", error);
+      alert("Erro ao cancelar reserva. Tente novamente.");
+    }
+  };
 
   return (
     <div className="page" style={{ height: "calc(100vh - 120px)", display: "flex", flexDirection: "column", overflow: "hidden" }}>
@@ -1765,8 +1904,13 @@ export default function GestorDashboardPage() {
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 2 }}>
-                        <div style={{ fontWeight: 600, fontSize: 13, color: "#333" }}>
-                          {contato.nome}
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 0 }}>
+                          <div style={{ fontWeight: 600, fontSize: 13, color: "#333" }}>
+                            {contato.nome}
+                          </div>
+                          <div style={{ fontSize: 12, color: "#666" }}>
+                            {contato.telefone}
+                          </div>
                         </div>
                         <div style={{ fontSize: 10, color: "#666" }}>{contato.hora}</div>
                       </div>
@@ -1877,6 +2021,42 @@ export default function GestorDashboardPage() {
                     {contatoSelecionado?.telefone || ""}
                   </div>
                 </div>
+                {contatoSelecionado && !contatoSelecionado.fixo && (
+                  <button
+                    onClick={() => abrirHistoricoContato(contatoSelecionado)}
+                    style={{
+                      padding: "8px",
+                      borderRadius: 6,
+                      backgroundColor: "#37648c",
+                      border: "none",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      transition: "background-color 0.2s"
+                    }}
+                    onMouseOver={(e) => e.target.style.backgroundColor = "#2d4f6f"}
+                    onMouseOut={(e) => e.target.style.backgroundColor = "#37648c"}
+                    title="Ver Histórico"
+                  >
+                    <svg
+                      width="18"
+                      height="18"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="#ffffff"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                      <polyline points="14 2 14 8 20 8"></polyline>
+                      <line x1="16" y1="13" x2="8" y2="13"></line>
+                      <line x1="16" y1="17" x2="8" y2="17"></line>
+                      <polyline points="10 9 9 9 8 9"></polyline>
+                    </svg>
+                  </button>
+                )}
               </div>
 
               {/* Mensagens */}
@@ -2182,6 +2362,291 @@ export default function GestorDashboardPage() {
           }
         }}
       />
+
+      {/* Modal de Histórico */}
+      {modalHistoricoAberto && contatoHistorico && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(0, 0, 0, 0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+            padding: 20
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) fecharModalHistorico();
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: "#fff",
+              borderRadius: 12,
+              padding: 24,
+              maxWidth: 800,
+              width: "100%",
+              maxHeight: "90vh",
+              overflowY: "auto",
+              boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1)"
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Cabeçalho do Modal */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
+              <div>
+                <h2 style={{ fontSize: 20, fontWeight: 700, color: "#111827", marginBottom: 4 }}>
+                  Histórico de Reservas
+                </h2>
+                <div style={{ fontSize: 14, color: "#6b7280" }}>
+                  {contatoHistorico.nome} • {contatoHistorico.telefone}
+                </div>
+              </div>
+              <button
+                onClick={fecharModalHistorico}
+                style={{
+                  padding: "8px",
+                  borderRadius: 6,
+                  backgroundColor: "transparent",
+                  border: "none",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center"
+                }}
+              >
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2">
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+              </button>
+            </div>
+
+            {/* Informações do Cliente */}
+            {contatoHistorico && (
+              <div style={{ backgroundColor: "#f9fafb", borderRadius: 8, padding: 16, marginBottom: 24 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 16 }}>
+                  <div>
+                    <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 4 }}>Telefone</div>
+                    <div style={{ fontSize: 14, color: "#111827", fontWeight: 500 }}>{contatoHistorico.telefone}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 4 }}>Total de Reservas</div>
+                    <div style={{ fontSize: 14, color: "#111827", fontWeight: 500 }}>{historicoReservas.length}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 4 }}>Total Gasto</div>
+                    <div style={{ fontSize: 14, color: "#111827", fontWeight: 600 }}>
+                      {formatBRL(historicoReservas.reduce((total, r) => total + (r.valor || 0), 0))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Lista de Reservas */}
+            {carregandoHistorico ? (
+              <div style={{ textAlign: "center", padding: 40 }}>
+                <div>Carregando histórico...</div>
+              </div>
+            ) : historicoReservas.length === 0 ? (
+              <div style={{ textAlign: "center", padding: 40 }}>
+                <div style={{ color: "#6b7280", fontSize: 14 }}>Nenhuma reserva encontrada.</div>
+              </div>
+            ) : (
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                  <thead>
+                    <tr style={{ backgroundColor: "#f9fafb", borderBottom: "2px solid #e5e7eb" }}>
+                      <th style={{ padding: "12px 16px", textAlign: "left", fontSize: 12, fontWeight: 600, color: "#6b7280", textTransform: "uppercase" }}>
+                        Data
+                      </th>
+                      <th style={{ padding: "12px 16px", textAlign: "left", fontSize: 12, fontWeight: 600, color: "#6b7280", textTransform: "uppercase" }}>
+                        Horário
+                      </th>
+                      <th style={{ padding: "12px 16px", textAlign: "left", fontSize: 12, fontWeight: 600, color: "#6b7280", textTransform: "uppercase" }}>
+                        Tipo de Quadra
+                      </th>
+                      <th style={{ padding: "12px 16px", textAlign: "right", fontSize: 12, fontWeight: 600, color: "#6b7280", textTransform: "uppercase" }}>
+                        Valor
+                      </th>
+                      <th style={{ padding: "12px 16px", textAlign: "center", fontSize: 12, fontWeight: 600, color: "#6b7280", textTransform: "uppercase" }}>
+                        Status
+                      </th>
+                      <th style={{ padding: "12px 16px", textAlign: "center", fontSize: 12, fontWeight: 600, color: "#6b7280", textTransform: "uppercase" }}>
+                        Ações
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {historicoReservas.map((reserva) => (
+                      <tr key={reserva.id} style={{ borderBottom: "1px solid #e5e7eb" }}>
+                        <td style={{ padding: "12px 16px", fontSize: 14, color: "#111827" }}>
+                          {formatDateBR(reserva.data)}
+                        </td>
+                        <td style={{ padding: "12px 16px", fontSize: 14, color: "#111827" }}>
+                          {formatHora(reserva.hora)}
+                        </td>
+                        <td style={{ padding: "12px 16px", fontSize: 14, color: "#111827" }}>
+                          {reserva.tipoQuadra}
+                        </td>
+                        <td style={{ padding: "12px 16px", textAlign: "right", fontSize: 14, color: "#111827", fontWeight: 600 }}>
+                          {formatBRL(reserva.valor)}
+                        </td>
+                        <td style={{ padding: "12px 16px", textAlign: "center" }}>
+                          <span
+                            style={{
+                              padding: "4px 12px",
+                              borderRadius: 12,
+                              fontSize: 12,
+                              fontWeight: 500,
+                              backgroundColor:
+                                reserva.status === "paid"
+                                  ? "#d1fae5"
+                                  : reserva.status === "pending"
+                                  ? "#fef3c7"
+                                  : "#fee2e2",
+                              color:
+                                reserva.status === "paid"
+                                  ? "#065f46"
+                                  : reserva.status === "pending"
+                                  ? "#92400e"
+                                  : "#991b1b"
+                            }}
+                          >
+                            {formatStatus(reserva.status)}
+                          </span>
+                        </td>
+                        <td style={{ padding: "12px 16px", textAlign: "center" }}>
+                          {podeCancelar(reserva) ? (
+                            <button
+                              onClick={() => abrirModalConfirmacao(reserva)}
+                              style={{
+                                padding: "6px 12px",
+                                borderRadius: 6,
+                                fontSize: 12,
+                                fontWeight: 500,
+                                backgroundColor: "#ef4444",
+                                color: "#fff",
+                                border: "none",
+                                cursor: "pointer",
+                                transition: "background-color 0.2s"
+                              }}
+                              onMouseOver={(e) => e.target.style.backgroundColor = "#dc2626"}
+                              onMouseOut={(e) => e.target.style.backgroundColor = "#ef4444"}
+                              title="Cancelar reserva"
+                            >
+                              Cancelar
+                            </button>
+                          ) : (
+                            <span style={{ fontSize: 12, color: "#9ca3af" }}>
+                              {reserva.status === "canceled" ? "Cancelada" : "Prazo expirado"}
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Confirmação de Cancelamento */}
+      {modalConfirmacaoAberto && reservaParaCancelar && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(0, 0, 0, 0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1001,
+            padding: 20
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) fecharModalConfirmacao();
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: "#fff",
+              borderRadius: 12,
+              padding: 24,
+              maxWidth: 400,
+              width: "100%",
+              boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1)"
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ fontSize: 18, fontWeight: 700, color: "#111827", marginBottom: 16 }}>
+              Confirmar Cancelamento
+            </h3>
+            <p style={{ fontSize: 14, color: "#6b7280", marginBottom: 24 }}>
+              Tem certeza que deseja cancelar esta reserva? Esta ação não pode ser desfeita.
+            </p>
+            <div style={{ backgroundColor: "#f9fafb", borderRadius: 8, padding: 16, marginBottom: 24 }}>
+              <div style={{ fontSize: 14, color: "#111827", fontWeight: 500, marginBottom: 8 }}>
+                {reservaParaCancelar.tipoQuadra}
+              </div>
+              <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 4 }}>
+                {formatDateBR(reservaParaCancelar.data)} às {formatHora(reservaParaCancelar.hora)}
+              </div>
+              <div style={{ fontSize: 14, color: "#111827", fontWeight: 600 }}>
+                {formatBRL(reservaParaCancelar.valor)}
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
+              <button
+                onClick={fecharModalConfirmacao}
+                style={{
+                  padding: "10px 20px",
+                  borderRadius: 6,
+                  fontSize: 14,
+                  fontWeight: 500,
+                  backgroundColor: "#f3f4f6",
+                  color: "#374151",
+                  border: "none",
+                  cursor: "pointer",
+                  transition: "background-color 0.2s"
+                }}
+                onMouseOver={(e) => e.target.style.backgroundColor = "#e5e7eb"}
+                onMouseOut={(e) => e.target.style.backgroundColor = "#f3f4f6"}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={confirmarCancelamento}
+                style={{
+                  padding: "10px 20px",
+                  borderRadius: 6,
+                  fontSize: 14,
+                  fontWeight: 500,
+                  backgroundColor: "#ef4444",
+                  color: "#fff",
+                  border: "none",
+                  cursor: "pointer",
+                  transition: "background-color 0.2s"
+                }}
+                onMouseOver={(e) => e.target.style.backgroundColor = "#dc2626"}
+                onMouseOut={(e) => e.target.style.backgroundColor = "#ef4444"}
+              >
+                Confirmar Cancelamento
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

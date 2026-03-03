@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { useDevice } from "../../hooks/useDevice";
 
 // Função para gerar PDF (simulação - em produção usar biblioteca como jsPDF)
@@ -175,6 +175,30 @@ export default function GestorRelatoriosPage() {
     return dataObj >= inicioObj && dataObj <= fimObj;
   }
 
+  // Obter mês e ano atual para o calendário
+  const mesAtual = periodo === "mes" ? hoje.getMonth() : mesCalendario;
+  const anoAtual = periodo === "mes" ? hoje.getFullYear() : anoCalendario;
+
+  // Gerar dados mock de reservas por dia do mês (memoizado para não mudar a cada renderização)
+  const reservasPorDiaDoMes = useMemo(() => {
+    if (periodo !== "mes") return {};
+    
+    const diasNoMes = new Date(anoAtual, mesAtual + 1, 0).getDate();
+    const reservasPorDia = {};
+    
+    // Usar uma seed baseada no mês/ano para gerar dados consistentes
+    const seed = anoAtual * 12 + mesAtual;
+    
+    for (let dia = 1; dia <= diasNoMes; dia++) {
+      const data = formatarDataParaInput(anoAtual, mesAtual, dia);
+      // Gerar número pseudo-aleatório baseado na seed e no dia
+      const pseudoRandom = ((seed * 31 + dia) * 17) % 9;
+      reservasPorDia[data] = pseudoRandom;
+    }
+    
+    return reservasPorDia;
+  }, [periodo, anoAtual, mesAtual]);
+
   // Mock de dados para ilustração - ajustados por período
   const dadosRelatorio = {
     totalReservas: periodo === "hoje" ? 8 : periodo === "semana" ? 45 : periodo === "mes" ? 145 : 200,
@@ -190,14 +214,19 @@ export default function GestorRelatoriosPage() {
       { dia: "Sáb", reservas: 30 },
       { dia: "Dom", reservas: 25 }
     ],
-    reservasPorHora: periodo === "hoje" ? [
-      { hora: "08:00", reservas: 2 },
-      { hora: "10:00", reservas: 1 },
-      { hora: "14:00", reservas: 3 },
-      { hora: "16:00", reservas: 2 },
-      { hora: "18:00", reservas: 0 },
-      { hora: "20:00", reservas: 0 }
-    ] : [],
+    reservasPorHora: periodo === "hoje" ? (() => {
+      const horarios = [];
+      const hojeObj = new Date();
+      const seed = hojeObj.getFullYear() * 365 + hojeObj.getMonth() * 30 + hojeObj.getDate();
+      
+      for (let h = 8; h <= 22; h++) {
+        const horaFormatada = String(h).padStart(2, "0") + ":00";
+        // Gerar número pseudo-aleatório baseado na seed e no horário para manter consistência
+        const pseudoRandom = ((seed * 31 + h) * 17) % 6;
+        horarios.push({ hora: horaFormatada, reservas: pseudoRandom });
+      }
+      return horarios;
+    })() : [],
     reservasRecentes: periodo === "hoje" ? [
       { hora: "08:00", cliente: "João Silva", quadra: "Quadra 1", valor: 150.00 },
       { hora: "10:00", cliente: "Maria Santos", quadra: "Quadra 2", valor: 150.00 },
@@ -589,34 +618,57 @@ export default function GestorRelatoriosPage() {
       <div style={{ 
         display: "grid", 
         gridTemplateColumns: (isMobile || isTablet) 
-          ? (periodo === "hoje" ? "1fr" : "repeat(2, 1fr)") 
-          : (periodo === "hoje" ? "repeat(2, 1fr)" : "repeat(4, 1fr)"), 
+          ? (periodo === "hoje" ? "repeat(2, 1fr)" : "repeat(2, 1fr)") 
+          : (periodo === "hoje" ? "repeat(4, 1fr)" : "repeat(4, 1fr)"), 
         gap: (isMobile || isTablet) ? 16 : 24, 
         marginBottom: 40 
       }}>
         <div className="card" style={{ 
           marginTop: 0, 
           padding: (isMobile || isTablet) ? "20px" : "28px",
-          background: periodo === "hoje" ? "linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)" : "linear-gradient(135deg, #37648c 0%, #2d4f6f 100%)",
-          color: "#fff",
-          gridColumn: (isMobile || isTablet) ? "span 1" : (periodo === "hoje" ? "span 2" : "span 1"),
+          background: periodo === "hoje" ? "#fff" : "linear-gradient(135deg, #37648c 0%, #2d4f6f 100%)",
+          color: periodo === "hoje" ? "#111827" : "#fff",
+          border: periodo === "hoje" ? "1px solid #e5e7eb" : "none",
+          gridColumn: (isMobile || isTablet) ? "span 1" : "span 1",
           borderRadius: 16,
-          boxShadow: "0 8px 24px rgba(55, 100, 140, 0.25)",
-          position: "relative",
-          overflow: "hidden"
-        }}>
-          <div style={{ position: "absolute", top: -20, right: -20, width: 120, height: 120, borderRadius: "50%", backgroundColor: "rgba(255, 255, 255, 0.1)" }}></div>
-          <div style={{ position: "relative", zIndex: 1 }}>
+          boxShadow: periodo === "hoje" ? "0 2px 8px rgba(0, 0, 0, 0.06)" : "0 8px 24px rgba(55, 100, 140, 0.25)",
+          position: periodo === "hoje" ? "static" : "relative",
+          overflow: periodo === "hoje" ? "visible" : "hidden",
+          transition: "all 0.2s"
+        }}
+        onMouseEnter={(e) => {
+          if (periodo === "hoje") {
+            e.currentTarget.style.transform = "translateY(-4px)";
+            e.currentTarget.style.boxShadow = "0 8px 16px rgba(0, 0, 0, 0.1)";
+          } else {
+            e.currentTarget.style.transform = "translateY(-4px)";
+            e.currentTarget.style.boxShadow = "0 12px 28px rgba(55, 100, 140, 0.3)";
+          }
+        }}
+        onMouseLeave={(e) => {
+          if (periodo === "hoje") {
+            e.currentTarget.style.transform = "translateY(0)";
+            e.currentTarget.style.boxShadow = "0 2px 8px rgba(0, 0, 0, 0.06)";
+          } else {
+            e.currentTarget.style.transform = "translateY(0)";
+            e.currentTarget.style.boxShadow = "0 8px 24px rgba(55, 100, 140, 0.25)";
+          }
+        }}
+        >
+          {periodo !== "hoje" && (
+            <div style={{ position: "absolute", top: -20, right: -20, width: 120, height: 120, borderRadius: "50%", backgroundColor: "rgba(255, 255, 255, 0.1)" }}></div>
+          )}
+          <div style={{ position: periodo === "hoje" ? "static" : "relative", zIndex: periodo === "hoje" ? 0 : 1 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ opacity: 0.9 }}>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ opacity: periodo === "hoje" ? 0.6 : 0.9, color: periodo === "hoje" ? "#6b7280" : "currentColor" }}>
                 <path d="M9 11l3 3L22 4M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
-              <div style={{ fontSize: 14, opacity: 0.95, fontWeight: 500 }}>Total de Reservas</div>
+              <div style={{ fontSize: 14, color: periodo === "hoje" ? "#6b7280" : "rgba(255,255,255,0.95)", fontWeight: 500 }}>Total de Reservas</div>
             </div>
-            <div style={{ fontSize: (isMobile || isTablet) ? (periodo === "hoje" ? 40 : 32) : (periodo === "hoje" ? 56 : 42), fontWeight: 800, lineHeight: 1.1, letterSpacing: "-1px" }}>
+            <div style={{ fontSize: (isMobile || isTablet) ? 32 : 42, fontWeight: 800, lineHeight: 1.1, color: periodo === "hoje" ? "#37648c" : "#fff", letterSpacing: "-1px" }}>
               {dadosRelatorio.totalReservas}
             </div>
-            <div style={{ fontSize: 12, opacity: 0.8, marginTop: 8 }}>
+            <div style={{ fontSize: 12, color: periodo === "hoje" ? "#9ca3af" : "rgba(255,255,255,0.8)", marginTop: 8 }}>
               {periodo === "hoje" ? "reservas confirmadas" : "reservas no período"}
             </div>
           </div>
@@ -625,97 +677,99 @@ export default function GestorRelatoriosPage() {
         <div className="card" style={{ 
           marginTop: 0, 
           padding: (isMobile || isTablet) ? "20px" : "28px",
-          background: periodo === "hoje" ? "linear-gradient(135deg, #10b981 0%, #059669 100%)" : "#fff",
-          color: periodo === "hoje" ? "#fff" : "#111827",
-          border: periodo === "hoje" ? "none" : "1px solid #e5e7eb",
+          background: "#fff",
+          color: "#111827",
+          border: "1px solid #e5e7eb",
           borderRadius: 16,
-          boxShadow: periodo === "hoje" ? "0 8px 24px rgba(16, 185, 129, 0.25)" : "0 2px 8px rgba(0, 0, 0, 0.06)",
-          position: periodo === "hoje" ? "relative" : "static",
-          overflow: periodo === "hoje" ? "hidden" : "visible"
-        }}>
-          {periodo === "hoje" && (
-            <div style={{ position: "absolute", top: -20, right: -20, width: 120, height: 120, borderRadius: "50%", backgroundColor: "rgba(255, 255, 255, 0.1)" }}></div>
-          )}
-          <div style={{ position: periodo === "hoje" ? "relative" : "static", zIndex: periodo === "hoje" ? 1 : 0 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ opacity: periodo === "hoje" ? 0.9 : 0.6, color: periodo === "hoje" ? "#fff" : "#6b7280" }}>
-                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1.41 16.09V20h-2.67v-1.93c-1.71-.36-3.16-1.46-3.27-3.4h1.96c.1 1.05.82 1.87 2.65 1.87 1.96 0 2.4-.98 2.4-1.59 0-.83-.44-1.61-2.67-2.14-2.48-.6-4.18-1.62-4.18-3.67 0-1.72 1.39-2.84 3.11-3.21V4h2.67v1.95c1.86.45 2.79 1.86 2.85 3.39H14.3c-.05-1.11-.64-1.87-2.22-1.87-1.5 0-2.4.68-2.4 1.64 0 .84.65 1.39 2.67 1.91s4.18 1.39 4.18 3.91c-.01 1.83-1.38 2.83-3.12 3.16z" fill="currentColor"/>
-              </svg>
-              <div style={{ fontSize: 14, color: periodo === "hoje" ? "rgba(255,255,255,0.95)" : "#6b7280", fontWeight: 500 }}>Total Receita</div>
-            </div>
-            <div style={{ fontSize: (isMobile || isTablet) ? (periodo === "hoje" ? 40 : 32) : (periodo === "hoje" ? 56 : 42), fontWeight: 800, lineHeight: 1.1, color: periodo === "hoje" ? "#fff" : "#37648c", letterSpacing: "-1px" }}>
-              {formatBRL(dadosRelatorio.totalReceita)}
-            </div>
-            <div style={{ fontSize: 12, color: periodo === "hoje" ? "rgba(255,255,255,0.8)" : "#9ca3af", marginTop: 8 }}>
-              {periodo === "hoje" ? "receita do dia" : "receita total"}
-            </div>
+          boxShadow: "0 2px 8px rgba(0, 0, 0, 0.06)",
+          transition: "all 0.2s"
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.transform = "translateY(-4px)";
+          e.currentTarget.style.boxShadow = "0 8px 16px rgba(0, 0, 0, 0.1)";
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.transform = "translateY(0)";
+          e.currentTarget.style.boxShadow = "0 2px 8px rgba(0, 0, 0, 0.06)";
+        }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ opacity: 0.6, color: "#6b7280" }}>
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1.41 16.09V20h-2.67v-1.93c-1.71-.36-3.16-1.46-3.27-3.4h1.96c.1 1.05.82 1.87 2.65 1.87 1.96 0 2.4-.98 2.4-1.59 0-.83-.44-1.61-2.67-2.14-2.48-.6-4.18-1.62-4.18-3.67 0-1.72 1.39-2.84 3.11-3.21V4h2.67v1.95c1.86.45 2.79 1.86 2.85 3.39H14.3c-.05-1.11-.64-1.87-2.22-1.87-1.5 0-2.4.68-2.4 1.64 0 .84.65 1.39 2.67 1.91s4.18 1.39 4.18 3.91c-.01 1.83-1.38 2.83-3.12 3.16z" fill="currentColor"/>
+            </svg>
+            <div style={{ fontSize: 14, color: "#6b7280", fontWeight: 500 }}>Total Receita</div>
+          </div>
+          <div style={{ fontSize: (isMobile || isTablet) ? 32 : 42, fontWeight: 800, lineHeight: 1.1, color: "#37648c", letterSpacing: "-1px" }}>
+            {formatBRL(dadosRelatorio.totalReceita)}
+          </div>
+          <div style={{ fontSize: 12, color: "#9ca3af", marginTop: 8 }}>
+            {periodo === "hoje" ? "receita do dia" : "receita total"}
           </div>
         </div>
 
-        {periodo !== "hoje" && (
-          <>
-            <div className="card" style={{ 
-              marginTop: 0, 
-              padding: "28px", 
-              border: "1px solid #e5e7eb",
-              borderRadius: 16,
-              boxShadow: "0 2px 8px rgba(0, 0, 0, 0.06)",
-              transition: "all 0.2s"
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.transform = "translateY(-4px)";
-              e.currentTarget.style.boxShadow = "0 8px 16px rgba(0, 0, 0, 0.1)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = "translateY(0)";
-              e.currentTarget.style.boxShadow = "0 2px 8px rgba(0, 0, 0, 0.06)";
-            }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ opacity: 0.6, color: "#ef4444" }}>
-                  <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-                <div style={{ fontSize: 14, color: "#6b7280", fontWeight: 500 }}>Reservas Canceladas</div>
-              </div>
-              <div style={{ fontSize: (isMobile || isTablet) ? 32 : 42, fontWeight: 800, color: "#ef4444", lineHeight: 1.1, letterSpacing: "-1px" }}>
-                {dadosRelatorio.reservasCanceladas}
-              </div>
-              <div style={{ fontSize: 12, color: "#9ca3af", marginTop: 8 }}>
-                cancelamentos
-              </div>
-            </div>
-            <div className="card" style={{ 
-              marginTop: 0, 
-              padding: "28px", 
-              border: "1px solid #e5e7eb",
-              borderRadius: 16,
-              boxShadow: "0 2px 8px rgba(0, 0, 0, 0.06)",
-              transition: "all 0.2s"
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.transform = "translateY(-4px)";
-              e.currentTarget.style.boxShadow = "0 8px 16px rgba(0, 0, 0, 0.1)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = "translateY(0)";
-              e.currentTarget.style.boxShadow = "0 2px 8px rgba(0, 0, 0, 0.06)";
-            }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ opacity: 0.6, color: "#37648c" }}>
-                  <path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-                <div style={{ fontSize: 14, color: "#6b7280", fontWeight: 500 }}>Taxa de Ocupação</div>
-              </div>
-              <div style={{ fontSize: (isMobile || isTablet) ? 32 : 42, fontWeight: 800, color: "#37648c", lineHeight: 1.1, letterSpacing: "-1px" }}>
-                {dadosRelatorio.taxaOcupacao}%
-              </div>
-              <div style={{ fontSize: 12, color: "#9ca3af", marginTop: 8 }}>
-                ocupação média
-              </div>
-            </div>
-          </>
-        )}
+        {/* Reservas Canceladas */}
+        <div className="card" style={{ 
+          marginTop: 0, 
+          padding: (isMobile || isTablet) ? "20px" : "28px", 
+          border: "1px solid #e5e7eb",
+          borderRadius: 16,
+          boxShadow: "0 2px 8px rgba(0, 0, 0, 0.06)",
+          transition: "all 0.2s"
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.transform = "translateY(-4px)";
+          e.currentTarget.style.boxShadow = "0 8px 16px rgba(0, 0, 0, 0.1)";
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.transform = "translateY(0)";
+          e.currentTarget.style.boxShadow = "0 2px 8px rgba(0, 0, 0, 0.06)";
+        }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ opacity: 0.6, color: "#ef4444" }}>
+              <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            <div style={{ fontSize: 14, color: "#6b7280", fontWeight: 500 }}>Reservas Canceladas</div>
+          </div>
+          <div style={{ fontSize: (isMobile || isTablet) ? 32 : 42, fontWeight: 800, color: "#ef4444", lineHeight: 1.1, letterSpacing: "-1px" }}>
+            {dadosRelatorio.reservasCanceladas}
+          </div>
+          <div style={{ fontSize: 12, color: "#9ca3af", marginTop: 8 }}>
+            {periodo === "hoje" ? "cancelamentos do dia" : "cancelamentos"}
+          </div>
+        </div>
+
+        {/* Taxa de Ocupação */}
+        <div className="card" style={{ 
+          marginTop: 0, 
+          padding: (isMobile || isTablet) ? "20px" : "28px", 
+          border: "1px solid #e5e7eb",
+          borderRadius: 16,
+          boxShadow: "0 2px 8px rgba(0, 0, 0, 0.06)",
+          transition: "all 0.2s"
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.transform = "translateY(-4px)";
+          e.currentTarget.style.boxShadow = "0 8px 16px rgba(0, 0, 0, 0.1)";
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.transform = "translateY(0)";
+          e.currentTarget.style.boxShadow = "0 2px 8px rgba(0, 0, 0, 0.06)";
+        }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ opacity: 0.6, color: "#37648c" }}>
+              <path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            <div style={{ fontSize: 14, color: "#6b7280", fontWeight: 500 }}>Taxa de Ocupação</div>
+          </div>
+          <div style={{ fontSize: (isMobile || isTablet) ? 32 : 42, fontWeight: 800, color: "#37648c", lineHeight: 1.1, letterSpacing: "-1px" }}>
+            {dadosRelatorio.taxaOcupacao}%
+          </div>
+          <div style={{ fontSize: 12, color: "#9ca3af", marginTop: 8 }}>
+            {periodo === "hoje" ? "ocupação do dia" : "ocupação média"}
+          </div>
+        </div>
       </div>
 
       {/* Conteúdo específico por período */}
@@ -780,7 +834,7 @@ export default function GestorRelatoriosPage() {
             </div>
           </div>
 
-          {/* Reservas recentes - Apenas para hoje */}
+          {/* Quadras Mais Utilizadas - Apenas para hoje */}
           <div className="card" style={{ 
             marginTop: 0, 
             marginBottom: 24, 
@@ -789,119 +843,110 @@ export default function GestorRelatoriosPage() {
             border: "1px solid #e5e7eb",
             boxShadow: "0 2px 8px rgba(0, 0, 0, 0.06)"
           }}>
-            <div style={{ 
-              display: "flex", 
-              flexDirection: (isMobile || isTablet) ? "column" : "row",
-              alignItems: (isMobile || isTablet) ? "flex-start" : "center",
-              justifyContent: "space-between", 
-              gap: (isMobile || isTablet) ? 12 : 0,
-              marginBottom: 24 
-            }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <div style={{
-                  width: (isMobile || isTablet) ? 32 : 40,
-                  height: (isMobile || isTablet) ? 32 : 40,
-                  borderRadius: 10,
-                  backgroundColor: "#f0fdf4",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center"
-                }}>
-                  <svg width={isMobile || isTablet ? "18" : "20"} height={isMobile || isTablet ? "18" : "20"} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ color: "#059669" }}>
-                    <path d="M9 11l3 3L22 4M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                </div>
-                <h3 style={{ fontSize: (isMobile || isTablet) ? 18 : 20, fontWeight: 700, margin: 0, color: "#111827" }}>
-                  Reservas de Hoje
-                </h3>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 28 }}>
+              <div style={{
+                width: (isMobile || isTablet) ? 32 : 40,
+                height: (isMobile || isTablet) ? 32 : 40,
+                borderRadius: 10,
+                backgroundColor: "#fef3c7",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center"
+              }}>
+                <svg width={isMobile || isTablet ? "18" : "20"} height={isMobile || isTablet ? "18" : "20"} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ color: "#f59e0b" }}>
+                  <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
               </div>
-              <div style={{ fontSize: 14, color: "#6b7280", fontWeight: 500 }}>
-                {dadosRelatorio.reservasRecentes.length} {dadosRelatorio.reservasRecentes.length === 1 ? "reserva" : "reservas"}
-              </div>
+              <h3 style={{ fontSize: (isMobile || isTablet) ? 18 : 20, fontWeight: 700, margin: 0, color: "#111827" }}>
+                Quadras Mais Utilizadas
+              </h3>
             </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              {dadosRelatorio.reservasRecentes.map((reserva, index) => (
-                <div
-                  key={index}
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    padding: "18px",
-                    backgroundColor: "#f9fafb",
-                    borderRadius: 12,
-                    border: "1px solid #e5e7eb",
-                    transition: "all 0.2s"
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = "#f3f4f6";
-                    e.currentTarget.style.transform = "translateX(4px)";
-                    e.currentTarget.style.boxShadow = "0 4px 12px rgba(0, 0, 0, 0.08)";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = "#f9fafb";
-                    e.currentTarget.style.transform = "translateX(0)";
-                    e.currentTarget.style.boxShadow = "none";
-                  }}
-                >
-                  <div style={{ 
-                    display: "flex", 
-                    flexDirection: (isMobile || isTablet) ? "column" : "row",
-                    alignItems: (isMobile || isTablet) ? "flex-start" : "center",
-                    justifyContent: "space-between", 
-                    gap: (isMobile || isTablet) ? 12 : 0,
-                    width: "100%"
-                  }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 12, flex: 1 }}>
-                      <div style={{
-                        width: (isMobile || isTablet) ? 48 : 56,
-                        height: (isMobile || isTablet) ? 48 : 56,
-                        borderRadius: 12,
-                        background: "linear-gradient(135deg, #37648c 0%, #2d4f6f 100%)",
-                        color: "#fff",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        fontSize: (isMobile || isTablet) ? 13 : 15,
-                        fontWeight: 700,
-                        boxShadow: "0 4px 12px rgba(55, 100, 140, 0.3)",
-                        flexShrink: 0
+            <div style={{ display: "grid", gridTemplateColumns: (isMobile || isTablet) ? "1fr" : "repeat(2, 1fr)", gap: (isMobile || isTablet) ? 16 : 20 }}>
+              {dadosRelatorio.topQuadras.map((quadra, index) => {
+                const medalColors = [
+                  { bg: "linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)", border: "#f59e0b" },
+                  { bg: "linear-gradient(135deg, #94a3b8 0%, #64748b 100%)", border: "#64748b" },
+                  { bg: "linear-gradient(135deg, #d97706 0%, #b45309 100%)", border: "#b45309" },
+                  { bg: "linear-gradient(135deg, #6b7280 0%, #4b5563 100%)", border: "#4b5563" }
+                ];
+                return (
+                  <div
+                    key={index}
+                    style={{
+                      padding: (isMobile || isTablet) ? "20px" : "24px",
+                      background: index < 3 ? medalColors[index].bg : "#fff",
+                      color: index < 3 ? "#fff" : "#111827",
+                      borderRadius: 16,
+                      border: index < 3 ? "none" : "1px solid #e5e7eb",
+                      transition: "all 0.3s",
+                      boxShadow: index < 3 ? "0 8px 24px rgba(0, 0, 0, 0.15)" : "0 2px 8px rgba(0, 0, 0, 0.06)",
+                      position: "relative",
+                      overflow: "hidden"
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.transform = "translateY(-6px) scale(1.02)";
+                      e.currentTarget.style.boxShadow = index < 3 ? "0 12px 32px rgba(0, 0, 0, 0.2)" : "0 8px 16px rgba(0, 0, 0, 0.12)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.transform = "translateY(0) scale(1)";
+                      e.currentTarget.style.boxShadow = index < 3 ? "0 8px 24px rgba(0, 0, 0, 0.15)" : "0 2px 8px rgba(0, 0, 0, 0.06)";
+                    }}
+                  >
+                    {index < 3 && (
+                      <div style={{ position: "absolute", top: -10, right: -10, width: 80, height: 80, borderRadius: "50%", backgroundColor: "rgba(255, 255, 255, 0.1)" }}></div>
+                    )}
+                    <div style={{ position: "relative", zIndex: 1 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
+                        <div>
+                          <div style={{ fontSize: (isMobile || isTablet) ? 16 : 18, fontWeight: 700, marginBottom: 8, opacity: index < 3 ? 1 : 0.95 }}>
+                            {quadra.nome}
+                          </div>
+                          <div style={{ fontSize: 13, opacity: index < 3 ? 0.9 : 0.7, display: "flex", alignItems: "center", gap: 6 }}>
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                              <path d="M9 11l3 3L22 4M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                            </svg>
+                            {quadra.reservas} {quadra.reservas === 1 ? "reserva" : "reservas"}
+                          </div>
+                        </div>
+                        <div style={{
+                          width: (isMobile || isTablet) ? 40 : 48,
+                          height: (isMobile || isTablet) ? 40 : 48,
+                          borderRadius: 12,
+                          background: index < 3 ? "rgba(255, 255, 255, 0.25)" : "#37648c",
+                          color: "#fff",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          fontSize: (isMobile || isTablet) ? 18 : 20,
+                          fontWeight: 800,
+                          boxShadow: "0 4px 12px rgba(0, 0, 0, 0.15)"
+                        }}>
+                          {index + 1}
+                        </div>
+                      </div>
+                      <div style={{ 
+                        paddingTop: 16, 
+                        borderTop: index < 3 ? "1px solid rgba(255, 255, 255, 0.2)" : "1px solid #e5e7eb",
+                        marginTop: 16
                       }}>
-                        {reserva.hora}
-                      </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: (isMobile || isTablet) ? 14 : 16, fontWeight: 600, color: "#111827", marginBottom: 6 }}>
-                          {reserva.cliente}
+                        <div style={{ fontSize: (isMobile || isTablet) ? 20 : 24, fontWeight: 800, color: index < 3 ? "#fff" : "#059669", lineHeight: 1.2 }}>
+                          {formatBRL(quadra.receita)}
                         </div>
-                        <div style={{ fontSize: (isMobile || isTablet) ? 12 : 13, color: "#6b7280", display: "flex", alignItems: "center", gap: 6 }}>
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M3 21h18M5 21V7l8-4v14M19 21V11l-6-4M9 9v0M9 15v0M15 11v0M15 17v0" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-                          </svg>
-                          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{reserva.quadra}</span>
+                        <div style={{ fontSize: 12, opacity: index < 3 ? 0.8 : 0.6, marginTop: 6 }}>
+                          Receita total
                         </div>
                       </div>
-                    </div>
-                    <div style={{ 
-                      fontSize: (isMobile || isTablet) ? 18 : 20, 
-                      fontWeight: 700, 
-                      color: "#059669",
-                      padding: (isMobile || isTablet) ? "6px 12px" : "8px 16px",
-                      backgroundColor: "#f0fdf4",
-                      borderRadius: 8,
-                      whiteSpace: "nowrap"
-                    }}>
-                      {formatBRL(reserva.valor)}
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </>
       ) : (
         <>
-          {/* Gráfico de reservas por dia - Para semana e mês */}
-          {periodo === "semana" || periodo === "mes" ? (
+          {/* Gráfico de reservas por dia - Apenas para semana */}
+          {periodo === "semana" ? (
             <div className="card" style={{ 
               marginTop: 0, 
               marginBottom: 24, 
@@ -937,31 +982,34 @@ export default function GestorRelatoriosPage() {
                 padding: "0 8px",
                 minWidth: (isMobile || isTablet) ? "500px" : "auto"
               }}>
-                {dadosRelatorio.reservasPorDia.map((item, index) => {
+                {(() => {
                   const maxReservas = Math.max(...dadosRelatorio.reservasPorDia.map(d => d.reservas));
-                  const altura = (item.reservas / maxReservas) * 100;
-                  const isMax = item.reservas === maxReservas;
-                  return (
-                    <div key={index} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center" }}>
-                      <div
-                        style={{
-                          width: "100%",
-                          height: `${altura}%`,
-                          background: isMax ? "linear-gradient(180deg, #37648c 0%, #2d4f6f 100%)" : "linear-gradient(180deg, #60a5fa 0%, #37648c 100%)",
-                          borderRadius: "12px 12px 0 0",
-                          minHeight: 40,
-                          marginBottom: 12,
-                          display: "flex",
-                          alignItems: "flex-end",
-                          justifyContent: "center",
-                          paddingBottom: 8,
-                          color: "#fff",
-                          fontSize: 14,
-                          fontWeight: 700,
-                          transition: "all 0.3s",
-                          cursor: "pointer",
-                          boxShadow: isMax ? "0 4px 12px rgba(55, 100, 140, 0.3)" : "0 2px 8px rgba(55, 100, 140, 0.2)"
-                        }}
+                  const alturaContainer = (isMobile || isTablet) ? 180 : 240;
+                  return dadosRelatorio.reservasPorDia.map((item, index) => {
+                    const alturaPercentual = maxReservas > 0 ? (item.reservas / maxReservas) * 100 : 0;
+                    const alturaPixels = (alturaPercentual / 100) * alturaContainer;
+                    const alturaFinal = Math.max(alturaPixels, item.reservas > 0 ? 20 : 0);
+                    const isMax = item.reservas === maxReservas;
+                    return (
+                      <div key={index} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center" }}>
+                        <div
+                          style={{
+                            width: "100%",
+                            height: `${alturaFinal}px`,
+                            background: isMax ? "linear-gradient(180deg, #37648c 0%, #2d4f6f 100%)" : "linear-gradient(180deg, #60a5fa 0%, #37648c 100%)",
+                            borderRadius: "12px 12px 0 0",
+                            marginBottom: 12,
+                            display: "flex",
+                            alignItems: "flex-end",
+                            justifyContent: "center",
+                            paddingBottom: 8,
+                            color: "#fff",
+                            fontSize: 14,
+                            fontWeight: 700,
+                            transition: "all 0.3s",
+                            cursor: "pointer",
+                            boxShadow: isMax ? "0 4px 12px rgba(55, 100, 140, 0.3)" : "0 2px 8px rgba(55, 100, 140, 0.2)"
+                          }}
                         onMouseEnter={(e) => {
                           e.target.style.transform = "scaleY(1.08) translateY(-4px)";
                           e.target.style.boxShadow = "0 8px 16px rgba(55, 100, 140, 0.4)";
@@ -978,12 +1026,172 @@ export default function GestorRelatoriosPage() {
                       </div>
                     </div>
                   );
-                })}
+                })
+                })()}
               </div>
             </div>
           ) : null}
 
+          {/* Calendário do mês com reservas por dia - Apenas para relatório mensal */}
+          {periodo === "mes" && (
+            <div className="card" style={{ 
+              marginTop: 0, 
+              marginBottom: 24, 
+              padding: (isMobile || isTablet) ? "12px" : "16px",
+              borderRadius: 12,
+              border: "1px solid #e5e7eb",
+              boxShadow: "0 2px 8px rgba(0, 0, 0, 0.06)"
+            }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <div style={{
+                    width: (isMobile || isTablet) ? 24 : 28,
+                    height: (isMobile || isTablet) ? 24 : 28,
+                    borderRadius: 6,
+                    backgroundColor: "#f0f9ff",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center"
+                  }}>
+                    <svg width={isMobile || isTablet ? "14" : "16"} height={isMobile || isTablet ? "14" : "16"} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ color: "#37648c" }}>
+                      <path d="M19 4H5C3.89 4 3 4.9 3 6V20C3 21.1 3.89 22 5 22H19C20.1 22 21 21.1 21 20V6C21 4.9 20.1 4 19 4ZM19 20H5V9H19V20ZM7 11H9V13H7V11ZM11 11H13V13H11V11ZM15 11H17V13H15V11ZM7 15H9V17H7V15ZM11 15H13V17H11V15ZM15 15H17V17H15V15Z" fill="currentColor"/>
+                    </svg>
+                  </div>
+                  <h3 style={{ fontSize: (isMobile || isTablet) ? 14 : 16, fontWeight: 700, margin: 0, color: "#111827" }}>
+                    Calendário do Mês - Reservas por Dia
+                  </h3>
+                </div>
+                <div style={{ 
+                  fontSize: (isMobile || isTablet) ? 12 : 14, 
+                  fontWeight: 600, 
+                  color: "#37648c",
+                  padding: (isMobile || isTablet) ? "4px 10px" : "6px 12px",
+                  backgroundColor: "#f0f9ff",
+                  borderRadius: 6
+                }}>
+                  {meses[mesAtual]} {anoAtual}
+                </div>
+              </div>
+
+              <div style={{ 
+                display: "grid", 
+                gridTemplateColumns: "repeat(7, 1fr)", 
+                gap: (isMobile || isTablet) ? 4 : 6,
+                marginBottom: (isMobile || isTablet) ? 6 : 8
+              }}>
+                {diasSemana.map((dia, index) => (
+                  <div 
+                    key={index}
+                    style={{ 
+                      textAlign: "center", 
+                      fontSize: (isMobile || isTablet) ? 10 : 11, 
+                      fontWeight: 600, 
+                      color: "#6b7280",
+                      padding: (isMobile || isTablet) ? "4px 2px" : "6px 2px"
+                    }}
+                  >
+                    {dia}
+                  </div>
+                ))}
+              </div>
+
+              <div style={{ 
+                display: "grid", 
+                gridTemplateColumns: "repeat(7, 1fr)", 
+                gap: (isMobile || isTablet) ? 4 : 6
+              }}>
+                {(() => {
+                  const primeiroDia = new Date(anoAtual, mesAtual, 1);
+                  const ultimoDia = new Date(anoAtual, mesAtual + 1, 0);
+                  const diasNoMes = ultimoDia.getDate();
+                  const diaSemanaInicio = primeiroDia.getDay();
+                  
+                  const dias = [];
+                  
+                  // Adicionar células vazias para os dias antes do primeiro dia do mês
+                  for (let i = 0; i < diaSemanaInicio; i++) {
+                    dias.push(null);
+                  }
+                  
+                  // Adicionar todos os dias do mês
+                  for (let dia = 1; dia <= diasNoMes; dia++) {
+                    const data = formatarDataParaInput(anoAtual, mesAtual, dia);
+                    const numReservas = reservasPorDiaDoMes[data] || 0;
+                    const isHoje = anoAtual === hoje.getFullYear() && mesAtual === hoje.getMonth() && dia === hoje.getDate();
+                    
+                    dias.push({ dia, numReservas, isHoje });
+                  }
+                  
+                  return dias.map((item, index) => {
+                    if (item === null) {
+                      return <div key={index} style={{ aspectRatio: "1", minHeight: (isMobile || isTablet) ? 32 : 36 }} />;
+                    }
+                    
+                    const { dia, numReservas, isHoje } = item;
+                    const temReservas = numReservas > 0;
+                    
+                    return (
+                      <div
+                        key={index}
+                        style={{
+                          aspectRatio: "1",
+                          minHeight: (isMobile || isTablet) ? 32 : 36,
+                          border: isHoje ? "2px solid #37648c" : "1px solid #e5e7eb",
+                          borderRadius: 6,
+                          padding: (isMobile || isTablet) ? 3 : 4,
+                          display: "flex",
+                          flexDirection: "column",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          backgroundColor: isHoje ? "#f0f9ff" : temReservas ? "#f9fafb" : "#ffffff",
+                          cursor: "pointer",
+                          transition: "all 0.2s",
+                          position: "relative"
+                        }}
+                        onMouseEnter={(e) => {
+                          if (temReservas) {
+                            e.currentTarget.style.transform = "scale(1.05)";
+                            e.currentTarget.style.boxShadow = "0 4px 12px rgba(55, 100, 140, 0.2)";
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.transform = "scale(1)";
+                          e.currentTarget.style.boxShadow = "none";
+                        }}
+                      >
+                        <div style={{ 
+                          fontSize: (isMobile || isTablet) ? 10 : 11, 
+                          fontWeight: isHoje ? 700 : 600, 
+                          color: isHoje ? "#37648c" : "#111827",
+                          marginBottom: temReservas ? 1 : 0
+                        }}>
+                          {dia}
+                        </div>
+                        {temReservas && (
+                          <div style={{
+                            fontSize: (isMobile || isTablet) ? 8 : 9,
+                            fontWeight: 700,
+                            color: "#fff",
+                            backgroundColor: "#37648c",
+                            borderRadius: 6,
+                            padding: (isMobile || isTablet) ? "1px 3px" : "1px 4px",
+                            minWidth: (isMobile || isTablet) ? 16 : 18,
+                            textAlign: "center",
+                            lineHeight: 1.1
+                          }}>
+                            {numReservas}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
+            </div>
+          )}
+
           {/* Top quadras - Para todos exceto hoje */}
+          {periodo !== "hoje" && (
           <div className="card" style={{ 
             marginTop: 0, 
             padding: (isMobile || isTablet) ? "20px" : "28px",
@@ -1090,6 +1298,7 @@ export default function GestorRelatoriosPage() {
               })}
             </div>
           </div>
+          )}
         </>
       )}
     </div>
