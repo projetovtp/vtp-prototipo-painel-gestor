@@ -1,10 +1,11 @@
-// src/pages/gestor/GestorQuadrasPage.jsx
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import api from "../../services/api"; // usa axios com JWT
+import { useGestorEmpresas, useGestorQuadras } from "../../hooks/api";
 
 function GestorQuadrasPage() {
   const navigate = useNavigate();
+  const { listar: listarEmpresas } = useGestorEmpresas();
+  const { criar: criarQuadra } = useGestorQuadras();
 
   const [form, setForm] = useState({
     complexoId: "",
@@ -32,12 +33,10 @@ function GestorQuadrasPage() {
   const [erro, setErro] = useState("");
   const [carregando, setCarregando] = useState(false);
 
-  // Empresas/complexos do gestor para popular o select
   const [empresas, setEmpresas] = useState([]);
   const [carregandoEmpresas, setCarregandoEmpresas] = useState(false);
   const [erroEmpresas, setErroEmpresas] = useState("");
 
-  // ✅ NOVO: controla “tela de sucesso” após salvar
   const [salvouComSucesso, setSalvouComSucesso] = useState(false);
   const [quadraCriadaResumo, setQuadraCriadaResumo] = useState(null);
 
@@ -46,9 +45,8 @@ function GestorQuadrasPage() {
       try {
         setCarregandoEmpresas(true);
         setErroEmpresas("");
-
-        const response = await api.get("/gestor/empresas");
-        setEmpresas(response.data || []);
+        const data = await listarEmpresas();
+        setEmpresas(data || []);
       } catch (error) {
         console.error("[GESTOR/QUADRAS] Erro ao carregar empresas:", error);
         setErroEmpresas("Erro ao carregar complexos deste gestor.");
@@ -58,36 +56,29 @@ function GestorQuadrasPage() {
     }
 
     carregarEmpresas();
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleChange(event) {
     const { name, value } = event.target;
-    setForm((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
+    setForm((prev) => ({ ...prev, [name]: value }));
   }
 
   function handleFileChange(event, key) {
     const file = event.target.files[0] || null;
 
-    setFotos((prev) => ({
-      ...prev,
-      [key]: file,
-    }));
+    setFotos((prev) => ({ ...prev, [key]: file }));
 
     if (file) {
       const url = URL.createObjectURL(file);
-      setPreviews((prev) => ({
-        ...prev,
-        [key]: url,
-      }));
+      setPreviews((prev) => ({ ...prev, [key]: url }));
     } else {
-      setPreviews((prev) => ({
-        ...prev,
-        [key]: null,
-      }));
+      setPreviews((prev) => ({ ...prev, [key]: null }));
     }
+  }
+
+  function handleRemoverFoto(key) {
+    setFotos((prev) => ({ ...prev, [key]: null }));
+    setPreviews((prev) => ({ ...prev, [key]: null }));
   }
 
   function handleLimpar() {
@@ -100,16 +91,8 @@ function GestorQuadrasPage() {
       informacoes: "",
       status: "ativa",
     });
-    setFotos({
-      foto1: null,
-      foto2: null,
-      foto3: null,
-    });
-    setPreviews({
-      foto1: null,
-      foto2: null,
-      foto3: null,
-    });
+    setFotos({ foto1: null, foto2: null, foto3: null });
+    setPreviews({ foto1: null, foto2: null, foto3: null });
     setMensagem("");
     setErro("");
   }
@@ -128,7 +111,6 @@ function GestorQuadrasPage() {
 
     try {
       const formData = new FormData();
-      // gestor_id vem do JWT, não precisa mandar
       formData.append("complexoId", form.complexoId);
       formData.append("tipo", form.tipo);
       formData.append("material", form.material);
@@ -141,12 +123,9 @@ function GestorQuadrasPage() {
       if (fotos.foto2) formData.append("foto2", fotos.foto2);
       if (fotos.foto3) formData.append("foto3", fotos.foto3);
 
-      const response = await api.post("/gestor/quadras", formData);
+      const data = await criarQuadra(formData);
 
-      console.log("Quadra criada com sucesso:", response.data);
-
-      // ✅ NOVO: tela de sucesso (some o formulário)
-      setQuadraCriadaResumo(response.data || null);
+      setQuadraCriadaResumo(data || null);
       setSalvouComSucesso(true);
       setMensagem("Quadra criada com sucesso!");
     } catch (err) {
@@ -163,34 +142,35 @@ function GestorQuadrasPage() {
 
   const nomeGerado =
     form.modalidade || form.material || form.tipo
-      ? `${form.modalidade || "Modalidade"} - ${form.material || "Material"} (${
-          form.tipo || "Tipo"
-        })`
+      ? `${form.modalidade || "Modalidade"} - ${form.material || "Material"} (${form.tipo || "Tipo"})`
       : "Escolha Tipo, Material e Modalidade para gerar o nome da quadra.";
 
-  // ✅ NOVO: TELA DE SUCESSO
   if (salvouComSucesso) {
     const nomeFinal =
-      quadraCriadaResumo?.nome ||
-      nomeGerado ||
-      "Quadra cadastrada";
+      quadraCriadaResumo?.nome || nomeGerado || "Quadra cadastrada";
 
     return (
       <div className="page">
-        <div className="card" style={{ maxWidth: 720, margin: "0 auto" }}>
-          <h2 style={{ marginTop: 0 }}>✅ Quadra salva com sucesso!</h2>
+        <div className="card quadra-sucesso-card">
+          <div className="quadra-sucesso-icon">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="12" cy="12" r="10" stroke="var(--color-primary)" strokeWidth="2" />
+              <path d="M8 12l3 3 5-5" stroke="var(--color-primary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </div>
 
-          <p style={{ marginTop: 8 }}>
+          <h2 className="quadra-sucesso-titulo">Quadra salva com sucesso!</h2>
+
+          <p className="quadra-sucesso-desc">
             A quadra <strong>{nomeFinal}</strong> já foi cadastrada e já pode
             aparecer no Flow (se tiver regras/horários cadastrados).
           </p>
 
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 16 }}>
+          <div className="quadra-sucesso-acoes">
             <button
               className="btn-primary"
               type="button"
               onClick={() => {
-                // volta pro formulário limpo
                 setSalvouComSucesso(false);
                 setQuadraCriadaResumo(null);
                 handleLimpar();
@@ -207,29 +187,43 @@ function GestorQuadrasPage() {
               Voltar para lista de quadras
             </button>
           </div>
-
-          <small style={{ display: "block", marginTop: 14, opacity: 0.75 }}>
-            Isso evita duplicar quadras por “clique repetido” depois de salvar.
-          </small>
         </div>
       </div>
     );
   }
 
+  const fotoSlots = [
+    { key: "foto1", label: "Foto 1 (principal)", desc: "Imagem principal que poderá aparecer em cards." },
+    { key: "foto2", label: "Foto 2 (opcional)", desc: "Segunda imagem de apoio da quadra." },
+    { key: "foto3", label: "Foto 3 (opcional)", desc: "Terceira imagem de apoio da quadra." },
+  ];
+
   return (
-    <div>
-      <h2>Minhas Quadras</h2>
-      <p style={{ marginBottom: "16px" }}>
-        Cadastre e edite as quadras que aparecerão para o cliente no Flow do
-        WhatsApp. As informações abaixo controlam tanto o painel quanto o que o
-        usuário enxerga nas telas de escolha de quadra.
+    <div className="page">
+      <div className="page-header">
+        <div className="page-header-left">
+          <button
+            className="btn-back"
+            onClick={() => navigate("/gestor/quadras")}
+            title="Voltar para lista"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M19 12H5M12 19l-7-7 7-7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+          <h1 className="page-title">Cadastrar nova quadra</h1>
+        </div>
+      </div>
+
+      <p className="quadra-instrucao">
+        Cadastre as quadras que aparecerão para o cliente no Flow do WhatsApp.
+        As informações abaixo controlam tanto o painel quanto o que o usuário
+        enxerga nas telas de escolha de quadra.
       </p>
 
       <div className="card">
-        <h3>Cadastro de Quadra (Gestor)</h3>
-
         <form className="form-grid" onSubmit={handleSubmit}>
-          {/* COMPLEXO / EMPRESA */}
+          {/* COMPLEXO */}
           <div className="form-field">
             <label htmlFor="complexoId">Complexo *</label>
             <select
@@ -251,12 +245,11 @@ function GestorQuadrasPage() {
                 ))}
             </select>
             <small>
-              Esta lista é carregada automaticamente com os complexos cadastrados
-              para este gestor. Cadastre um novo complexo na tela de empresas
-              para ele aparecer aqui.
+              Cadastre um novo complexo na tela de empresas para ele aparecer
+              aqui.
             </small>
             {erroEmpresas && (
-              <small style={{ color: "#c0392b" }}>{erroEmpresas}</small>
+              <small className="form-field-error">{erroEmpresas}</small>
             )}
           </div>
 
@@ -294,10 +287,6 @@ function GestorQuadrasPage() {
               <option value="Externa">Externa</option>
               <option value="Coberta">Coberta</option>
             </select>
-            <small>
-              Define se a quadra é interna, externa ou coberta. Usado na
-              identificação da quadra.
-            </small>
           </div>
 
           {/* MATERIAL */}
@@ -317,10 +306,6 @@ function GestorQuadrasPage() {
               <option value="Emborrachado">Emborrachado</option>
               <option value="Grama natural">Grama natural</option>
             </select>
-            <small>
-              Aparece junto da modalidade para o cliente entender o tipo de
-              piso.
-            </small>
           </div>
 
           {/* MODALIDADE */}
@@ -347,23 +332,22 @@ function GestorQuadrasPage() {
               <option value="Basquete">Basquete</option>
               <option value="Handebol">Handebol</option>
             </select>
-            <small>
-              Modalidade principal da quadra. Também aparece no card da tela de
-              escolha do Flow.
-            </small>
           </div>
 
-          {/* PRÉVIA DO NOME GERADO */}
+          {/* STATUS visual - span vazio para manter grid 2 cols alinhado */}
+          <div />
+
+          {/* PRÉVIA DO NOME */}
           <div className="form-field form-field-full">
             <label>Nome gerado da quadra (prévia)</label>
             <div className="quadra-name-preview">{nomeGerado}</div>
             <small>
-              Este é o nome que o cliente enxergará ao escolher a quadra. Ele é
-              formado pela combinação de Modalidade + Material + Tipo.
+              Este é o nome que o cliente enxergará. É formado pela combinação
+              de Modalidade + Material + Tipo.
             </small>
           </div>
 
-          {/* AVISO IMPORTANTE */}
+          {/* AVISO */}
           <div className="form-field form-field-full">
             <label htmlFor="aviso">Avisos importantes</label>
             <input
@@ -380,7 +364,7 @@ function GestorQuadrasPage() {
             </small>
           </div>
 
-          {/* INFORMAÇÕES ADICIONAIS */}
+          {/* INFORMAÇÕES */}
           <div className="form-field form-field-full">
             <label htmlFor="informacoes">Informações adicionais</label>
             <textarea
@@ -391,69 +375,52 @@ function GestorQuadrasPage() {
               onChange={handleChange}
               placeholder="Descreva tamanho, regras, se possui vestiário, estacionamento, etc."
             />
-            <small>
-              Texto de apoio que ajuda o cliente a entender melhor a estrutura
-              da quadra.
-            </small>
           </div>
 
-          {/* FOTOS DA QUADRA */}
+          {/* FOTOS */}
           <div className="form-field form-field-full">
             <label>Fotos da quadra (até 3)</label>
             <div className="photo-grid">
-              {/* FOTO 1 */}
-              <div className="photo-slot">
-                <span className="photo-label">Foto 1 (principal)</span>
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => handleFileChange(e, "foto1")}
-                />
-                {previews.foto1 && (
-                  <img
-                    src={previews.foto1}
-                    alt="Prévia foto 1"
-                    className="photo-preview"
-                  />
-                )}
-                <small>Imagem principal que poderá aparecer em cards.</small>
-              </div>
-
-              {/* FOTO 2 */}
-              <div className="photo-slot">
-                <span className="photo-label">Foto 2 (opcional)</span>
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => handleFileChange(e, "foto2")}
-                />
-                {previews.foto2 && (
-                  <img
-                    src={previews.foto2}
-                    alt="Prévia foto 2"
-                    className="photo-preview"
-                  />
-                )}
-                <small>Segunda imagem de apoio da quadra.</small>
-              </div>
-
-              {/* FOTO 3 */}
-              <div className="photo-slot">
-                <span className="photo-label">Foto 3 (opcional)</span>
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => handleFileChange(e, "foto3")}
-                />
-                {previews.foto3 && (
-                  <img
-                    src={previews.foto3}
-                    alt="Prévia foto 3"
-                    className="photo-preview"
-                  />
-                )}
-                <small>Terceira imagem de apoio da quadra.</small>
-              </div>
+              {fotoSlots.map(({ key, label, desc }) => (
+                <div key={key} className="photo-slot">
+                  <span className="photo-label">{label}</span>
+                  {previews[key] ? (
+                    <div className="photo-preview-wrapper">
+                      <img
+                        src={previews[key]}
+                        alt={`Prévia ${label}`}
+                        className="photo-preview"
+                      />
+                      <button
+                        type="button"
+                        className="photo-remove-btn"
+                        onClick={() => handleRemoverFoto(key)}
+                        title="Remover foto"
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                          <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                        </svg>
+                      </button>
+                    </div>
+                  ) : (
+                    <label className="photo-upload-area">
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" strokeWidth="2" />
+                        <circle cx="8.5" cy="8.5" r="1.5" fill="currentColor" />
+                        <path d="M21 15l-5-5L5 21" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                      <span>Clique para enviar</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => handleFileChange(e, key)}
+                        hidden
+                      />
+                    </label>
+                  )}
+                  <small>{desc}</small>
+                </div>
+              ))}
             </div>
 
             <small className="photo-tip">
@@ -473,16 +440,12 @@ function GestorQuadrasPage() {
               Limpar
             </button>
             <button type="submit" className="btn-primary" disabled={carregando}>
-              {carregando ? "Salvando..." : "Salvar"}
+              {carregando ? "Salvando..." : "Salvar quadra"}
             </button>
           </div>
 
           {mensagem && <p className="form-message">{mensagem}</p>}
-          {erro && (
-            <p className="form-message" style={{ color: "#c0392b" }}>
-              {erro}
-            </p>
-          )}
+          {erro && <p className="form-message form-message--error">{erro}</p>}
         </form>
       </div>
     </div>

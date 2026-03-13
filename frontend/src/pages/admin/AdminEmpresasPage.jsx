@@ -1,6 +1,6 @@
 // src/pages/admin/AdminEmpresasPage.jsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import api from "../../services/api";
+import { useAdminEmpresas, useAdminGestores } from "../../hooks/api";
 
 function AdminEmpresasPage() {
   const [form, setForm] = useState({
@@ -17,10 +17,9 @@ function AdminEmpresasPage() {
   const [mensagemErro, setMensagemErro] = useState("");
   const [enviando, setEnviando] = useState(false);
 
-  const [empresas, setEmpresas] = useState([]);
+  const { empresas, listar: listarEmpresas, criar: criarEmpresa, editar: editarEmpresa, excluir: excluirEmpresa, consultar, obterDetalheGestor, obterDetalheEmpresa, obterAuditLog } = useAdminEmpresas();
+  const { gestores, listar: listarGestores } = useAdminGestores();
   const [carregandoLista, setCarregandoLista] = useState(false);
-
-  const [gestores, setGestores] = useState([]);
   const [carregandoGestores, setCarregandoGestores] = useState(false);
 
   // ===== EDIÇÃO =====
@@ -85,8 +84,7 @@ const [historicoMeta, setHistoricoMeta] = useState({ entidade_tipo: "", entidade
   async function carregarEmpresas() {
     try {
       setCarregandoLista(true);
-      const { data } = await api.get("/admin/empresas");
-      setEmpresas(Array.isArray(data) ? data : []);
+      await listarEmpresas();
     } catch (err) {
       console.error("[ADMIN/EMPRESAS] Erro ao listar empresas:", err);
       const msgBackend = err.response?.data?.error;
@@ -102,8 +100,7 @@ const [historicoMeta, setHistoricoMeta] = useState({ entidade_tipo: "", entidade
   async function carregarGestores() {
     try {
       setCarregandoGestores(true);
-      const { data } = await api.get("/admin/gestores-resumo");
-      setGestores(Array.isArray(data) ? data : []);
+      await listarGestores();
     } catch (err) {
       console.error("[ADMIN/GESTORES-RESUMO] Erro ao listar gestores:", err);
     } finally {
@@ -154,11 +151,11 @@ const [historicoMeta, setHistoricoMeta] = useState({ entidade_tipo: "", entidade
       };
 
       if (editandoId) {
-        const { data } = await api.put(`/admin/empresas/${editandoId}`, payload);
+        const data = await editarEmpresa(editandoId, payload);
         console.log("[ADMIN/EMPRESAS] Empresa atualizada:", data);
         setMensagemSucesso("Complexo atualizado com sucesso.");
       } else {
-        const { data } = await api.post("/admin/empresas", payload);
+        const data = await criarEmpresa(payload);
         console.log("[ADMIN/EMPRESAS] Empresa criada com sucesso:", data);
         setMensagemSucesso("Complexo salvo com sucesso na base de dados.");
       }
@@ -212,8 +209,7 @@ const [historicoMeta, setHistoricoMeta] = useState({ entidade_tipo: "", entidade
       );
       if (!ok) return;
 
-      // Ajuste aqui se seu backend usa outro campo (ex.: ativo=false)
-      await api.put(`/admin/empresas/${empresaId}`, { status: "ARQUIVADA" });
+      await editarEmpresa(empresaId, { status: "ARQUIVADA" });
 
       setMensagemSucesso("Complexo arquivado com sucesso.");
       await carregarEmpresas();
@@ -233,8 +229,7 @@ const [historicoMeta, setHistoricoMeta] = useState({ entidade_tipo: "", entidade
       );
       if (!ok) return;
 
-      // Ajuste aqui se seu backend usa outro campo (ex.: ativo=false)
-      await api.put(`/admin/empresas/${empresaId}`, { status: "BLOQUEADA" });
+      await editarEmpresa(empresaId, { status: "BLOQUEADA" });
 
       setMensagemSucesso("Complexo bloqueado com sucesso.");
       await carregarEmpresas();
@@ -255,7 +250,7 @@ const [historicoMeta, setHistoricoMeta] = useState({ entidade_tipo: "", entidade
       );
       if (!ok) return;
 
-      await api.delete(`/admin/empresas/${empresaId}?confirm=DELETE`);
+      await excluirEmpresa(empresaId);
 
       setMensagemSucesso("Complexo excluído definitivamente.");
       await carregarEmpresas();
@@ -306,7 +301,7 @@ const [historicoMeta, setHistoricoMeta] = useState({ entidade_tipo: "", entidade
       setConsultaLoading(true);
       setConsultaErro("");
 
-      const { data } = await api.get(`/admin/consulta?q=${encodeURIComponent(termo)}`);
+      const data = await consultar(termo);
 
       setConsultaRes({
         gestores: Array.isArray(data?.gestores) ? data.gestores : [],
@@ -349,10 +344,10 @@ if (detalheContainer) {
       setDetalheData(null);
 
       if (item.tipo === "GESTOR") {
-        const { data } = await api.get(`/admin/gestores/${item.id}/detalhe`);
+        const data = await obterDetalheGestor(item.id);
         setDetalheData({ tipo: "GESTOR", ...data });
       } else {
-        const { data } = await api.get(`/admin/empresas/${item.id}/detalhe`);
+        const data = await obterDetalheEmpresa(item.id);
         setDetalheData({ tipo: "EMPRESA", ...data });
       }
     } catch (err) {
@@ -394,11 +389,7 @@ if (detalheContainer) {
     setHistoricoMeta({ entidade_tipo, entidade_id });
 
     setHistoricoLoading(true);
-    const { data } = await api.get(
-      `/admin/audit-log?entidade_tipo=${encodeURIComponent(
-        entidade_tipo
-      )}&entidade_id=${encodeURIComponent(entidade_id)}&limit=80`
-    );
+    const data = await obterAuditLog({ entidade_tipo, entidade_id, limit: 80 });
 
     setHistoricoItens(Array.isArray(data?.itens) ? data.itens : []);
   } catch (err) {

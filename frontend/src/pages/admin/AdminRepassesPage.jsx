@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
-import api from "../../services/api";
+import { useAdminRepasses, useAdminGestores } from "../../hooks/api";
+import { ErrorMessage, EmptyState } from "../../components/ui";
 
 function toISODate(d) {
   const pad = (n) => String(n).padStart(2, "0");
@@ -23,12 +24,12 @@ export default function AdminRepassesPage() {
   const [from, setFrom] = useState(def.inicio);
   const [to, setTo] = useState(def.fim);
 
-  const [gestores, setGestores] = useState([]);
+  const { gestores, listar: listarGestores } = useAdminGestores();
+  const { listar, gerar, obterDetalhe, marcarPago } = useAdminRepasses();
+
   const [gestorId, setGestorId] = useState("");
-
-  const [status, setStatus] = useState(""); // pendente | pago | ""
+  const [status, setStatus] = useState("");
   const [repasses, setRepasses] = useState([]);
-
   const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState("");
 
@@ -37,27 +38,20 @@ export default function AdminRepassesPage() {
 
   async function carregarGestores() {
     try {
-      const { data } = await api.get("/admin/gestores-resumo");
-      setGestores(Array.isArray(data) ? data : []);
-    } catch (e) {
-      console.warn("[ADMIN/REPASSES] falha ao carregar gestores:", e);
-      setGestores([]);
-    }
+      await listarGestores();
+    } catch {}
   }
 
   async function listarRepasses() {
     setLoading(true);
     setErro("");
     try {
-      const { data } = await api.get("/admin/repasses", {
-        params: {
-          gestorId: gestorId || undefined,
-          status: status || undefined
-        }
+      const data = await listar({
+        gestorId: gestorId || undefined,
+        status: status || undefined
       });
       setRepasses(data?.repasses || []);
     } catch (e) {
-      console.error("[ADMIN/REPASSES] erro listar:", e);
       setErro(e?.response?.data?.error || "Erro ao listar repasses.");
       setRepasses([]);
     } finally {
@@ -74,14 +68,7 @@ export default function AdminRepassesPage() {
     setLoading(true);
     setErro("");
     try {
-      const body = {
-        gestorId,
-        from,
-        to
-        // competencia é opcional; backend aceita, mas não é obrigatório
-      };
-
-      const { data } = await api.post("/admin/repasses/gerar", body);
+      const data = await gerar({ gestorId, from, to });
 
       await listarRepasses();
 
@@ -89,7 +76,6 @@ export default function AdminRepassesPage() {
         await abrirDetalhe(data.repasse.id);
       }
     } catch (e) {
-      console.error("[ADMIN/REPASSES] erro gerar:", e);
       setErro(e?.response?.data?.error || "Erro ao gerar repasse.");
     } finally {
       setLoading(false);
@@ -100,11 +86,10 @@ export default function AdminRepassesPage() {
     setLoading(true);
     setErro("");
     try {
-      const { data } = await api.get(`/admin/repasses/${repasseId}`);
+      const data = await obterDetalhe(repasseId);
       setRepasseSelecionado(data?.repasse || null);
       setPagamentosDoRepasse(data?.pagamentos || []);
     } catch (e) {
-      console.error("[ADMIN/REPASSES] erro detalhe:", e);
       setErro(e?.response?.data?.error || "Erro ao buscar detalhe do repasse.");
       setRepasseSelecionado(null);
       setPagamentosDoRepasse([]);
@@ -117,17 +102,11 @@ export default function AdminRepassesPage() {
     setLoading(true);
     setErro("");
     try {
-      const body = {
-        observacao: "Pago manualmente via painel Admin"
-      };
-
-      // ✅ endpoint correto (padrão backend que você está usando)
-      await api.put(`/admin/repasses/${repasseId}/marcar-pago`, body);
+      await marcarPago(repasseId);
 
       await listarRepasses();
       await abrirDetalhe(repasseId);
     } catch (e) {
-      console.error("[ADMIN/REPASSES] erro marcar-pago:", e);
       setErro(e?.response?.data?.error || "Erro ao marcar repasse como pago.");
     } finally {
       setLoading(false);
@@ -149,7 +128,7 @@ export default function AdminRepassesPage() {
         </div>
       </div>
 
-      {erro ? <div style={errorBox}>{erro}</div> : null}
+      <ErrorMessage mensagem={erro} onDismiss={() => setErro(null)} />
 
       <div
         style={{
@@ -231,7 +210,7 @@ export default function AdminRepassesPage() {
           <div style={{ fontWeight: 800, marginBottom: 10 }}>Repasses</div>
 
           {repasses.length === 0 ? (
-            <div style={{ opacity: 0.75, padding: 10 }}>Nenhum repasse encontrado.</div>
+            <EmptyState titulo="Nenhum repasse encontrado." compact />
           ) : (
             <div style={{ display: "grid", gap: 8 }}>
               <div style={rowHead}>
@@ -298,7 +277,7 @@ export default function AdminRepassesPage() {
 
               <div style={{ fontWeight: 700, marginBottom: 8 }}>Pagamentos</div>
               {pagamentosDoRepasse.length === 0 ? (
-                <div style={{ opacity: 0.75, padding: 10 }}>Nenhum pagamento vinculado.</div>
+                <EmptyState titulo="Nenhum pagamento vinculado." compact />
               ) : (
                 <div style={{ display: "grid", gap: 8 }}>
                   <div style={rowHeadPag}>

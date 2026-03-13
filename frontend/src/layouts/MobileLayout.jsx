@@ -236,8 +236,8 @@ export default function MobileLayout() {
           </div>
           <div>
             <div style={{ fontSize: 12, opacity: 0.8, marginBottom: 2 }}>Painel do Gestor</div>
-            <div style={{ fontSize: 16, fontWeight: 600 }}>Lorenzo</div>
-            <div style={{ fontSize: 12, opacity: 0.9 }}>Lorenzoformenton@gmail.com</div>
+            <div style={{ fontSize: 16, fontWeight: 600 }}>{usuario?.nome || "Gestor"}</div>
+            <div style={{ fontSize: 12, opacity: 0.9 }}>{usuario?.email || ""}</div>
           </div>
         </div>
         <div style={{ display: "flex", gap: 16, position: "relative" }} ref={notificacoesRef}>

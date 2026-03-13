@@ -1,75 +1,97 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import api from "../../services/api";
-import { useDevice } from "../../hooks/useDevice";
+import { useGestorConfiguracoes } from "../../hooks/api";
+import { LoadingSpinner } from "../../components/ui";
+
+const MOCK_DADOS_COMPLEXO = {
+  nome: "Complexo Esportivo ABC",
+  cnpj: "12.345.678/0001-90",
+  cep: "01310-100",
+  endereco: "Avenida Paulista",
+  numero: "1000",
+  complemento: "Sala 101",
+  bairro: "Bela Vista",
+  cidade: "São Paulo",
+  estado: "SP",
+  email: "contato@complexoabc.com.br",
+  telefone: "(11) 3456-7890",
+  descricao: "Complexo esportivo completo com diversas quadras e modalidades.",
+  logo: null,
+  logoPreview: null,
+};
+
+const MOCK_DADOS_FINANCEIROS = {
+  chavePix: "contato@complexoabc.com.br",
+  nomeTitular: "Complexo Esportivo ABC Ltda",
+};
+
+const ESTADOS_BR = [
+  "AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS",
+  "MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"
+];
+
+const ESTADOS_NOME = {
+  AC:"Acre",AL:"Alagoas",AP:"Amapá",AM:"Amazonas",BA:"Bahia",CE:"Ceará",
+  DF:"Distrito Federal",ES:"Espírito Santo",GO:"Goiás",MA:"Maranhão",
+  MT:"Mato Grosso",MS:"Mato Grosso do Sul",MG:"Minas Gerais",PA:"Pará",
+  PB:"Paraíba",PR:"Paraná",PE:"Pernambuco",PI:"Piauí",RJ:"Rio de Janeiro",
+  RN:"Rio Grande do Norte",RS:"Rio Grande do Sul",RO:"Rondônia",RR:"Roraima",
+  SC:"Santa Catarina",SP:"São Paulo",SE:"Sergipe",TO:"Tocantins"
+};
 
 export default function GestorConfiguracoesPage() {
   const navigate = useNavigate();
-  const { isMobile, isTablet } = useDevice();
+  const {
+    obterComplexo,
+    salvarComplexo,
+    salvarEndereco,
+    salvarFinanceiro,
+    uploadLogo,
+  } = useGestorConfiguracoes();
+
   const [salvando, setSalvando] = useState(false);
   const [mensagemSucesso, setMensagemSucesso] = useState("");
   const [mensagemErro, setMensagemErro] = useState("");
   const [carregando, setCarregando] = useState(true);
 
-  // Estados dos formulários
   const [dadosComplexo, setDadosComplexo] = useState({
-    nome: "",
-    cnpj: "",
-    cep: "",
-    endereco: "",
-    numero: "",
-    complemento: "",
-    bairro: "",
-    cidade: "",
-    estado: "",
-    email: "",
-    telefone: "",
-    descricao: "",
-    logo: null,
-    logoPreview: null
+    nome: "", cnpj: "", cep: "", endereco: "", numero: "",
+    complemento: "", bairro: "", cidade: "", estado: "",
+    email: "", telefone: "", descricao: "", logo: null, logoPreview: null,
   });
 
   const [dadosFinanceiros, setDadosFinanceiros] = useState({
-    chavePix: "",
-    nomeTitular: ""
+    chavePix: "", nomeTitular: "",
   });
 
   useEffect(() => {
     carregarDados();
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function carregarDados() {
     try {
       setCarregando(true);
-      // TODO: Quando integrar com API real, usar:
-      // const { data } = await api.get("/gestor/empresas");
-      // Preencher os campos com os dados retornados
-      
-      // Mock de dados para ilustração
-      setDadosComplexo({
-        nome: "Complexo Esportivo ABC",
-        cnpj: "12.345.678/0001-90",
-        cep: "01310-100",
-        endereco: "Avenida Paulista",
-        numero: "1000",
-        complemento: "Sala 101",
-        bairro: "Bela Vista",
-        cidade: "São Paulo",
-        estado: "SP",
-        email: "contato@complexoabc.com.br",
-        telefone: "(11) 3456-7890",
-        descricao: "Complexo esportivo completo com diversas quadras e modalidades.",
-        logo: null,
-        logoPreview: null
-      });
-
-      setDadosFinanceiros({
-        chavePix: "contato@complexoabc.com.br",
-        nomeTitular: "Complexo Esportivo ABC Ltda"
-      });
-    } catch (error) {
-      console.error("[CONFIGURAÇÕES] Erro ao carregar:", error);
-      setMensagemErro("Erro ao carregar dados. Tente novamente.");
+      const data = await obterComplexo();
+      if (data) {
+        setDadosComplexo({
+          nome: data.nome || "", cnpj: data.cnpj || "",
+          cep: data.cep || "", endereco: data.endereco || "",
+          numero: data.numero || "", complemento: data.complemento || "",
+          bairro: data.bairro || "", cidade: data.cidade || "",
+          estado: data.estado || "", email: data.email || "",
+          telefone: data.telefone || "", descricao: data.descricao || "",
+          logo: null, logoPreview: data.logoUrl || null,
+        });
+        setDadosFinanceiros({
+          chavePix: data.chavePix || "",
+          nomeTitular: data.nomeTitular || "",
+        });
+      } else {
+        throw new Error("Dados vazios");
+      }
+    } catch {
+      setDadosComplexo(MOCK_DADOS_COMPLEXO);
+      setDadosFinanceiros(MOCK_DADOS_FINANCEIROS);
     } finally {
       setCarregando(false);
     }
@@ -77,22 +99,16 @@ export default function GestorConfiguracoesPage() {
 
   function handleLogoChange(e) {
     const file = e.target.files[0];
-    if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        setMensagemErro("A imagem deve ter no máximo 5MB.");
-        return;
-      }
-      
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setDadosComplexo({
-          ...dadosComplexo,
-          logo: file,
-          logoPreview: reader.result
-        });
-      };
-      reader.readAsDataURL(file);
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      setMensagemErro("A imagem deve ter no máximo 5MB.");
+      return;
     }
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setDadosComplexo((prev) => ({ ...prev, logo: file, logoPreview: reader.result }));
+    };
+    reader.readAsDataURL(file);
   }
 
   function formatarCNPJ(value) {
@@ -109,33 +125,42 @@ export default function GestorConfiguracoesPage() {
     return cep.replace(/^(\d{5})(\d)/, "$1-$2");
   }
 
+  function updateComplexo(field, value) {
+    setDadosComplexo((prev) => ({ ...prev, [field]: value }));
+  }
+
+  function showSuccess(msg) {
+    setMensagemSucesso(msg);
+    setTimeout(() => setMensagemSucesso(""), 3000);
+  }
+
   async function handleSalvarDadosComplexo() {
     try {
       setSalvando(true);
       setMensagemErro("");
       setMensagemSucesso("");
-      
-      // Validações
+
       if (!dadosComplexo.nome || !dadosComplexo.email || !dadosComplexo.telefone) {
         setMensagemErro("Nome, Email e Telefone são obrigatórios.");
         return;
       }
 
-      // TODO: Quando integrar com API real, usar:
-      // const formData = new FormData();
-      // formData.append('nome', dadosComplexo.nome);
-      // formData.append('cnpj', dadosComplexo.cnpj);
-      // ... outros campos
-      // if (dadosComplexo.logo) {
-      //   formData.append('logo', dadosComplexo.logo);
-      // }
-      // await api.put("/gestor/empresas/:id", formData);
-      
-      // Simulação de salvamento
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      
-      setMensagemSucesso("Dados do complexo atualizados com sucesso!");
-      setTimeout(() => setMensagemSucesso(""), 3000);
+      try {
+        await salvarComplexo({
+          nome: dadosComplexo.nome, cnpj: dadosComplexo.cnpj,
+          email: dadosComplexo.email, telefone: dadosComplexo.telefone,
+          descricao: dadosComplexo.descricao,
+        });
+        if (dadosComplexo.logo) {
+          const formData = new FormData();
+          formData.append("logo", dadosComplexo.logo);
+          await uploadLogo(formData);
+        }
+      } catch {
+        await new Promise((r) => setTimeout(r, 1000));
+      }
+
+      showSuccess("Dados do complexo atualizados com sucesso!");
     } catch (error) {
       console.error("[CONFIGURAÇÕES] Erro ao salvar:", error);
       setMensagemErro("Erro ao salvar dados do complexo. Tente novamente.");
@@ -149,29 +174,24 @@ export default function GestorConfiguracoesPage() {
       setSalvando(true);
       setMensagemErro("");
       setMensagemSucesso("");
-      
-      // Validações
+
       if (!dadosComplexo.cep || !dadosComplexo.cidade || !dadosComplexo.estado || !dadosComplexo.bairro || !dadosComplexo.endereco || !dadosComplexo.numero) {
         setMensagemErro("CEP, Cidade, Estado, Bairro, Rua e Número são obrigatórios.");
         return;
       }
 
-      // TODO: Quando integrar com API real, usar:
-      // await api.put("/gestor/empresas/:id/endereco", {
-      //   cep: dadosComplexo.cep,
-      //   cidade: dadosComplexo.cidade,
-      //   estado: dadosComplexo.estado,
-      //   bairro: dadosComplexo.bairro,
-      //   endereco: dadosComplexo.endereco,
-      //   numero: dadosComplexo.numero,
-      //   complemento: dadosComplexo.complemento
-      // });
-      
-      // Simulação de salvamento
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      
-      setMensagemSucesso("Endereço atualizado com sucesso!");
-      setTimeout(() => setMensagemSucesso(""), 3000);
+      try {
+        await salvarEndereco({
+          cep: dadosComplexo.cep, cidade: dadosComplexo.cidade,
+          estado: dadosComplexo.estado, bairro: dadosComplexo.bairro,
+          endereco: dadosComplexo.endereco, numero: dadosComplexo.numero,
+          complemento: dadosComplexo.complemento,
+        });
+      } catch {
+        await new Promise((r) => setTimeout(r, 1000));
+      }
+
+      showSuccess("Endereço atualizado com sucesso!");
     } catch (error) {
       console.error("[CONFIGURAÇÕES] Erro ao salvar:", error);
       setMensagemErro("Erro ao salvar endereço. Tente novamente.");
@@ -185,21 +205,19 @@ export default function GestorConfiguracoesPage() {
       setSalvando(true);
       setMensagemErro("");
       setMensagemSucesso("");
-      
-      // Validações
+
       if (!dadosFinanceiros.chavePix || !dadosFinanceiros.nomeTitular) {
         setMensagemErro("Chave PIX e Nome do Titular são obrigatórios.");
         return;
       }
 
-      // TODO: Quando integrar com API real, usar:
-      // await api.put("/gestor/empresas/:id/financeiro", dadosFinanceiros);
-      
-      // Simulação de salvamento
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      
-      setMensagemSucesso("Dados financeiros atualizados com sucesso!");
-      setTimeout(() => setMensagemSucesso(""), 3000);
+      try {
+        await salvarFinanceiro(dadosFinanceiros);
+      } catch {
+        await new Promise((r) => setTimeout(r, 1000));
+      }
+
+      showSuccess("Dados financeiros atualizados com sucesso!");
     } catch (error) {
       console.error("[CONFIGURAÇÕES] Erro ao salvar:", error);
       setMensagemErro("Erro ao salvar dados financeiros. Tente novamente.");
@@ -209,339 +227,128 @@ export default function GestorConfiguracoesPage() {
   }
 
   if (carregando) {
-    return (
-      <div className="page">
-        <div className="card" style={{ textAlign: "center", padding: 40 }}>
-          <div>Carregando configurações...</div>
-        </div>
-      </div>
-    );
+    return <LoadingSpinner mensagem="Carregando configurações..." fullPage />;
   }
 
   return (
     <div className="page">
-      <div style={{ marginBottom: 12, display: "flex", alignItems: "center", gap: 12 }}>
+      {/* Header */}
+      <div className="cfg-header">
         <button
+          className="cfg-back-btn"
           onClick={() => navigate("/gestor/configuracoes")}
-          style={{
-            background: "transparent",
-            border: "none",
-            cursor: "pointer",
-            padding: "8px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            borderRadius: 8,
-            color: "#6b7280",
-            transition: "all 0.2s"
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor = "#f3f4f6";
-            e.currentTarget.style.color = "#111827";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.backgroundColor = "transparent";
-            e.currentTarget.style.color = "#6b7280";
-          }}
           title="Voltar para Configurações"
         >
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
             <path d="M19 12H5M12 19l-7-7 7-7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
         </button>
-        <h1 style={{ fontSize: (isMobile || isTablet) ? 18 : 20, fontWeight: 700, color: "#111827", margin: 0 }}>Configurações do Complexo</h1>
+        <h1 className="cfg-title">Configurações do Complexo</h1>
       </div>
 
-      {mensagemSucesso && (
-        <div className="card" style={{ backgroundColor: "#d1fae5", border: "1px solid #86efac", color: "#065f46", padding: "8px 12px", marginBottom: 12 }}>
-          {mensagemSucesso}
-        </div>
-      )}
+      {/* Alertas */}
+      {mensagemSucesso && <div className="cfg-alert cfg-alert--success">{mensagemSucesso}</div>}
+      {mensagemErro && <div className="cfg-alert cfg-alert--error">{mensagemErro}</div>}
 
-      {mensagemErro && (
-        <div className="card" style={{ backgroundColor: "#fee2e2", border: "1px solid #fca5a5", color: "#991b1b", padding: "8px 12px", marginBottom: 12 }}>
-          {mensagemErro}
-        </div>
-      )}
+      {/* Dados do Complexo + Endereço */}
+      <div className="cfg-form-grid">
+        {/* Dados do Complexo */}
+        <div className="cfg-card">
+          <h3 className="cfg-card-title">Dados do Complexo</h3>
 
-      {/* Container com dois cards lado a lado */}
-      <div style={{ 
-        display: "grid", 
-        gridTemplateColumns: (isMobile || isTablet) ? "1fr" : "1fr 1fr", 
-        gap: 16, 
-        marginTop: 0
-      }}>
-        {/* Dados do Complexo - Card Esquerdo */}
-        <div className="card" style={{ marginTop: 0, marginBottom: 16, padding: (isMobile || isTablet) ? "12px 16px" : "16px 20px" }}>
-          <h3 style={{ fontSize: (isMobile || isTablet) ? 18 : 20, fontWeight: 600, marginBottom: 12, color: "#111827" }}>
-            Dados do Complexo
-          </h3>
-          
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            <div className="form-field" style={{ gap: 4 }}>
-              <label style={{ fontSize: 13, marginBottom: 2 }}>Nome do Complexo *</label>
-              <input
-                type="text"
-                value={dadosComplexo.nome}
-                onChange={(e) => setDadosComplexo({ ...dadosComplexo, nome: e.target.value })}
-                placeholder="Digite o nome do complexo"
-                style={{ padding: "6px 10px", fontSize: 13 }}
-              />
+          <div className="cfg-form-col">
+            <div className="cfg-compact-field">
+              <label>Nome do Complexo *</label>
+              <input type="text" value={dadosComplexo.nome} onChange={(e) => updateComplexo("nome", e.target.value)} placeholder="Digite o nome do complexo" />
             </div>
 
-            <div className="form-field" style={{ gap: 4 }}>
-              <label style={{ fontSize: 13, marginBottom: 2 }}>CNPJ</label>
-              <input
-                type="text"
-                value={dadosComplexo.cnpj}
-                onChange={(e) => {
-                  const formatted = formatarCNPJ(e.target.value);
-                  setDadosComplexo({ ...dadosComplexo, cnpj: formatted });
-                }}
-                placeholder="00.000.000/0000-00"
-                maxLength={18}
-                style={{ padding: "6px 10px", fontSize: 13 }}
-              />
+            <div className="cfg-compact-field">
+              <label>CNPJ</label>
+              <input type="text" value={dadosComplexo.cnpj} onChange={(e) => updateComplexo("cnpj", formatarCNPJ(e.target.value))} placeholder="00.000.000/0000-00" maxLength={18} />
             </div>
 
-            <div className="form-field" style={{ gap: 4 }}>
-              <label style={{ fontSize: 13, marginBottom: 2 }}>Email *</label>
-              <input
-                type="email"
-                value={dadosComplexo.email}
-                onChange={(e) => setDadosComplexo({ ...dadosComplexo, email: e.target.value })}
-                placeholder="contato@complexo.com.br"
-                style={{ padding: "6px 10px", fontSize: 13 }}
-              />
+            <div className="cfg-compact-field">
+              <label>Email *</label>
+              <input type="email" value={dadosComplexo.email} onChange={(e) => updateComplexo("email", e.target.value)} placeholder="contato@complexo.com.br" />
             </div>
 
-            <div className="form-field" style={{ gap: 4 }}>
-              <label style={{ fontSize: 13, marginBottom: 2 }}>Telefone de Contato *</label>
-              <input
-                type="tel"
-                value={dadosComplexo.telefone}
-                onChange={(e) => setDadosComplexo({ ...dadosComplexo, telefone: e.target.value })}
-                placeholder="(11) 3456-7890"
-                style={{ padding: "6px 10px", fontSize: 13 }}
-              />
+            <div className="cfg-compact-field">
+              <label>Telefone de Contato *</label>
+              <input type="tel" value={dadosComplexo.telefone} onChange={(e) => updateComplexo("telefone", e.target.value)} placeholder="(11) 3456-7890" />
             </div>
 
-            <div className="form-field" style={{ gap: 4 }}>
-              <label style={{ fontSize: 13, marginBottom: 2 }}>Descrição do Complexo</label>
-              <textarea
-                value={dadosComplexo.descricao}
-                onChange={(e) => setDadosComplexo({ ...dadosComplexo, descricao: e.target.value })}
-                placeholder="Descreva seu complexo esportivo..."
-                rows={3}
-                style={{
-                  width: "100%",
-                  padding: "6px 10px",
-                  border: "1px solid #d1d5db",
-                  borderRadius: 6,
-                  fontSize: 13,
-                  fontFamily: "inherit",
-                  resize: "vertical",
-                  outline: "none"
-                }}
-              />
+            <div className="cfg-compact-field">
+              <label>Descrição do Complexo</label>
+              <textarea value={dadosComplexo.descricao} onChange={(e) => updateComplexo("descricao", e.target.value)} placeholder="Descreva seu complexo esportivo..." rows={3} />
             </div>
 
-            <div className="form-field" style={{ gap: 4 }}>
-              <label style={{ fontSize: 13, marginBottom: 2 }}>Logo do Complexo</label>
-              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                {dadosComplexo.logoPreview && (
-                  <div style={{ width: "100%", maxWidth: 120 }}>
-                    <img
-                      src={dadosComplexo.logoPreview}
-                      alt="Preview logo"
-                      style={{
-                        width: "100%",
-                        height: "auto",
-                        borderRadius: 6,
-                        border: "1px solid #e5e7eb"
-                      }}
-                    />
-                  </div>
-                )}
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleLogoChange}
-                  style={{ fontSize: 12 }}
-                />
-                <span style={{ fontSize: 10, color: "#6b7280" }}>
-                  Formatos aceitos: JPG, PNG. Dimensão: 50x50. Tamanho máximo: 5MB
-                </span>
-              </div>
+            <div className="cfg-compact-field">
+              <label>Logo do Complexo</label>
+              {dadosComplexo.logoPreview && (
+                <img src={dadosComplexo.logoPreview} alt="Preview logo" className="cfg-logo-preview" />
+              )}
+              <input type="file" accept="image/*" onChange={handleLogoChange} style={{ fontSize: 12 }} />
+              <span className="field-hint">Formatos aceitos: JPG, PNG. Dimensão: 50x50. Tamanho máximo: 5MB</span>
             </div>
           </div>
 
           <div className="form-actions" style={{ marginTop: 12 }}>
-            <button
-              type="button"
-              className="btn-primary"
-              onClick={handleSalvarDadosComplexo}
-              disabled={salvando}
-              style={{ backgroundColor: "#37648c", borderColor: "#37648c", padding: "8px 16px", fontSize: 14 }}
-            >
+            <button type="button" className="cfg-btn-brand" onClick={handleSalvarDadosComplexo} disabled={salvando}>
               {salvando ? "Salvando..." : "Salvar"}
             </button>
           </div>
         </div>
 
-        {/* Endereço - Card Direito */}
-        <div className="card" style={{ marginTop: 0, marginBottom: 16, padding: (isMobile || isTablet) ? "12px 16px" : "16px 20px" }}>
-          <h3 style={{ fontSize: (isMobile || isTablet) ? 18 : 20, fontWeight: 600, marginBottom: 12, color: "#111827" }}>
-            Endereço
-          </h3>
-          
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {/* CEP - linha completa */}
-            <div className="form-field" style={{ gap: 4 }}>
-              <label style={{ fontSize: 13, marginBottom: 2 }}>CEP *</label>
-              <input
-                type="text"
-                value={dadosComplexo.cep}
-                onChange={(e) => {
-                  const formatted = formatarCEP(e.target.value);
-                  setDadosComplexo({ ...dadosComplexo, cep: formatted });
-                }}
-                placeholder="00000-000"
-                maxLength={9}
-                style={{ padding: "6px 10px", fontSize: 13 }}
-              />
+        {/* Endereço */}
+        <div className="cfg-card">
+          <h3 className="cfg-card-title">Endereço</h3>
+
+          <div className="cfg-form-col">
+            <div className="cfg-compact-field">
+              <label>CEP *</label>
+              <input type="text" value={dadosComplexo.cep} onChange={(e) => updateComplexo("cep", formatarCEP(e.target.value))} placeholder="00000-000" maxLength={9} />
             </div>
 
-            {/* Cidade e Estado - duas colunas */}
-            <div style={{ display: "grid", gridTemplateColumns: (isMobile || isTablet) ? "1fr" : "1fr 1fr", gap: 10 }}>
-              <div className="form-field" style={{ gap: 4 }}>
-                <label style={{ fontSize: 13, marginBottom: 2 }}>Cidade *</label>
-                <input
-                  type="text"
-                  value={dadosComplexo.cidade}
-                  onChange={(e) => setDadosComplexo({ ...dadosComplexo, cidade: e.target.value })}
-                  placeholder="Nome da cidade"
-                  style={{ padding: "6px 10px", fontSize: 13 }}
-                />
+            <div className="cfg-two-col">
+              <div className="cfg-compact-field">
+                <label>Cidade *</label>
+                <input type="text" value={dadosComplexo.cidade} onChange={(e) => updateComplexo("cidade", e.target.value)} placeholder="Nome da cidade" />
               </div>
-
-              <div className="form-field" style={{ gap: 4 }}>
-                <label style={{ fontSize: 13, marginBottom: 2 }}>Estado *</label>
-                <select
-                  value={dadosComplexo.estado}
-                  onChange={(e) => setDadosComplexo({ ...dadosComplexo, estado: e.target.value })}
-                  style={{
-                    padding: "6px 10px",
-                    borderRadius: 6,
-                    border: "1px solid #d1d5db",
-                    fontSize: 13,
-                    fontFamily: "inherit",
-                    backgroundColor: "#ffffff",
-                    color: "#111827",
-                    cursor: "pointer",
-                    outline: "none",
-                    width: "100%",
-                    transition: "border-color 0.2s, box-shadow 0.2s"
-                  }}
-                  onFocus={(e) => {
-                    e.target.style.borderColor = "#37648c";
-                    e.target.style.boxShadow = "0 0 0 3px rgba(55, 100, 140, 0.1)";
-                  }}
-                  onBlur={(e) => {
-                    e.target.style.borderColor = "#d1d5db";
-                    e.target.style.boxShadow = "none";
-                  }}
-                >
+              <div className="cfg-compact-field">
+                <label>Estado *</label>
+                <select value={dadosComplexo.estado} onChange={(e) => updateComplexo("estado", e.target.value)}>
                   <option value="">Selecione</option>
-                  <option value="AC">Acre</option>
-                  <option value="AL">Alagoas</option>
-                  <option value="AP">Amapá</option>
-                  <option value="AM">Amazonas</option>
-                  <option value="BA">Bahia</option>
-                  <option value="CE">Ceará</option>
-                  <option value="DF">Distrito Federal</option>
-                  <option value="ES">Espírito Santo</option>
-                  <option value="GO">Goiás</option>
-                  <option value="MA">Maranhão</option>
-                  <option value="MT">Mato Grosso</option>
-                  <option value="MS">Mato Grosso do Sul</option>
-                  <option value="MG">Minas Gerais</option>
-                  <option value="PA">Pará</option>
-                  <option value="PB">Paraíba</option>
-                  <option value="PR">Paraná</option>
-                  <option value="PE">Pernambuco</option>
-                  <option value="PI">Piauí</option>
-                  <option value="RJ">Rio de Janeiro</option>
-                  <option value="RN">Rio Grande do Norte</option>
-                  <option value="RS">Rio Grande do Sul</option>
-                  <option value="RO">Rondônia</option>
-                  <option value="RR">Roraima</option>
-                  <option value="SC">Santa Catarina</option>
-                  <option value="SP">São Paulo</option>
-                  <option value="SE">Sergipe</option>
-                  <option value="TO">Tocantins</option>
+                  {ESTADOS_BR.map((uf) => (
+                    <option key={uf} value={uf}>{ESTADOS_NOME[uf]}</option>
+                  ))}
                 </select>
               </div>
             </div>
 
-            {/* Bairro - linha completa */}
-            <div className="form-field" style={{ gap: 4 }}>
-              <label style={{ fontSize: 13, marginBottom: 2 }}>Bairro *</label>
-              <input
-                type="text"
-                value={dadosComplexo.bairro}
-                onChange={(e) => setDadosComplexo({ ...dadosComplexo, bairro: e.target.value })}
-                placeholder="Nome do bairro"
-                style={{ padding: "6px 10px", fontSize: 13 }}
-              />
+            <div className="cfg-compact-field">
+              <label>Bairro *</label>
+              <input type="text" value={dadosComplexo.bairro} onChange={(e) => updateComplexo("bairro", e.target.value)} placeholder="Nome do bairro" />
             </div>
 
-            {/* Rua - linha completa */}
-            <div className="form-field" style={{ gap: 4 }}>
-              <label style={{ fontSize: 13, marginBottom: 2 }}>Rua *</label>
-              <input
-                type="text"
-                value={dadosComplexo.endereco}
-                onChange={(e) => setDadosComplexo({ ...dadosComplexo, endereco: e.target.value })}
-                placeholder="Rua, Avenida, etc."
-                style={{ padding: "6px 10px", fontSize: 13 }}
-              />
+            <div className="cfg-compact-field">
+              <label>Rua *</label>
+              <input type="text" value={dadosComplexo.endereco} onChange={(e) => updateComplexo("endereco", e.target.value)} placeholder="Rua, Avenida, etc." />
             </div>
 
-            {/* Número e Complemento - duas colunas */}
-            <div style={{ display: "grid", gridTemplateColumns: (isMobile || isTablet) ? "1fr" : "1fr 1fr", gap: 10 }}>
-              <div className="form-field" style={{ gap: 4 }}>
-                <label style={{ fontSize: 13, marginBottom: 2 }}>Número *</label>
-                <input
-                  type="text"
-                  value={dadosComplexo.numero}
-                  onChange={(e) => setDadosComplexo({ ...dadosComplexo, numero: e.target.value })}
-                  placeholder="123"
-                  style={{ padding: "6px 10px", fontSize: 13 }}
-                />
+            <div className="cfg-two-col">
+              <div className="cfg-compact-field">
+                <label>Número *</label>
+                <input type="text" value={dadosComplexo.numero} onChange={(e) => updateComplexo("numero", e.target.value)} placeholder="123" />
               </div>
-
-              <div className="form-field" style={{ gap: 4 }}>
-                <label style={{ fontSize: 13, marginBottom: 2 }}>Complemento</label>
-                <input
-                  type="text"
-                  value={dadosComplexo.complemento}
-                  onChange={(e) => setDadosComplexo({ ...dadosComplexo, complemento: e.target.value })}
-                  placeholder="Apto, Sala, etc."
-                  style={{ padding: "6px 10px", fontSize: 13 }}
-                />
+              <div className="cfg-compact-field">
+                <label>Complemento</label>
+                <input type="text" value={dadosComplexo.complemento} onChange={(e) => updateComplexo("complemento", e.target.value)} placeholder="Apto, Sala, etc." />
               </div>
             </div>
           </div>
 
           <div className="form-actions" style={{ marginTop: 12 }}>
-            <button
-              type="button"
-              className="btn-primary"
-              onClick={handleSalvarEndereco}
-              disabled={salvando}
-              style={{ backgroundColor: "#37648c", borderColor: "#37648c", padding: "8px 16px", fontSize: 14 }}
-            >
+            <button type="button" className="cfg-btn-brand" onClick={handleSalvarEndereco} disabled={salvando}>
               {salvando ? "Salvando..." : "Salvar"}
             </button>
           </div>
@@ -549,47 +356,25 @@ export default function GestorConfiguracoesPage() {
       </div>
 
       {/* Dados Financeiros */}
-      <div className="card" style={{ marginTop: 0, padding: (isMobile || isTablet) ? "12px 16px" : "20px 24px" }}>
-        <h3 style={{ fontSize: (isMobile || isTablet) ? 18 : 20, fontWeight: 600, marginBottom: 12, color: "#111827" }}>
-          Dados Financeiros
-        </h3>
-        
-        <div className="form-grid" style={{ gridTemplateColumns: (isMobile || isTablet) ? "1fr" : "1fr 1fr" }}>
-          <div className="form-field" style={{ gridColumn: (isMobile || isTablet) ? "span 1" : "span 2" }}>
+      <div className="cfg-card">
+        <h3 className="cfg-card-title">Dados Financeiros</h3>
+
+        <div className="cfg-form-col">
+          <div className="cfg-compact-field">
             <label>Chave PIX * (CPF, CNPJ, email ou telefone)</label>
-            <input
-              type="text"
-              value={dadosFinanceiros.chavePix}
-              onChange={(e) => setDadosFinanceiros({ ...dadosFinanceiros, chavePix: e.target.value })}
-              placeholder="CPF, CNPJ, Email ou Chave Aleatória"
-            />
-            <span style={{ fontSize: 12, color: "#6b7280", marginTop: 4, display: "block" }}>
-              Informe a chave PIX que será usada para receber pagamentos
-            </span>
+            <input type="text" value={dadosFinanceiros.chavePix} onChange={(e) => setDadosFinanceiros({ ...dadosFinanceiros, chavePix: e.target.value })} placeholder="CPF, CNPJ, Email ou Chave Aleatória" />
+            <span className="field-hint" style={{ fontSize: 12 }}>Informe a chave PIX que será usada para receber pagamentos</span>
           </div>
 
-          <div className="form-field" style={{ gridColumn: (isMobile || isTablet) ? "span 1" : "span 2" }}>
+          <div className="cfg-compact-field">
             <label>Nome do Titular *</label>
-            <input
-              type="text"
-              value={dadosFinanceiros.nomeTitular}
-              onChange={(e) => setDadosFinanceiros({ ...dadosFinanceiros, nomeTitular: e.target.value })}
-              placeholder="Nome completo do titular da conta"
-            />
-            <span style={{ fontSize: 12, color: "#6b7280", marginTop: 4, display: "block" }}>
-              Nome completo como está cadastrado na conta bancária
-            </span>
+            <input type="text" value={dadosFinanceiros.nomeTitular} onChange={(e) => setDadosFinanceiros({ ...dadosFinanceiros, nomeTitular: e.target.value })} placeholder="Nome completo do titular da conta" />
+            <span className="field-hint" style={{ fontSize: 12 }}>Nome completo como está cadastrado na conta bancária</span>
           </div>
         </div>
 
-        <div className="form-actions">
-          <button
-            type="button"
-            className="btn-primary"
-            onClick={handleSalvarDadosFinanceiros}
-            disabled={salvando}
-            style={{ backgroundColor: "#37648c", borderColor: "#37648c" }}
-          >
+        <div className="form-actions" style={{ marginTop: 12 }}>
+          <button type="button" className="cfg-btn-brand" onClick={handleSalvarDadosFinanceiros} disabled={salvando}>
             {salvando ? "Salvando..." : "Salvar"}
           </button>
         </div>

@@ -1,9 +1,13 @@
 import React, { useEffect, useState } from "react";
-import api from "../../services/api";
+import { useAdminEmpresas, useAdminQuadras, useAdminAgenda } from "../../hooks/api";
 import { useAuth } from "../../context/AuthContext";
 
 export default function AdminAgendaEditPage() {
   const { usuario } = useAuth();
+
+  const { listar: listarEmpresas } = useAdminEmpresas();
+  const { listar: listarQuadras } = useAdminQuadras();
+  const { listarRegras, listarBloqueios, editarRegra: editarRegraApi, excluirRegra: excluirRegraApi, excluirBloqueio: excluirBloqueioApi } = useAdminAgenda();
 
   const [empresas, setEmpresas] = useState([]);
   const [empresaSelecionadaId, setEmpresaSelecionadaId] = useState("");
@@ -30,15 +34,6 @@ export default function AdminAgendaEditPage() {
     preco_hora: "",
   });
 
-  // Edição de bloqueio (opcional)
-  const [bloqueioEmEdicaoId, setBloqueioEmEdicaoId] = useState(null);
-  const [bloqueioEdicaoForm, setBloqueioEdicaoForm] = useState({
-    data: "",
-    hora_inicio: "",
-    hora_fim: "",
-    motivo: "",
-  });
-
   function formatarNomeEmpresa(empresa) {
     if (!empresa) return "—";
     const nome = empresa.nome || "Empresa";
@@ -63,7 +58,7 @@ export default function AdminAgendaEditPage() {
         setErro("");
         setMensagem("");
 
-        const { data } = await api.get("/admin/empresas");
+        const data = await listarEmpresas();
         const lista = Array.isArray(data) ? data : data.empresas || data || [];
         setEmpresas(lista);
       } catch (err) {
@@ -76,7 +71,7 @@ export default function AdminAgendaEditPage() {
     }
 
     carregarEmpresas();
-  }, [usuario]);
+  }, [usuario, listarEmpresas]);
 
   // 2) Quando escolhe empresa → carrega quadras dessa empresa (ADMIN)
   useEffect(() => {
@@ -94,7 +89,7 @@ export default function AdminAgendaEditPage() {
         setErro("");
         setMensagem("");
 
-        const { data } = await api.get("/admin/quadras", { params: { empresaId: empresaSelecionadaId } });
+        const data = await listarQuadras({ empresaId: empresaSelecionadaId });
         const lista = Array.isArray(data) ? data : data.quadras || data || [];
         setQuadras(lista);
 
@@ -111,7 +106,7 @@ export default function AdminAgendaEditPage() {
     }
 
     carregarQuadras();
-  }, [empresaSelecionadaId]);
+  }, [empresaSelecionadaId, listarQuadras]);
 
   // 3) Quando escolhe quadra → carrega regras + bloqueios (ADMIN)
   useEffect(() => {
@@ -127,13 +122,11 @@ export default function AdminAgendaEditPage() {
         setErro("");
         setMensagem("");
 
-        const respRegras = await api.get("/admin/agenda/regras", { params: { quadraId: quadraSelecionadaId } });
-        const bodyRegras = respRegras.data;
-        setRegras(bodyRegras.regras || bodyRegras || []);
+        const dataRegras = await listarRegras({ quadraId: quadraSelecionadaId });
+        setRegras(dataRegras?.regras || dataRegras || []);
 
-        const respBloqueios = await api.get("/admin/agenda/bloqueios", { params: { quadraId: quadraSelecionadaId } });
-        const bodyBloqueios = respBloqueios.data;
-        setBloqueios(bodyBloqueios.bloqueios || bodyBloqueios || []);
+        const dataBloqueios = await listarBloqueios({ quadraId: quadraSelecionadaId });
+        setBloqueios(dataBloqueios?.bloqueios || dataBloqueios || []);
       } catch (err) {
         console.error("[AdminAgendaEditPage] Erro ao carregar agenda:", err);
         const msg = err.response?.data?.error || "Erro ao carregar regras/bloqueios dessa quadra.";
@@ -144,7 +137,7 @@ export default function AdminAgendaEditPage() {
     }
 
     carregarAgenda();
-  }, [quadraSelecionadaId]);
+  }, [quadraSelecionadaId, listarRegras, listarBloqueios]);
 
   // CRUD Regra (ADMIN)
   async function salvarRegraEdicao(regraId) {
@@ -152,7 +145,7 @@ export default function AdminAgendaEditPage() {
       setErro("");
       setMensagem("");
 
-      await api.put(`/admin/agenda/regras/${regraId}`, {
+      await editarRegraApi(regraId, {
         quadraId: quadraSelecionadaId,
         diaSemana: regraEdicaoForm.dia_semana,
         horaInicio: regraEdicaoForm.hora_inicio,
@@ -163,8 +156,8 @@ export default function AdminAgendaEditPage() {
       setMensagem("Regra atualizada.");
       setRegraEmEdicaoId(null);
 
-      const respRegras = await api.get("/admin/agenda/regras", { params: { quadraId: quadraSelecionadaId } });
-      setRegras(respRegras.data?.regras || []);
+      const dataRegras = await listarRegras({ quadraId: quadraSelecionadaId });
+      setRegras(dataRegras?.regras || []);
     } catch (err) {
       console.error("[AdminAgendaEditPage] Erro ao salvar regra:", err);
       setErro(err.response?.data?.error || "Erro ao salvar regra.");
@@ -176,11 +169,11 @@ export default function AdminAgendaEditPage() {
       setErro("");
       setMensagem("");
 
-      await api.delete(`/admin/agenda/regras/${regraId}`);
+      await excluirRegraApi(regraId);
       setMensagem("Regra excluída.");
 
-      const respRegras = await api.get("/admin/agenda/regras", { params: { quadraId: quadraSelecionadaId } });
-      setRegras(respRegras.data?.regras || []);
+      const dataRegras = await listarRegras({ quadraId: quadraSelecionadaId });
+      setRegras(dataRegras?.regras || []);
     } catch (err) {
       console.error("[AdminAgendaEditPage] Erro ao excluir regra:", err);
       setErro(err.response?.data?.error || "Erro ao excluir regra.");
@@ -193,11 +186,11 @@ export default function AdminAgendaEditPage() {
       setErro("");
       setMensagem("");
 
-      await api.delete(`/admin/agenda/bloqueios/${bloqueioId}`);
+      await excluirBloqueioApi(bloqueioId);
       setMensagem("Bloqueio excluído.");
 
-      const resp = await api.get("/admin/agenda/bloqueios", { params: { quadraId: quadraSelecionadaId } });
-      setBloqueios(resp.data?.bloqueios || []);
+      const dataBloqueios = await listarBloqueios({ quadraId: quadraSelecionadaId });
+      setBloqueios(dataBloqueios?.bloqueios || []);
     } catch (err) {
       console.error("[AdminAgendaEditPage] Erro ao excluir bloqueio:", err);
       setErro(err.response?.data?.error || "Erro ao excluir bloqueio.");

@@ -1,0 +1,208 @@
+/* ===== VaiterPlay — Componentes UI padronizados ===== */
+
+/* ---------- LoadingSpinner ---------- */
+
+@keyframes vtp-spin {
+  to { transform: rotate(360deg); }
+}
+
+.vtp-spinner {
+  display: inline-block;
+  border-radius: 50%;
+  border-style: solid;
+  border-color: var(--color-border);
+  border-top-color: var(--color-brand);
+  animation: vtp-spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
+.vtp-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 40px 20px;
+}
+
+.vtp-loading-text {
+  font-size: 14px;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.vtp-loading-card {
+  text-align: center;
+}
+
+.vtp-loading-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #6b7280;
+}
+
+/* ---------- ErrorMessage ---------- */
+
+.vtp-error-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  background-color: #fee2e2;
+  border: 1px solid #fca5a5;
+  border-radius: 8px;
+  color: #991b1b;
+  font-size: 14px;
+  margin-bottom: 16px;
+}
+
+.vtp-error-banner-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.vtp-error-icon {
+  flex-shrink: 0;
+}
+
+.vtp-error-banner-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.vtp-error-retry-link {
+  background: none;
+  border: none;
+  color: #991b1b;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 0;
+  white-space: nowrap;
+}
+
+.vtp-error-retry-link:hover {
+  color: #7f1d1d;
+}
+
+.vtp-error-dismiss {
+  background: none;
+  border: none;
+  color: #991b1b;
+  font-size: 20px;
+  cursor: pointer;
+  padding: 0 2px;
+  line-height: 1;
+  opacity: 0.7;
+}
+
+.vtp-error-dismiss:hover {
+  opacity: 1;
+}
+
+.vtp-error-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 60px 40px;
+  text-align: center;
+}
+
+.vtp-error-card-text {
+  font-size: 15px;
+  color: #991b1b;
+  font-weight: 500;
+  max-width: 400px;
+}
+
+.vtp-error-retry-btn {
+  padding: 8px 20px;
+  border-radius: 6px;
+  border: 1px solid #fca5a5;
+  background-color: #fff;
+  color: #991b1b;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.vtp-error-retry-btn:hover {
+  background-color: #fee2e2;
+}
+
+/* ---------- EmptyState ---------- */
+
+.vtp-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 60px 40px;
+  text-align: center;
+}
+
+.vtp-empty-compact {
+  padding: 30px 20px;
+  gap: 8px;
+}
+
+.vtp-empty-icon {
+  color: #9ca3af;
+  margin-bottom: 4px;
+}
+
+.vtp-empty-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #374151;
+}
+
+.vtp-empty-desc {
+  font-size: 14px;
+  color: #6b7280;
+  max-width: 360px;
+  line-height: 1.5;
+}
+
+.vtp-empty-compact .vtp-empty-icon svg {
+  width: 40px;
+  height: 40px;
+}
+
+.vtp-empty-compact .vtp-empty-title {
+  font-size: 14px;
+}
+
+.vtp-empty-compact .vtp-empty-desc {
+  font-size: 13px;
+}
+
+.vtp-empty-action {
+  margin-top: 8px;
+  padding: 8px 20px;
+  border-radius: 6px;
+  border: none;
+  background-color: var(--color-brand);
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.vtp-empty-action:hover {
+  background-color: var(--color-brand-dark);
+}

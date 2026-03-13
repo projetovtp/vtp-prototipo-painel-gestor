@@ -1,6 +1,7 @@
 // src/App.jsx
-import React from "react";
-import { Routes, Route, Navigate } from "react-router-dom";
+import React, { useEffect } from "react";
+import { Routes, Route, Navigate, useNavigate } from "react-router-dom";
+import { setNavigate } from "./api/interceptors";
 
 import AdminLayout from "./layouts/AdminLayout";
 import GestorLayout from "./layouts/GestorLayout";
@@ -24,7 +25,6 @@ import GestorQuadrasPage from "./pages/gestor/GestorQuadrasPage";
 import GestorQuadrasListPage from "./pages/gestor/GestorQuadrasListPage";
 import GestorQuadraEditarPage from "./pages/gestor/GestorQuadraEditarPage";
 import GestorEmpresaEditarPage from "./pages/gestor/GestorEmpresaEditarPage";
-import GestorAgendaEditPage from "./pages/gestor/GestorAgendaEditPage.jsx";
 import GestorReservasPage from "./pages/gestor/GestorReservasPage";
 import GestorFinanceiroPage from "./pages/gestor/GestorFinanceiroPage";
 import GestorClientesPage from "./pages/gestor/GestorClientesPage";
@@ -55,6 +55,12 @@ import RotaPrivada from "./components/RotaPrivada"; // guarda de rota (admin/ges
 import DeviceRouter from "./components/DeviceRouter";
 
 function App() {
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    setNavigate(navigate);
+  }, [navigate]);
+
   return (
     <Routes>
       {/* Landing Page */}
@@ -125,9 +131,6 @@ function App() {
         <Route path="regras-de-horarios" element={<GestorRegrasSelecaoPage />} />
         <Route path="regras-de-horarios/regras" element={<GestorAgendaPage />} />
         <Route path="regras-de-horarios/bloqueios" element={<GestorBloqueiosPage />} />
-
-        {/* Página de edição da agenda (regras de horários + bloqueios) */}
-        <Route path="agenda/editar" element={<GestorAgendaEditPage />} />
 
         {/* Reservas */}
         <Route path="reservas" element={<GestorReservasPage />} />

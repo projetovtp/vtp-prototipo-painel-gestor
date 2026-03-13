@@ -1,131 +1,90 @@
-// src/pages/gestor/GestorConfiguracoesQuadrasPage.jsx
-import React, { useEffect, useState } from "react";
-import api from "../../services/api";
-import { useAuth } from "../../context/AuthContext";
+import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useDevice } from "../../hooks/useDevice";
+import { EmptyState } from "../../components/ui";
+
+const MOCK_QUADRAS = [
+  {
+    id: 1, nome: "Indoor - Futsal", estrutura: "Indoor", material: "Sintético",
+    modalidades: ["Futsal", "Handebol"], quantidade_quadras: 2,
+    apelido: "Quadra Central", empresa_id: 1, status: "ativa",
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: 2, nome: "Externa - Society", estrutura: "Externa", material: "Gramado Natural",
+    modalidades: ["Society 5x5", "Society 7x7", "Futebol de campo"], quantidade_quadras: 3,
+    apelido: "Campão", empresa_id: 1, status: "ativa",
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: 3, nome: "Coberta - Beach Tennis", estrutura: "Coberta", material: "Areia",
+    modalidades: ["Beach Tennis", "Vôlei de praia", "Futvôlei"], quantidade_quadras: 2,
+    apelido: "Arena de Areia", empresa_id: 1, status: "ativa",
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: 4, nome: "Indoor - Basquete", estrutura: "Indoor", material: "Cimento",
+    modalidades: ["Basquete"], quantidade_quadras: 1,
+    apelido: "Quadra NBA", empresa_id: 1, status: "inativa",
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: 5, nome: "Coberta - Tênis", estrutura: "Coberta", material: "Saibro",
+    modalidades: ["Tênis", "Pádel"], quantidade_quadras: 4,
+    apelido: "Courts", empresa_id: 1, status: "ativa",
+    created_at: new Date().toISOString(),
+  },
+  {
+    id: 6, nome: "Externa - Vôlei", estrutura: "Externa", material: "Areia",
+    modalidades: ["Vôlei de praia"], quantidade_quadras: 1,
+    apelido: null, empresa_id: 1, status: "inativa",
+    created_at: new Date().toISOString(),
+  },
+];
+
+const MOCK_EMPRESAS = [
+  { id: 1, nome: "Complexo Esportivo VTP", endereco_resumo: "Rua das Quadras, 123 - São Paulo, SP" },
+];
+
+const ESTRUTURAS = ["Indoor", "Coberta", "Externa"];
+const MATERIAIS = ["Sintético", "Gramado Natural", "Cimento", "Madeira", "Areia", "Saibro"];
+
+function getStatusLabel(status) {
+  const s = String(status || "").toLowerCase();
+  if (s === "ativa") return "Ativa";
+  if (s === "inativa") return "Inativa";
+  return "Status não informado";
+}
+
+function getQuadraDisplayName(quadra) {
+  if (quadra.apelido) return quadra.apelido;
+  if (quadra.nome) return quadra.nome;
+  return `${quadra.estrutura || "Quadra"}${quadra.modalidades?.length ? ` - ${quadra.modalidades[0]}` : ""}`;
+}
 
 export default function GestorConfiguracoesQuadrasPage() {
-  const { usuario } = useAuth();
   const navigate = useNavigate();
-  const { isMobile, isTablet } = useDevice();
 
-  const [quadras, setQuadras] = useState([]);
-  const [empresas, setEmpresas] = useState([]);
-  const [carregando, setCarregando] = useState(false);
-  const [erro, setErro] = useState("");
+  const [quadras, setQuadras] = useState(MOCK_QUADRAS);
+  const [empresas] = useState(MOCK_EMPRESAS);
 
-  // Estados do modal de adicionar/editar quadra
   const [modalAberto, setModalAberto] = useState(false);
-  const [editandoQuadraId, setEditandoQuadraId] = useState(null); // null = adicionar, número = editar
+  const [editandoQuadraId, setEditandoQuadraId] = useState(null);
   const [salvando, setSalvando] = useState(false);
   const [mensagemSucesso, setMensagemSucesso] = useState("");
   const [mensagemErro, setMensagemErro] = useState("");
 
-  // Estados do formulário
   const [formData, setFormData] = useState({
-    estrutura: "",
-    material: "",
-    modalidades: [], // Array para múltiplas modalidades
-    inputModalidade: "", // Input temporário para nova modalidade
-    quantidadeQuadras: "",
-    apelido: ""
+    estrutura: "", material: "", modalidades: [],
+    inputModalidade: "", quantidadeQuadras: "", apelido: ""
   });
 
-  // -----------------------------------
-  // Carrega quadras do gestor
-  // -----------------------------------
-  async function carregarQuadras(gestorId) {
-    try {
-      setCarregando(true);
-      setErro("");
-
-      // TODO: Quando integrar com API real, usar:
-      // const { data } = await api.get("/gestor/quadras", {
-      //   params: { gestorId },
-      // });
-      // setQuadras(data || []);
-
-      // Mock de dados para visualização
-      setQuadras([
-        {
-          id: 1,
-          nome: "Quadra Principal",
-          estrutura: "Indoor",
-          material: "Sintético",
-          modalidades: ["Futebol", "Futsal"],
-          quantidade_quadras: 2,
-          apelido: "Quadra Principal",
-          empresa_id: 1,
-          status: "ativa",
-          created_at: new Date().toISOString()
-        },
-        {
-          id: 2,
-          nome: "Quadra Externa",
-          estrutura: "Externa",
-          material: "Gramado Natural",
-          modalidades: ["Futebol", "Society", "Campo"],
-          quantidade_quadras: 1,
-          apelido: "Quadra Externa",
-          empresa_id: 1,
-          status: "ativa",
-          created_at: new Date().toISOString()
-        }
-      ]);
-    } catch (err) {
-      console.error("[GESTOR/QUADRAS] Erro ao buscar quadras:", err);
-      const mensagem =
-        err.response?.data?.error ||
-        "Erro ao carregar quadras. Tente novamente mais tarde.";
-      setErro(mensagem);
-    } finally {
-      setCarregando(false);
-    }
+  function resetForm() {
+    return { estrutura: "", material: "", modalidades: [], inputModalidade: "", quantidadeQuadras: "", apelido: "" };
   }
 
-  // -----------------------------------
-  // Carrega empresas/complexos do gestor
-  // -----------------------------------
-  async function carregarEmpresas() {
-    try {
-      // TODO: Quando integrar com API real, usar:
-      // const { data } = await api.get("/gestor/empresas");
-      // setEmpresas(data || []);
-
-      // Mock de dados para visualização
-      setEmpresas([
-        {
-          id: 1,
-          nome: "Complexo Esportivo",
-          endereco_resumo: "Rua das Quadras, 123 - São Paulo, SP"
-        }
-      ]);
-    } catch (err) {
-      console.error("[GESTOR/EMPRESAS] Erro ao buscar empresas:", err);
-      // não travo a tela por causa disso, só registro o erro no console
-    }
-  }
-
-  useEffect(() => {
-    if (!usuario?.id) return;
-    carregarQuadras(usuario.id);
-    carregarEmpresas();
-  }, [usuario]);
-
-  // -----------------------------------
-  // Ações
-  // -----------------------------------
   function handleNovaQuadra() {
     setEditandoQuadraId(null);
-    setFormData({
-      estrutura: "",
-      material: "",
-      modalidades: [],
-      inputModalidade: "",
-      quantidadeQuadras: "",
-      apelido: ""
-    });
+    setFormData(resetForm());
     setMensagemErro("");
     setMensagemSucesso("");
     setModalAberto(true);
@@ -134,14 +93,7 @@ export default function GestorConfiguracoesQuadrasPage() {
   function handleFecharModal() {
     setModalAberto(false);
     setEditandoQuadraId(null);
-    setFormData({
-      estrutura: "",
-      material: "",
-      modalidades: [],
-      inputModalidade: "",
-      quantidadeQuadras: "",
-      apelido: ""
-    });
+    setFormData(resetForm());
     setMensagemErro("");
     setMensagemSucesso("");
   }
@@ -154,10 +106,10 @@ export default function GestorConfiguracoesQuadrasPage() {
     setFormData({
       estrutura: quadra.estrutura || "",
       material: quadra.material || "",
-      modalidades: quadra.modalidades || (quadra.modalidade ? [quadra.modalidade] : []),
+      modalidades: quadra.modalidades || [],
       inputModalidade: "",
       quantidadeQuadras: quadra.quantidade_quadras?.toString() || "",
-      apelido: quadra.apelido || ""
+      apelido: quadra.apelido || "",
     });
     setMensagemErro("");
     setMensagemSucesso("");
@@ -166,840 +118,308 @@ export default function GestorConfiguracoesQuadrasPage() {
 
   function handleChange(e) {
     const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
+    setFormData(prev => ({ ...prev, [name]: value }));
   }
 
-  async function handleSubmit(e) {
+  function handleSubmit(e) {
     e.preventDefault();
-    
-    try {
-      setSalvando(true);
-      setMensagemErro("");
-      setMensagemSucesso("");
-      
-      // Validações
-      if (!formData.estrutura || !formData.material || !formData.modalidades || formData.modalidades.length === 0 || !formData.quantidadeQuadras) {
-        setMensagemErro("Estrutura, Material, Modalidade e Quantidade são obrigatórios.");
-        return;
-      }
 
-      const quantidade = parseInt(formData.quantidadeQuadras);
-      if (isNaN(quantidade) || quantidade <= 0) {
-        setMensagemErro("A quantidade de quadras deve ser um número maior que zero.");
-        return;
-      }
+    setSalvando(true);
+    setMensagemErro("");
+    setMensagemSucesso("");
 
-      // Se não tiver apelido, usar estrutura + primeira modalidade como nome
-      const primeiraModalidade = formData.modalidades.length > 0 ? formData.modalidades[0] : "";
-      const nomeQuadra = formData.apelido.trim() 
-        ? formData.apelido.trim() 
-        : `${formData.estrutura}${primeiraModalidade ? ` - ${primeiraModalidade}` : ""}`;
-
-      const dadosParaEnviar = {
-        ...formData,
-        nome: nomeQuadra
-      };
-
-      if (editandoQuadraId) {
-        // TODO: Quando integrar com API real, usar:
-        // await api.put(`/gestor/configuracoes/quadras/${editandoQuadraId}`, dadosParaEnviar);
-        
-        // Simulação de atualização
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-        
-        // Atualizar a quadra na lista local
-        setQuadras(prev => prev.map(q => {
-          if (q.id === editandoQuadraId) {
-            return {
-              ...q,
-              estrutura: formData.estrutura,
-              material: formData.material,
-              modalidades: formData.modalidades,
-              quantidade_quadras: parseInt(formData.quantidadeQuadras),
-              apelido: formData.apelido.trim() || null,
-              nome: nomeQuadra
-            };
-          }
-          return q;
-        }));
-        
-        setMensagemSucesso("Quadra atualizada com sucesso!");
-      } else {
-        // TODO: Quando integrar com API real, usar:
-        // await api.post("/gestor/configuracoes/quadras", dadosParaEnviar);
-        
-        // Simulação de salvamento
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-        
-        // Adicionar nova quadra à lista local
-        const novaQuadra = {
-          id: Date.now(), // ID temporário
-          nome: nomeQuadra,
-          estrutura: formData.estrutura,
-          material: formData.material,
-          modalidades: formData.modalidades,
-          quantidade_quadras: parseInt(formData.quantidadeQuadras),
-          apelido: formData.apelido.trim() || null,
-          empresa_id: 1, // Mock
-          status: "ativa",
-          created_at: new Date().toISOString()
-        };
-        
-        setQuadras(prev => [...prev, novaQuadra]);
-        
-        setMensagemSucesso("Quadras adicionadas com sucesso!");
-      }
-      
-      // Fechar modal após 2 segundos
-      setTimeout(() => {
-        handleFecharModal();
-      }, 2000);
-    } catch (error) {
-      console.error("[CONFIGURAÇÕES QUADRAS] Erro ao salvar:", error);
-      setMensagemErro("Erro ao salvar quadras. Tente novamente.");
-    } finally {
+    if (!formData.estrutura || !formData.material || !formData.modalidades?.length || !formData.quantidadeQuadras) {
+      setMensagemErro("Estrutura, Material, Modalidade e Quantidade são obrigatórios.");
       setSalvando(false);
-    }
-  }
-
-
-  async function handleExcluirQuadra(quadra) {
-    if (!window.confirm(`Tem certeza que deseja excluir a quadra "${quadra.nome || quadra.apelido || 'Quadra'}"? Esta ação não pode ser desfeita.`)) {
       return;
     }
 
-    try {
-      setErro("");
-
-      // TODO: Quando integrar com API real, usar:
-      // await api.delete(`/gestor/quadras/${quadra.id}`);
-
-      // Simulação de exclusão
-      await new Promise((resolve) => setTimeout(resolve, 500));
-
-      // Remover a quadra da lista local
-      setQuadras(prev => prev.filter(q => q.id !== quadra.id));
-
-      setMensagemSucesso("Quadra excluída com sucesso!");
-      setTimeout(() => {
-        setMensagemSucesso("");
-      }, 3000);
-    } catch (err) {
-      console.error("[GESTOR/QUADRAS] Erro ao excluir quadra:", err);
-      const mensagem =
-        err.response?.data?.error ||
-        "Erro ao excluir quadra. Tente novamente.";
-      setErro(mensagem);
+    const quantidade = parseInt(formData.quantidadeQuadras);
+    if (isNaN(quantidade) || quantidade <= 0) {
+      setMensagemErro("A quantidade de quadras deve ser um número maior que zero.");
+      setSalvando(false);
+      return;
     }
+
+    const primeiraModalidade = formData.modalidades[0] || "";
+    const nomeQuadra = formData.apelido.trim()
+      ? formData.apelido.trim()
+      : `${formData.estrutura}${primeiraModalidade ? ` - ${primeiraModalidade}` : ""}`;
+
+    if (editandoQuadraId) {
+      setQuadras(prev => prev.map(q =>
+        q.id === editandoQuadraId
+          ? { ...q, estrutura: formData.estrutura, material: formData.material, modalidades: formData.modalidades, quantidade_quadras: quantidade, apelido: formData.apelido.trim() || null, nome: nomeQuadra }
+          : q
+      ));
+      setMensagemSucesso("Quadra atualizada com sucesso!");
+    } else {
+      setQuadras(prev => [...prev, {
+        id: Date.now(), nome: nomeQuadra, estrutura: formData.estrutura,
+        material: formData.material, modalidades: formData.modalidades,
+        quantidade_quadras: quantidade, apelido: formData.apelido.trim() || null,
+        empresa_id: 1, status: "ativa", created_at: new Date().toISOString()
+      }]);
+      setMensagemSucesso("Quadra adicionada com sucesso!");
+    }
+
+    setSalvando(false);
+    setTimeout(handleFecharModal, 2000);
   }
 
-  // -----------------------------------
-  // Agrupa quadras por empresa_id
-  // -----------------------------------
+  function handleToggleStatus(quadra) {
+    const estaAtiva = String(quadra.status || "").toLowerCase() === "ativa";
+    const novoStatus = estaAtiva ? "inativa" : "ativa";
+
+    setQuadras(prev => prev.map(q =>
+      q.id === quadra.id ? { ...q, status: novoStatus } : q
+    ));
+    setMensagemSucesso(`Quadra ${estaAtiva ? "desativada" : "ativada"} com sucesso!`);
+    setTimeout(() => setMensagemSucesso(""), 3000);
+  }
+
+  function handleExcluirQuadra(quadra) {
+    if (!window.confirm(`Tem certeza que deseja excluir a quadra "${getQuadraDisplayName(quadra)}"? Esta ação não pode ser desfeita.`)) return;
+
+    setQuadras(prev => prev.filter(q => q.id !== quadra.id));
+    setMensagemSucesso("Quadra excluída com sucesso!");
+    setTimeout(() => setMensagemSucesso(""), 3000);
+  }
+
   const empresasComQuadras = empresas
-    .map((empresa) => {
-      const quadrasDaEmpresa = quadras.filter(
-        (q) => q.empresa_id === empresa.id
-      );
-      return {
-        ...empresa,
-        quadras: quadrasDaEmpresa,
-      };
-    })
-    .filter((empresa) => empresa.quadras && empresa.quadras.length > 0);
+    .map((empresa) => ({
+      ...empresa,
+      quadras: quadras.filter((q) => q.empresa_id === empresa.id),
+    }))
+    .filter((empresa) => empresa.quadras?.length > 0);
+
+  function buildNamePreview() {
+    if (formData.apelido.trim()) return `Nome da quadra: ${formData.apelido.trim()}`;
+    if (formData.estrutura && formData.modalidades?.length) {
+      const extra = formData.modalidades.length > 1 ? ` (+${formData.modalidades.length - 1})` : "";
+      return `Nome da quadra será: ${formData.estrutura} - ${formData.modalidades[0]}${extra}`;
+    }
+    return "Se não informado, o nome será: Estrutura - Modalidade";
+  }
 
   return (
     <div className="page">
-      <div className="page-header" style={{ marginBottom: 16 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
-          <button
-            onClick={() => navigate("/gestor/configuracoes")}
-            style={{
-              background: "transparent",
-              border: "none",
-              cursor: "pointer",
-              padding: "8px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              borderRadius: 8,
-              color: "#6b7280",
-              transition: "all 0.2s"
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = "#f3f4f6";
-              e.currentTarget.style.color = "#111827";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = "transparent";
-              e.currentTarget.style.color = "#6b7280";
-            }}
-            title="Voltar para Configurações"
-          >
+      {/* Header */}
+      <div className="page-header">
+        <div className="cfg-header">
+          <button className="cfg-back-btn" onClick={() => navigate("/gestor/configuracoes")} title="Voltar para Configurações">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
               <path d="M19 12H5M12 19l-7-7 7-7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
           </button>
-          <h1 className="page-title" style={{ margin: 0 }}>Configurações das Quadras</h1>
+          <h1 className="cfg-title">Configurações das Quadras</h1>
         </div>
-        <button className="btn-primary" onClick={handleNovaQuadra}>
-          + Adicionar Quadra
-        </button>
+        <button className="btn-primary" onClick={handleNovaQuadra}>+ Adicionar Quadra</button>
       </div>
 
-      {carregando && (
-        <div className="card" style={{ textAlign: "center", padding: 40 }}>
-          <div>Carregando quadras...</div>
+      {/* Alertas globais */}
+      {mensagemSucesso && !modalAberto && <div className="cfg-alert cfg-alert--success">{mensagemSucesso}</div>}
+
+      {quadras.length === 0 && (
+        <div className="card" style={{ marginTop: 0 }}>
+          <EmptyState
+            titulo="Não tem nenhuma quadra"
+            descricao="Comece adicionando sua primeira quadra para gerenciar suas reservas"
+            acao={handleNovaQuadra}
+            acaoLabel="+ Adicionar Quadra"
+          />
         </div>
       )}
 
-      {erro && !carregando && (
-        <div className="card" style={{ backgroundColor: "#fee2e2", border: "1px solid #fca5a5", color: "#991b1b", padding: "12px 16px", marginBottom: 16 }}>
-          {erro}
-        </div>
-      )}
-
-      {!carregando && !erro && quadras.length === 0 && (
-        <div className="card" style={{ 
-          textAlign: "center", 
-          padding: "60px 40px",
-          backgroundColor: "#ffffff",
-          border: "1px solid #e5e7eb",
-          borderRadius: "12px"
-        }}>
-          <div style={{ marginBottom: 24 }}>
-            <svg 
-              width="64" 
-              height="64" 
-              viewBox="0 0 24 24" 
-              fill="none" 
-              xmlns="http://www.w3.org/2000/svg"
-              style={{ color: "#9ca3af", margin: "0 auto" }}
-            >
-              <path 
-                d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" 
-                fill="currentColor"
-              />
-            </svg>
-          </div>
-          <h3 style={{ fontSize: 18, fontWeight: 600, color: "#111827", marginBottom: 8 }}>
-            Não tem nenhuma quadra
-          </h3>
-          <p style={{ fontSize: 14, color: "#6b7280", marginBottom: 24 }}>
-            Comece adicionando sua primeira quadra para gerenciar suas reservas
-          </p>
-          <button 
-            className="btn-primary" 
-            onClick={handleNovaQuadra}
-            style={{ 
-              backgroundColor: "#37648c", 
-              borderColor: "#37648c",
-              padding: "12px 24px",
-              fontSize: 14,
-              fontWeight: 600
-            }}
-          >
-            + Adicionar Quadra
-          </button>
-        </div>
-      )}
-
-      {!carregando && !erro && quadras.length > 0 && (
-        <div className="quadras-por-empresa-wrapper">
+      {quadras.length > 0 && (
+        <div>
           {empresasComQuadras.length === 0 && (
             <div className="card" style={{ padding: 16, marginBottom: 16 }}>
-              <p style={{ color: "#6b7280" }}>
-                Há quadras cadastradas, mas nenhuma empresa vinculada foi
-                encontrada. Verifique seus complexos.
+              <p style={{ color: "var(--color-text-secondary)" }}>
+                Há quadras cadastradas, mas nenhuma empresa vinculada foi encontrada. Verifique seus complexos.
               </p>
             </div>
           )}
 
-          {empresasComQuadras.map((empresa) => (
-            <div key={empresa.id} className="empresa-bloco">
-              <div className="quadras-grid" style={{
-                display: "grid",
-                gridTemplateColumns: (isMobile || isTablet) ? "1fr" : "repeat(2, 1fr)",
-                gap: (isMobile || isTablet) ? 16 : 20
-              }}>
-                {empresa.quadras.map((quadra) => {
-                  const statusLower = String(quadra.status || "").toLowerCase();
-                  const estaAtiva = statusLower === "ativa";
+          <div className="cfg-quadra-grid">
+            {empresasComQuadras.flatMap((empresa) =>
+              empresa.quadras.map((quadra) => {
+                const estaAtiva = String(quadra.status || "").toLowerCase() === "ativa";
 
-                  let labelStatus = "Status não informado";
-                  if (statusLower === "ativa") labelStatus = "Ativa";
-                  else if (statusLower === "inativa") labelStatus = "Inativa";
-                  else if (statusLower === "manutencao")
-                    labelStatus = "Em manutenção";
-
-                  return (
-                    <div key={quadra.id} style={{
-                      backgroundColor: "#ffffff",
-                      borderRadius: 12,
-                      padding: (isMobile || isTablet) ? 16 : 24,
-                      minHeight: (isMobile || isTablet) ? "auto" : "320px",
-                      height: "100%",
-                      boxShadow: "0 2px 8px rgba(0, 0, 0, 0.06)",
-                      border: "1px solid #e5e7eb",
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: (isMobile || isTablet) ? 12 : 16,
-                      transition: "all 0.2s"
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.boxShadow = "0 4px 12px rgba(0, 0, 0, 0.1)";
-                      e.currentTarget.style.transform = "translateY(-2px)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.boxShadow = "0 2px 8px rgba(0, 0, 0, 0.06)";
-                      e.currentTarget.style.transform = "translateY(0)";
-                    }}
-                    >
-                      {/* Header com nome e status */}
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
-                        <div style={{ flex: 1 }}>
-                          <h3 style={{ 
-                            fontSize: 16, 
-                            fontWeight: 600, 
-                            color: "#111827", 
-                            margin: 0,
-                            marginBottom: 8
-                          }}>
-                            {quadra.nome || quadra.apelido || `${quadra.estrutura || "Quadra"}${quadra.modalidades && quadra.modalidades.length > 0 ? ` - ${quadra.modalidades[0]}` : ""}`}
-                          </h3>
-                        </div>
-                        <span
-                          style={{
-                            fontSize: 11,
-                            fontWeight: 600,
-                            padding: "4px 10px",
-                            borderRadius: 12,
-                            textTransform: "uppercase",
-                            letterSpacing: "0.5px",
-                            backgroundColor: estaAtiva ? "#d1fae5" : "#fee2e2",
-                            color: estaAtiva ? "#065f46" : "#991b1b",
-                            whiteSpace: "nowrap"
-                          }}
-                        >
-                          {labelStatus}
-                        </span>
+                return (
+                  <div key={quadra.id} className="cfg-quadra-card">
+                    <div className="cfg-quadra-card-header">
+                      <div style={{ flex: 1 }}>
+                        <h3 className="cfg-quadra-card-name">{getQuadraDisplayName(quadra)}</h3>
                       </div>
-
-                      {/* Informações em grid compacto */}
-                      <div style={{
-                        display: "grid",
-                        gridTemplateColumns: (isMobile || isTablet) ? "1fr" : "repeat(2, 1fr)",
-                        gap: (isMobile || isTablet) ? 10 : 12,
-                        padding: (isMobile || isTablet) ? "12px" : "16px",
-                        backgroundColor: "#f9fafb",
-                        borderRadius: 8,
-                        flex: 1,
-                        alignContent: "start"
-                      }}>
-                        {quadra.estrutura && (
-                          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ color: "#6b7280", flexShrink: 0 }}>
-                              <path d="M3 21h18M5 21V7l8-4v14M19 21V11l-6-4M9 9v0M9 15v0M15 11v0M15 17v0" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                            </svg>
-                            <div>
-                              <div style={{ fontSize: 10, color: "#9ca3af", fontWeight: 500 }}>Estrutura</div>
-                              <div style={{ fontSize: 13, color: "#111827", fontWeight: 500 }}>{quadra.estrutura}</div>
-                            </div>
-                          </div>
-                        )}
-                        
-                        {quadra.material && (
-                          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ color: "#6b7280", flexShrink: 0 }}>
-                              <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                            </svg>
-                            <div>
-                              <div style={{ fontSize: 10, color: "#9ca3af", fontWeight: 500 }}>Material</div>
-                              <div style={{ fontSize: 13, color: "#111827", fontWeight: 500 }}>{quadra.material}</div>
-                            </div>
-                          </div>
-                        )}
-
-                        {quadra.quantidade_quadras && (
-                          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ color: "#6b7280", flexShrink: 0 }}>
-                              <path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-                            </svg>
-                            <div>
-                              <div style={{ fontSize: 10, color: "#9ca3af", fontWeight: 500 }}>Quantidade de Quadras</div>
-                              <div style={{ fontSize: 13, color: "#111827", fontWeight: 500 }}>{quadra.quantidade_quadras} {quadra.quantidade_quadras === 1 ? "quadra" : "quadras"}</div>
-                            </div>
-                          </div>
-                        )}
-
-                        {quadra.modalidades && quadra.modalidades.length > 0 && (
-                          <div style={{ display: "flex", alignItems: "flex-start", gap: 6, gridColumn: (isMobile || isTablet) ? "span 1" : (quadra.modalidades.length > 2 ? "span 2" : "span 1") }}>
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ color: "#6b7280", flexShrink: 0, marginTop: 2 }}>
-                              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75M13 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                            </svg>
-                            <div style={{ flex: 1 }}>
-                              <div style={{ fontSize: 10, color: "#9ca3af", fontWeight: 500, marginBottom: 4 }}>Modalidades</div>
-                              <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
-                                {quadra.modalidades.map((mod, idx) => (
-                                  <span key={idx} style={{
-                                    fontSize: 11,
-                                    padding: "2px 8px",
-                                    backgroundColor: "#e0e7ff",
-                                    color: "#37648c",
-                                    borderRadius: 12,
-                                    fontWeight: 500
-                                  }}>
-                                    {mod}
-                                  </span>
-                                ))}
-                              </div>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Ações */}
-                      <div style={{ display: "flex", gap: 8, marginTop: "auto" }}>
-                        <button
-                          onClick={() => handleEditarQuadra(quadra.id)}
-                          style={{
-                            flex: 1,
-                            padding: "8px 16px",
-                            backgroundColor: "#37648c",
-                            color: "#ffffff",
-                            border: "none",
-                            borderRadius: 8,
-                            fontSize: 13,
-                            fontWeight: 600,
-                            cursor: "pointer",
-                            transition: "all 0.2s"
-                          }}
-                          onMouseEnter={(e) => {
-                            e.target.style.backgroundColor = "#2d4f6f";
-                          }}
-                          onMouseLeave={(e) => {
-                            e.target.style.backgroundColor = "#37648c";
-                          }}
-                        >
-                          Editar
-                        </button>
-
-                        <button
-                          onClick={() => handleExcluirQuadra(quadra)}
-                          style={{
-                            flex: 1,
-                            padding: "8px 16px",
-                            backgroundColor: "#ef4444",
-                            color: "#ffffff",
-                            border: "none",
-                            borderRadius: 8,
-                            fontSize: 13,
-                            fontWeight: 600,
-                            cursor: "pointer",
-                            transition: "all 0.2s"
-                          }}
-                          onMouseEnter={(e) => {
-                            e.target.style.backgroundColor = "#dc2626";
-                          }}
-                          onMouseLeave={(e) => {
-                            e.target.style.backgroundColor = "#ef4444";
-                          }}
-                        >
-                          Excluir
-                        </button>
-                      </div>
+                      <span className={`cfg-status-badge ${estaAtiva ? "cfg-status-badge--active" : "cfg-status-badge--inactive"}`}>
+                        {getStatusLabel(quadra.status)}
+                      </span>
                     </div>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
+
+                    <div className="cfg-quadra-info">
+                      {quadra.estrutura && (
+                        <div className="cfg-quadra-info-item">
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M3 21h18M5 21V7l8-4v14M19 21V11l-6-4M9 9v0M9 15v0M15 11v0M15 17v0" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                          <div>
+                            <div className="cfg-quadra-info-label">Estrutura</div>
+                            <div className="cfg-quadra-info-value">{quadra.estrutura}</div>
+                          </div>
+                        </div>
+                      )}
+
+                      {quadra.material && (
+                        <div className="cfg-quadra-info-item">
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                          <div>
+                            <div className="cfg-quadra-info-label">Material</div>
+                            <div className="cfg-quadra-info-value">{quadra.material}</div>
+                          </div>
+                        </div>
+                      )}
+
+                      {quadra.quantidade_quadras && (
+                        <div className="cfg-quadra-info-item">
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                          </svg>
+                          <div>
+                            <div className="cfg-quadra-info-label">Quantidade</div>
+                            <div className="cfg-quadra-info-value">{quadra.quantidade_quadras} {quadra.quantidade_quadras === 1 ? "quadra" : "quadras"}</div>
+                          </div>
+                        </div>
+                      )}
+
+                      {quadra.modalidades?.length > 0 && (
+                        <div className={`cfg-quadra-info-item${quadra.modalidades.length > 2 ? " cfg-quadra-info-item--wide" : ""}`} style={{ alignItems: "flex-start" }}>
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ marginTop: 2 }}>
+                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75M13 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                          <div style={{ flex: 1 }}>
+                            <div className="cfg-quadra-info-label" style={{ marginBottom: 4 }}>Modalidades</div>
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                              {quadra.modalidades.map((mod, idx) => (
+                                <span key={idx} className="cfg-mod-tag">{mod}</span>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="cfg-quadra-actions">
+                      <button className="cfg-btn-edit" onClick={() => handleEditarQuadra(quadra.id)}>Editar</button>
+                      <button
+                        className={estaAtiva ? "cfg-btn-deactivate" : "cfg-btn-activate"}
+                        onClick={() => handleToggleStatus(quadra)}
+                      >
+                        {estaAtiva ? "Desativar" : "Ativar"}
+                      </button>
+                      <button className="cfg-btn-delete" onClick={() => handleExcluirQuadra(quadra)}>Excluir</button>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
         </div>
       )}
 
-      {/* Modal de Adicionar Quadra */}
+      {/* Modal */}
       {modalAberto && (
-        <div
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: "rgba(0, 0, 0, 0.5)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 1000,
-            padding: 20,
-          }}
-          onClick={(e) => {
-            if (e.target === e.currentTarget) handleFecharModal();
-          }}
-        >
-          <div
-            style={{
-              backgroundColor: "#fff",
-              borderRadius: 12,
-              padding: (isMobile || isTablet) ? 16 : 24,
-              maxWidth: 600,
-              width: "100%",
-              maxHeight: "90vh",
-              boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1)",
-              display: "flex",
-              flexDirection: "column",
-              overflowY: "auto"
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
-              <h3 style={{ fontSize: 20, fontWeight: 600, color: "#111827", margin: 0 }}>
-                {editandoQuadraId ? "Editar Quadra" : "Adicionar Quadra"}
-              </h3>
-              <button 
-                type="button" 
-                onClick={handleFecharModal}
-                style={{
-                  background: "transparent",
-                  border: "none",
-                  fontSize: "1.5rem",
-                  color: "#9ca3af",
-                  cursor: "pointer",
-                  padding: 0,
-                  width: 32,
-                  height: 32,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                ×
-              </button>
+        <div className="cfg-modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) handleFecharModal(); }}>
+          <div className="cfg-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="cfg-modal-header">
+              <h3 className="cfg-modal-title">{editandoQuadraId ? "Editar Quadra" : "Adicionar Quadra"}</h3>
+              <button type="button" className="cfg-modal-close" onClick={handleFecharModal}>×</button>
             </div>
 
-            {mensagemSucesso && (
-              <div style={{ backgroundColor: "#d1fae5", border: "1px solid #86efac", color: "#065f46", padding: "12px 16px", borderRadius: 8, marginBottom: 16 }}>
-                {mensagemSucesso}
-              </div>
-            )}
+            {mensagemSucesso && <div className="cfg-alert cfg-alert--success" style={{ marginBottom: 16 }}>{mensagemSucesso}</div>}
+            {mensagemErro && <div className="cfg-alert cfg-alert--error" style={{ marginBottom: 16 }}>{mensagemErro}</div>}
 
-            {mensagemErro && (
-              <div style={{ backgroundColor: "#fee2e2", border: "1px solid #fca5a5", color: "#991b1b", padding: "12px 16px", borderRadius: 8, marginBottom: 16 }}>
-                {mensagemErro}
-              </div>
-            )}
-
-            <form onSubmit={handleSubmit}>
-              <div className="form-grid" style={{ gridTemplateColumns: (isMobile || isTablet) ? "1fr" : "1fr 1fr" }}>
-                {/* Estrutura */}
+            <form onSubmit={handleSubmit} className="cfg-modal-form">
+              <div className="form-grid">
                 <div className="form-field">
                   <label htmlFor="estrutura">Estrutura *</label>
-                  <select
-                    id="estrutura"
-                    name="estrutura"
-                    value={formData.estrutura}
-                    onChange={handleChange}
-                    required
-                    style={{
-                      padding: "8px 10px",
-                      borderRadius: 6,
-                      border: "1px solid #cccccc",
-                      fontSize: 14,
-                      outline: "none",
-                      width: "100%",
-                      cursor: "pointer",
-                      backgroundColor: "#ffffff",
-                      appearance: "none",
-                      backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`,
-                      backgroundRepeat: "no-repeat",
-                      backgroundPosition: "right 8px center",
-                    }}
-                    onFocus={(e) => { e.target.style.borderColor = "#37648c"; e.target.style.boxShadow = "0 0 0 1px rgba(55, 100, 140, 0.2)"; }}
-                    onBlur={(e) => { e.target.style.borderColor = "#cccccc"; e.target.style.boxShadow = "none"; }}
-                  >
+                  <select id="estrutura" name="estrutura" value={formData.estrutura} onChange={handleChange} required>
                     <option value="">Selecione</option>
-                    <option value="Indoor">Indoor</option>
-                    <option value="Coberta">Coberta</option>
-                    <option value="Externa">Externa</option>
+                    {ESTRUTURAS.map((e) => <option key={e} value={e}>{e}</option>)}
                   </select>
                 </div>
 
-                {/* Material */}
                 <div className="form-field">
                   <label htmlFor="material">Material *</label>
-                  <select
-                    id="material"
-                    name="material"
-                    value={formData.material}
-                    onChange={handleChange}
-                    required
-                    style={{
-                      padding: "8px 10px",
-                      borderRadius: 6,
-                      border: "1px solid #cccccc",
-                      fontSize: 14,
-                      outline: "none",
-                      width: "100%",
-                      cursor: "pointer",
-                      backgroundColor: "#ffffff",
-                      appearance: "none",
-                      backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`,
-                      backgroundRepeat: "no-repeat",
-                      backgroundPosition: "right 8px center",
-                    }}
-                    onFocus={(e) => { e.target.style.borderColor = "#37648c"; e.target.style.boxShadow = "0 0 0 1px rgba(55, 100, 140, 0.2)"; }}
-                    onBlur={(e) => { e.target.style.borderColor = "#cccccc"; e.target.style.boxShadow = "none"; }}
-                  >
+                  <select id="material" name="material" value={formData.material} onChange={handleChange} required>
                     <option value="">Selecione</option>
-                    <option value="Sintético">Sintético</option>
-                    <option value="Gramado Natural">Gramado Natural</option>
-                    <option value="Cimento">Cimento</option>
-                    <option value="Madeira">Madeira</option>
-                    <option value="Areia">Areia</option>
-                    <option value="Saibro">Saibro</option>
+                    {MATERIAIS.map((m) => <option key={m} value={m}>{m}</option>)}
                   </select>
                 </div>
 
-                {/* Modalidade */}
-                <div className="form-field" style={{ gridColumn: (isMobile || isTablet) ? "span 1" : "span 2" }}>
-                  <label htmlFor="modalidade-input" style={{ marginBottom: 8, display: "block", fontSize: 14, fontWeight: 500, color: "#111827" }}>
-                    Modalidade *
-                  </label>
-                  <div style={{
-                    padding: "10px 12px",
-                    border: "1px solid #d1d5db",
-                    borderRadius: 8,
-                    backgroundColor: "#ffffff",
-                    minHeight: "50px",
-                    display: "flex",
-                    flexWrap: "wrap",
-                    gap: 8,
-                    alignItems: "center",
-                    cursor: "text"
-                  }}
-                  onClick={() => {
-                    const input = document.getElementById("modalidade-input");
-                    if (input) input.focus();
-                  }}
+                <div className="form-field form-field-full">
+                  <label htmlFor="modalidade-input">Modalidade *</label>
+                  <div
+                    className="cfg-tag-input-box"
+                    onClick={() => document.getElementById("modalidade-input")?.focus()}
                   >
-                    {formData.modalidades && formData.modalidades.length > 0 && formData.modalidades.map((modalidade, index) => (
-                      <div
-                        key={index}
-                        style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: 6,
-                          padding: "6px 12px",
-                          backgroundColor: "#e0e7ff",
-                          color: "#37648c",
-                          borderRadius: 6,
-                          fontSize: 14,
-                          fontWeight: 500,
-                          border: "1px solid #c7d2fe"
-                        }}
-                      >
+                    {formData.modalidades?.map((modalidade, index) => (
+                      <div key={index} className="cfg-tag">
                         <span>{modalidade}</span>
                         <button
                           type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setFormData(prev => ({
-                              ...prev,
-                              modalidades: prev.modalidades.filter((_, i) => i !== index)
-                            }));
+                          className="cfg-tag-remove"
+                          onClick={(ev) => {
+                            ev.stopPropagation();
+                            setFormData(prev => ({ ...prev, modalidades: prev.modalidades.filter((_, i) => i !== index) }));
                           }}
-                          style={{
-                            background: "none",
-                            border: "none",
-                            color: "#37648c",
-                            cursor: "pointer",
-                            padding: 0,
-                            margin: 0,
-                            display: "flex",
-                            alignItems: "center",
-                            fontSize: 16,
-                            lineHeight: 1,
-                            marginLeft: 4
-                          }}
-                          onMouseEnter={(e) => {
-                            e.target.style.color = "#1e40af";
-                          }}
-                          onMouseLeave={(e) => {
-                            e.target.style.color = "#37648c";
-                          }}
-                        >
-                          ×
-                        </button>
+                        >×</button>
                       </div>
                     ))}
                     <input
                       id="modalidade-input"
                       type="text"
-                      placeholder={formData.modalidades && formData.modalidades.length > 0 ? "Adicionar outra modalidade..." : "Digite a modalidade e pressione Enter"}
+                      className="cfg-tag-input"
+                      placeholder={formData.modalidades?.length ? "Adicionar outra modalidade..." : "Digite a modalidade e pressione Enter"}
                       value={formData.inputModalidade || ""}
-                      onChange={(e) => {
-                        setFormData(prev => ({
-                          ...prev,
-                          inputModalidade: e.target.value
-                        }));
-                      }}
+                      onChange={(e) => setFormData(prev => ({ ...prev, inputModalidade: e.target.value }))}
                       onKeyDown={(e) => {
                         if (e.key === "Enter" && e.target.value.trim()) {
                           e.preventDefault();
-                          const novaModalidade = e.target.value.trim();
+                          const nova = e.target.value.trim();
                           setFormData(prev => {
-                            const modalidades = prev.modalidades || [];
-                            if (!modalidades.includes(novaModalidade)) {
-                              return {
-                                ...prev,
-                                modalidades: [...modalidades, novaModalidade],
-                                inputModalidade: ""
-                              };
-                            }
-                            return {
-                              ...prev,
-                              inputModalidade: ""
-                            };
+                            const mods = prev.modalidades || [];
+                            if (mods.includes(nova)) return { ...prev, inputModalidade: "" };
+                            return { ...prev, modalidades: [...mods, nova], inputModalidade: "" };
                           });
                         }
                       }}
-                      style={{
-                        border: "none",
-                        outline: "none",
-                        fontSize: 14,
-                        color: "#111827",
-                        flex: 1,
-                        minWidth: "200px",
-                        padding: "4px 0",
-                        backgroundColor: "transparent"
-                      }}
                     />
                   </div>
-                  {formData.modalidades && formData.modalidades.length > 0 && (
-                    <span style={{ fontSize: 12, color: "#6b7280", marginTop: 8, display: "block" }}>
-                      {formData.modalidades.length} {formData.modalidades.length === 1 ? "modalidade adicionada" : "modalidades adicionadas"}
-                    </span>
+                  {formData.modalidades?.length > 0 && (
+                    <small>{formData.modalidades.length} {formData.modalidades.length === 1 ? "modalidade adicionada" : "modalidades adicionadas"}</small>
                   )}
                 </div>
 
-                {/* Quantidade de Quadras */}
                 <div className="form-field">
                   <label htmlFor="quantidadeQuadras">Quantidade de Quadras *</label>
-                  <input
-                    id="quantidadeQuadras"
-                    name="quantidadeQuadras"
-                    type="number"
-                    value={formData.quantidadeQuadras}
-                    onChange={handleChange}
-                    placeholder="Ex: 2"
-                    min="1"
-                    required
-                    style={{
-                      padding: "8px 10px",
-                      borderRadius: 6,
-                      border: "1px solid #cccccc",
-                      fontSize: 14,
-                      outline: "none",
-                      width: "100%",
-                      fontFamily: "inherit"
-                    }}
-                    onFocus={(e) => { e.target.style.borderColor = "#37648c"; e.target.style.boxShadow = "0 0 0 1px rgba(55, 100, 140, 0.2)"; }}
-                    onBlur={(e) => { e.target.style.borderColor = "#cccccc"; e.target.style.boxShadow = "none"; }}
-                  />
+                  <input id="quantidadeQuadras" name="quantidadeQuadras" type="number" value={formData.quantidadeQuadras} onChange={handleChange} placeholder="Ex: 2" min="1" required />
                 </div>
 
-                {/* Apelido */}
-                <div className="form-field" style={{ gridColumn: (isMobile || isTablet) ? "span 1" : "span 2" }}>
+                <div className="form-field form-field-full">
                   <label htmlFor="apelido">Apelido</label>
-                  <input
-                    id="apelido"
-                    name="apelido"
-                    type="text"
-                    value={formData.apelido}
-                    onChange={handleChange}
-                    placeholder="Ex: Quadra Principal"
-                    style={{
-                      padding: "8px 10px",
-                      borderRadius: 6,
-                      border: "1px solid #cccccc",
-                      fontSize: 14,
-                      outline: "none",
-                      width: "100%",
-                      fontFamily: "inherit"
-                    }}
-                    onFocus={(e) => { e.target.style.borderColor = "#37648c"; e.target.style.boxShadow = "0 0 0 1px rgba(55, 100, 140, 0.2)"; }}
-                    onBlur={(e) => { e.target.style.borderColor = "#cccccc"; e.target.style.boxShadow = "none"; }}
-                  />
-                  <span style={{ fontSize: 12, color: "#6b7280", marginTop: 4, display: "block" }}>
-                    {formData.apelido.trim()
-                      ? `Nome da quadra: ${formData.apelido.trim()}`
-                      : formData.estrutura && formData.modalidades && formData.modalidades.length > 0
-                        ? `Nome da quadra será: ${formData.estrutura} - ${formData.modalidades[0]}${formData.modalidades.length > 1 ? ` (+${formData.modalidades.length - 1})` : ""}`
-                        : "Se não informado, o nome será: Estrutura - Modalidade"}
-                  </span>
+                  <input id="apelido" name="apelido" type="text" value={formData.apelido} onChange={handleChange} placeholder="Ex: Quadra Principal" />
+                  <small>{buildNamePreview()}</small>
                 </div>
               </div>
 
-              <div style={{ 
-                display: "flex", 
-                flexDirection: (isMobile || isTablet) ? "column" : "row",
-                gap: 12, 
-                justifyContent: "flex-end", 
-                marginTop: 24 
-              }}>
-                <button
-                  type="button"
-                  onClick={handleFecharModal}
-                  style={{
-                    padding: "10px 20px",
-                    backgroundColor: "#ffffff",
-                    color: "#374151",
-                    border: "1px solid #d1d5db",
-                    borderRadius: 8,
-                    fontSize: 14,
-                    fontWeight: 600,
-                    cursor: "pointer",
-                    transition: "all 0.2s"
-                  }}
-                  onMouseEnter={(e) => {
-                    e.target.style.backgroundColor = "#f9fafb";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.target.style.backgroundColor = "#ffffff";
-                  }}
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={salvando}
-                  style={{
-                    padding: "10px 20px",
-                    backgroundColor: salvando ? "#9ca3af" : "#37648c",
-                    color: "#ffffff",
-                    border: "none",
-                    borderRadius: 8,
-                    fontSize: 14,
-                    fontWeight: 600,
-                    cursor: salvando ? "not-allowed" : "pointer",
-                    transition: "all 0.2s"
-                  }}
-                  onMouseEnter={(e) => {
-                    if (!salvando) {
-                      e.target.style.backgroundColor = "#2d4f6f";
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!salvando) {
-                      e.target.style.backgroundColor = "#37648c";
-                    }
-                  }}
-                >
-                  {salvando 
-                    ? (editandoQuadraId ? "Atualizando..." : "Salvando...") 
+              <div className="cfg-modal-actions">
+                <button type="button" className="cfg-btn-cancel" onClick={handleFecharModal}>Cancelar</button>
+                <button type="submit" className="cfg-btn-submit" disabled={salvando}>
+                  {salvando
+                    ? (editandoQuadraId ? "Atualizando..." : "Salvando...")
                     : (editandoQuadraId ? "Atualizar" : "Adicionar Quadra")}
                 </button>
               </div>

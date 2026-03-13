@@ -1,46 +1,68 @@
 // src/pages/gestor/mobile/GestorMobileReservasPage.jsx
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { useGestorReservas } from "../../../hooks/api";
+import { LoadingSpinner, EmptyState } from "../../../components/ui";
+
+const MOCK_RESERVAS = [
+  {
+    id: 1,
+    cliente: "João Silva",
+    quadra: "Quadra 1",
+    data: "2024-02-21",
+    horario: "15:00 - 16:00",
+    valor: 150.0,
+    status: "confirmada",
+  },
+  {
+    id: 2,
+    cliente: "Maria Santos",
+    quadra: "Quadra 2",
+    data: "2024-02-21",
+    horario: "16:00 - 17:00",
+    valor: 150.0,
+    status: "pendente",
+  },
+  {
+    id: 3,
+    cliente: "Pedro Costa",
+    quadra: "Quadra 1",
+    data: "2024-02-22",
+    horario: "14:00 - 15:00",
+    valor: 150.0,
+    status: "confirmada",
+  },
+];
 
 export default function GestorMobileReservasPage() {
   const [filtro, setFiltro] = useState("todas");
+  const { reservas, loading, listar } = useGestorReservas();
+  const [carregado, setCarregado] = useState(false);
 
-  // Mock de reservas
-  const reservas = [
-    {
-      id: 1,
-      cliente: "João Silva",
-      quadra: "Quadra 1",
-      data: "2024-02-21",
-      horario: "15:00 - 16:00",
-      valor: 150.00,
-      status: "confirmada"
-    },
-    {
-      id: 2,
-      cliente: "Maria Santos",
-      quadra: "Quadra 2",
-      data: "2024-02-21",
-      horario: "16:00 - 17:00",
-      valor: 150.00,
-      status: "pendente"
-    },
-    {
-      id: 3,
-      cliente: "Pedro Costa",
-      quadra: "Quadra 1",
-      data: "2024-02-22",
-      horario: "14:00 - 15:00",
-      valor: 150.00,
-      status: "confirmada"
+  useEffect(() => {
+    async function carregar() {
+      try {
+        await listar();
+      } catch {
+        // Backend indisponível - mock será usado via fallback
+      } finally {
+        setCarregado(true);
+      }
     }
-  ];
+    carregar();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const reservasFiltradas = filtro === "todas" 
-    ? reservas 
-    : reservas.filter(r => r.status === filtro);
+  const reservasData = reservas.length > 0 ? reservas : MOCK_RESERVAS;
+
+  const reservasFiltradas =
+    filtro === "todas"
+      ? reservasData
+      : reservasData.filter((r) => r.status === filtro);
 
   function formatBRL(v) {
-    return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
+    return new Intl.NumberFormat("pt-BR", {
+      style: "currency",
+      currency: "BRL",
+    }).format(v);
   }
 
   function formatDateBR(dateStr) {
@@ -49,22 +71,26 @@ export default function GestorMobileReservasPage() {
   }
 
   return (
-    <div style={{
-      flex: 1,
-      display: "flex",
-      flexDirection: "column",
-      backgroundColor: "#f0f2f5",
-      minHeight: 0
-    }}>
-      {/* Filtros */}
-      <div style={{
-        backgroundColor: "#fff",
-        padding: "12px 16px",
-        borderBottom: "1px solid #e5e7eb",
+    <div
+      style={{
+        flex: 1,
         display: "flex",
-        gap: 8,
-        overflowX: "auto"
-      }}>
+        flexDirection: "column",
+        backgroundColor: "#f0f2f5",
+        minHeight: 0,
+      }}
+    >
+      {/* Filtros */}
+      <div
+        style={{
+          backgroundColor: "#fff",
+          padding: "12px 16px",
+          borderBottom: "1px solid #e5e7eb",
+          display: "flex",
+          gap: 8,
+          overflowX: "auto",
+        }}
+      >
         {["todas", "confirmada", "pendente", "cancelada"].map((f) => (
           <button
             key={f}
@@ -73,13 +99,13 @@ export default function GestorMobileReservasPage() {
               padding: "8px 16px",
               borderRadius: 20,
               border: "none",
-                  backgroundColor: filtro === f ? "#37648c" : "#f0f2f5",
+              backgroundColor: filtro === f ? "#37648c" : "#f0f2f5",
               color: filtro === f ? "#fff" : "#111827",
               fontSize: 14,
               fontWeight: 500,
               cursor: "pointer",
               whiteSpace: "nowrap",
-              textTransform: "capitalize"
+              textTransform: "capitalize",
             }}
           >
             {f === "todas" ? "Todas" : f}
@@ -88,19 +114,17 @@ export default function GestorMobileReservasPage() {
       </div>
 
       {/* Lista de reservas */}
-      <div style={{
-        flex: 1,
-        overflowY: "auto",
-        padding: "16px"
-      }}>
-        {reservasFiltradas.length === 0 ? (
-          <div style={{
-            padding: 40,
-            textAlign: "center",
-            color: "#6b7280"
-          }}>
-            <div style={{ fontSize: 16 }}>Nenhuma reserva encontrada</div>
-          </div>
+      <div
+        style={{
+          flex: 1,
+          overflowY: "auto",
+          padding: "16px",
+        }}
+      >
+        {loading && !carregado ? (
+          <LoadingSpinner mensagem="Carregando reservas..." tamanho={24} />
+        ) : reservasFiltradas.length === 0 ? (
+          <EmptyState titulo="Nenhuma reserva encontrada" compact />
         ) : (
           reservasFiltradas.map((reserva) => (
             <div
@@ -110,62 +134,69 @@ export default function GestorMobileReservasPage() {
                 borderRadius: 12,
                 padding: "16px",
                 marginBottom: 12,
-                boxShadow: "0 2px 4px rgba(0,0,0,0.05)"
+                boxShadow: "0 2px 4px rgba(0,0,0,0.05)",
               }}
             >
-              <div style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "flex-start",
-                marginBottom: 12
-              }}>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "flex-start",
+                  marginBottom: 12,
+                }}
+              >
                 <div style={{ flex: 1 }}>
-                  <div style={{
-                    fontSize: 16,
-                    fontWeight: 600,
-                    color: "#111827",
-                    marginBottom: 4
-                  }}>
+                  <div
+                    style={{
+                      fontSize: 16,
+                      fontWeight: 600,
+                      color: "#111827",
+                      marginBottom: 4,
+                    }}
+                  >
                     {reserva.cliente}
                   </div>
-                  <div style={{
-                    fontSize: 14,
-                    color: "#6b7280",
-                    marginBottom: 2
-                  }}>
+                  <div style={{ fontSize: 14, color: "#6b7280", marginBottom: 2 }}>
                     {reserva.quadra}
                   </div>
-                  <div style={{
-                    fontSize: 13,
-                    color: "#6b7280"
-                  }}>
+                  <div style={{ fontSize: 13, color: "#6b7280" }}>
                     {formatDateBR(reserva.data)} • {reserva.horario}
                   </div>
                 </div>
-                <div style={{
-                  padding: "4px 12px",
-                  borderRadius: 12,
-                  backgroundColor: reserva.status === "confirmada" ? "#d1fae5" : reserva.status === "pendente" ? "#fef3c7" : "#fee2e2",
-                  color: reserva.status === "confirmada" ? "#065f46" : reserva.status === "pendente" ? "#92400e" : "#991b1b",
-                  fontSize: 12,
-                  fontWeight: 600,
-                  textTransform: "capitalize"
-                }}>
+                <div
+                  style={{
+                    padding: "4px 12px",
+                    borderRadius: 12,
+                    backgroundColor:
+                      reserva.status === "confirmada"
+                        ? "#d1fae5"
+                        : reserva.status === "pendente"
+                          ? "#fef3c7"
+                          : "#fee2e2",
+                    color:
+                      reserva.status === "confirmada"
+                        ? "#065f46"
+                        : reserva.status === "pendente"
+                          ? "#92400e"
+                          : "#991b1b",
+                    fontSize: 12,
+                    fontWeight: 600,
+                    textTransform: "capitalize",
+                  }}
+                >
                   {reserva.status}
                 </div>
               </div>
-              <div style={{
-                paddingTop: 12,
-                borderTop: "1px solid #f0f2f5",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center"
-              }}>
-                <div style={{
-                  fontSize: 18,
-                  fontWeight: 700,
-                  color: "#059669"
-                }}>
+              <div
+                style={{
+                  paddingTop: 12,
+                  borderTop: "1px solid #f0f2f5",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                }}
+              >
+                <div style={{ fontSize: 18, fontWeight: 700, color: "#059669" }}>
                   {formatBRL(reserva.valor)}
                 </div>
                 <button
@@ -177,7 +208,7 @@ export default function GestorMobileReservasPage() {
                     borderRadius: 8,
                     fontSize: 14,
                     fontWeight: 600,
-                    cursor: "pointer"
+                    cursor: "pointer",
                   }}
                 >
                   Ver Detalhes

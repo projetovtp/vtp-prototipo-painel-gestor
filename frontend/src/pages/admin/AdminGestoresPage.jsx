@@ -1,11 +1,12 @@
 // src/pages/admin/AdminGestoresPage.jsx
 import React, { useEffect, useMemo, useState } from "react";
-import api from "../../services/api";
+import { useAdminGestores } from "../../hooks/api";
+import { ErrorMessage, LoadingSpinner } from "../../components/ui";
 
 export default function AdminGestoresPage() {
+  const { gestores, listar, criar, editar, promover, reenviarAtivacao: enviarAtivacao } = useAdminGestores();
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState("");
-  const [gestores, setGestores] = useState([]);
 
   // Busca
   const [busca, setBusca] = useState("");
@@ -99,9 +100,7 @@ const contagem = useMemo(() => {
     setCarregando(true);
     setErro("");
     try {
-      // Você já tem /admin/gestores-resumo no backend
-      const { data } = await api.get("/admin/gestores-resumo");
-      setGestores(Array.isArray(data) ? data : []);
+      await listar();
     } catch (err) {
       console.error(err);
       setErro(
@@ -183,12 +182,10 @@ const contagem = useMemo(() => {
 
     setSalvandoNovo(true);
     try {
-      // POST /admin/gestores (Modelo A)
-      const { data } = await api.post("/admin/usuarios", payload);
+      const data = await criar(payload);
 
       await carregar();
 
-      // Se estiver em dev mode no backend, ele retorna link_dev
       if (data?.link_dev) {
         setLinkDevCriacao(data.link_dev);
         // mantém modal aberto para copiar
@@ -234,9 +231,7 @@ const contagem = useMemo(() => {
 
     setSalvandoEdit(true);
     try {
-      // Precisa existir no backend:
-      // PUT /admin/gestores/:id
-      await api.put(`/admin/gestores/${edit.id}`, payload);
+      await editar(edit.id, payload);
 
       await carregar();
       setModalEditar(false);
@@ -261,7 +256,7 @@ const contagem = useMemo(() => {
 
   setErro("");
   try {
-    await api.put(`/admin/usuarios/${edit.id}/promover`);
+    await promover(edit.id);
     await carregar();
     setModalEditar(false);
     setEdit(null);
@@ -277,11 +272,7 @@ const contagem = useMemo(() => {
   async function reenviarAtivacao(gestorId) {
     setErro("");
     try {
-      // Precisa existir no backend:
-      // POST /admin/gestores/:id/reenviar-ativacao
-      const { data } = await api.post(
-        `/admin/gestores/${gestorId}/reenviar-ativacao`
-      );
+      const data = await enviarAtivacao(gestorId);
 
       if (data?.link_dev) {
         await copiarTexto(data.link_dev);
@@ -310,7 +301,7 @@ const contagem = useMemo(() => {
 
   setErro("");
   try {
-    await api.put(`/admin/gestores/${g.id}`, { status: novoStatus });
+    await editar(g.id, { status: novoStatus });
     await carregar();
   } catch (err) {
     console.error(err);
@@ -453,18 +444,12 @@ const contagem = useMemo(() => {
   </div>
 </div>
 
-      {erro ? (
-        <div className="card" style={{ borderColor: "#fecaca", marginBottom: 12 }}>
-          <div className="card-body" style={{ color: "#b91c1c", fontWeight: 700 }}>
-            {erro}
-          </div>
-        </div>
-      ) : null}
+      <ErrorMessage mensagem={erro} onDismiss={() => setErro(null)} />
 
       <div className="card">
         <div className="card-body">
           {carregando ? (
-            <p style={{ margin: 0, opacity: 0.8 }}>Carregando…</p>
+            <LoadingSpinner mensagem="Carregando…" tamanho={24} />
           ) : gestoresFiltrados.length === 0 ? (
             <p style={{ margin: 0, opacity: 0.8 }}>Nenhum gestor encontrado.</p>
           ) : (

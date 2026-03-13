@@ -19,7 +19,8 @@
 //   - DELETE /admin/reservas/:id
 
 import React, { useEffect, useMemo, useState } from "react";
-import api from "../../services/api";
+import { useAdminGestores, useAdminEmpresas, useAdminQuadras, useAdminReservas } from "../../hooks/api";
+import { adminReservasApi } from "../../api/endpoints/adminReservasApi";
 
 // -------------------- utils --------------------
 const round2 = (v) => Math.round((Number(v || 0) + Number.EPSILON) * 100) / 100;
@@ -124,7 +125,7 @@ function CriarReservaModal({
         preco_total: valor !== "" ? Number(valor) : 0,
       };
 
-      await api.post("/admin/reservas", body);
+      await adminReservasApi.criar(body);
 
       if (onCriada) onCriada();
       onFechar();
@@ -280,7 +281,7 @@ function EditarReservaModal({ aberto, onFechar, reserva, onAtualizado }) {
         preco_total: valor !== "" ? Number(valor) : 0,
       };
 
-      await api.put(`/admin/reservas/${reserva.id}`, body);
+      await adminReservasApi.editar(reserva.id, body);
 
       if (onAtualizado) onAtualizado();
       onFechar();
@@ -296,7 +297,7 @@ function EditarReservaModal({ aberto, onFechar, reserva, onAtualizado }) {
     try {
       setCancelando(true);
       setErro("");
-      await api.delete(`/admin/reservas/${reserva.id}`);
+      await adminReservasApi.cancelar(reserva.id);
       if (onAtualizado) onAtualizado();
       onFechar();
     } catch (e) {
@@ -452,18 +453,16 @@ function AvancadoModal({
         return;
       }
 
-      const r = await api.get("/admin/reservas", {
-        params: {
-          inicio: inicio || undefined,
-          fim: fim || undefined,
-          status: status || undefined,
-          origem: origem || undefined,
-          gestorId: gestorId || undefined,
-          empresaId: empresaId || undefined,
-          quadraId: quadraId || undefined,
-          cpf: cpf || undefined,
-          phone: phone || undefined,
-        },
+      const r = await adminReservasApi.listar({
+        inicio: inicio || undefined,
+        fim: fim || undefined,
+        status: status || undefined,
+        origem: origem || undefined,
+        gestorId: gestorId || undefined,
+        empresaId: empresaId || undefined,
+        quadraId: quadraId || undefined,
+        cpf: cpf || undefined,
+        phone: phone || undefined,
       });
 
       const list = r.data?.itens || [];
@@ -826,6 +825,11 @@ function AvancadoModal({
 
 // -------------------- PAGE: Admin Reservas (cinema clone + avançado) --------------------
 export default function AdminReservasPage() {
+  const { listar: listarGestores } = useAdminGestores();
+  const { listar: listarEmpresas } = useAdminEmpresas();
+  const { listar: listarQuadrasApi } = useAdminQuadras();
+  const { obterGrade: obterGradeApi } = useAdminReservas();
+
   // bases
   const [carregandoBases, setCarregandoBases] = useState(false);
   const [erroBases, setErroBases] = useState("");
@@ -881,16 +885,16 @@ export default function AdminReservasPage() {
       setCarregandoBases(true);
       setErroBases("");
 
-      const [rGest, rEmp, rQua] = await Promise.all([
-        api.get("/admin/gestores-resumo"),
-        api.get("/admin/empresas"),
-        api.get("/admin/quadras"),
+      const [dataGest, dataEmp, dataQua] = await Promise.all([
+        listarGestores(),
+        listarEmpresas(),
+        listarQuadrasApi(),
       ]);
 
-      setGestores(rGest.data || []);
-      setEmpresas(rEmp.data || []);
+      setGestores(dataGest || []);
+      setEmpresas(dataEmp || []);
 
-      const qPayload = rQua.data?.quadras || rQua.data || [];
+      const qPayload = dataQua?.quadras || dataQua || [];
       setQuadras(qPayload);
     } catch (e) {
       console.error("[ADMIN/RESERVAS] Erro ao carregar bases:", e);
@@ -912,16 +916,14 @@ export default function AdminReservasPage() {
         return;
       }
 
-      const r = await api.get("/admin/reservas/grade", {
-        params: {
-          quadraId,
-          dataInicio: cinemaInicio,
-          dataFim: cinemaFim,
-          filtro: cinemaFiltro,
-        },
+      const data = await obterGradeApi({
+        quadraId,
+        dataInicio: cinemaInicio,
+        dataFim: cinemaFim,
+        filtro: cinemaFiltro,
       });
 
-      const g = r.data?.grade || [];
+      const g = data?.grade || [];
       setGrade(g);
 
       if (!g.length) {

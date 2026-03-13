@@ -1,6 +1,7 @@
 // src/pages/admin/AdminQuadrasPage.jsx
 import React, { useEffect, useMemo, useState } from "react";
-import api from "../../services/api";
+import { useAdminQuadras, useAdminEmpresas } from "../../hooks/api";
+import { ErrorMessage, LoadingSpinner, EmptyState } from "../../components/ui";
 
 export default function AdminQuadrasPage() {
   console.log("[ADMIN/QUADRAS] componente renderizado");
@@ -9,8 +10,8 @@ export default function AdminQuadrasPage() {
   const [erro, setErro] = useState("");
   const [msg, setMsg] = useState("");
 
-  const [quadras, setQuadras] = useState([]);
-  const [empresas, setEmpresas] = useState([]);
+  const { quadras, listar: listarQuadras, criar: criarQuadra, editar: editarQuadra, atualizarFotos, desativar, reativar, excluir: excluirQuadra } = useAdminQuadras();
+  const { empresas, listar: listarEmpresas } = useAdminEmpresas();
 
   // filtros
   const [filtroEmpresaId, setFiltroEmpresaId] = useState("");
@@ -54,11 +55,8 @@ export default function AdminQuadrasPage() {
       setErro("");
       setMsg("");
 
-      const respEmp = await api.get("/admin/empresas");
-      setEmpresas(respEmp.data || []);
-
-      const respQ = await api.get("/admin/quadras");
-      setQuadras(respQ.data || []);
+      await listarEmpresas();
+      await listarQuadras();
     } catch (e) {
       console.error("[ADMIN/QUADRAS] Erro ao carregar:", e);
       setErro(e.response?.data?.error || "Erro ao carregar quadras (admin).");
@@ -205,12 +203,11 @@ export default function AdminQuadrasPage() {
         if (fotos.foto2) fd.append("foto2", fotos.foto2);
         if (fotos.foto3) fd.append("foto3", fotos.foto3);
 
-        const resp = await api.post("/admin/quadras", fd);
+        const data = await criarQuadra(fd);
 
         await carregarTudo();
 
-        // ✅ NOVO: mostra tela de sucesso no modal (não fecha de cara)
-        setSalvouResumo(resp?.data || null);
+        setSalvouResumo(data || null);
         setSalvouTexto("✅ Quadra criada com sucesso!");
         setSalvouNoModal(true);
       } else {
@@ -226,7 +223,7 @@ export default function AdminQuadrasPage() {
           taxa_plataforma_override: form.taxa_plataforma_override,
         };
 
-        await api.put(`/admin/quadras/${quadraEditId}`, payload);
+        await editarQuadra(quadraEditId, payload);
 
         if (fotos.foto1 || fotos.foto2 || fotos.foto3) {
           const fd = new FormData();
@@ -234,7 +231,7 @@ export default function AdminQuadrasPage() {
           if (fotos.foto2) fd.append("foto2", fotos.foto2);
           if (fotos.foto3) fd.append("foto3", fotos.foto3);
 
-          await api.put(`/admin/quadras/${quadraEditId}/fotos`, fd);
+          await atualizarFotos(quadraEditId, fd);
         }
 
         await carregarTudo();
@@ -263,11 +260,11 @@ export default function AdminQuadrasPage() {
       const statusLower = String(quadra.status || "").toLowerCase();
       const estaAtiva = statusLower === "ativa";
 
-      const rota = estaAtiva
-        ? `/admin/quadras/${quadra.id}/desativar`
-        : `/admin/quadras/${quadra.id}/reativar`;
-
-      await api.patch(rota, estaAtiva ? { motivo: "Bloqueada pelo Admin" } : undefined);
+      if (estaAtiva) {
+        await desativar(quadra.id, { motivo: "Bloqueada pelo Admin" });
+      } else {
+        await reativar(quadra.id);
+      }
       await carregarTudo();
     } catch (err) {
       console.error("[ADMIN/QUADRAS] Erro ao alterar status:", err);
@@ -284,7 +281,7 @@ export default function AdminQuadrasPage() {
     try {
       setErro("");
       setMsg("");
-      await api.delete(`/admin/quadras/${quadra.id}`);
+      await excluirQuadra(quadra.id);
       await carregarTudo();
       setMsg("Quadra excluída (soft delete).");
     } catch (err) {
@@ -410,12 +407,8 @@ export default function AdminQuadrasPage() {
         </div>
       </div>
 
-      {carregando && <p>Carregando...</p>}
-      {erro && (
-        <div className="alert alert-error" style={{ marginBottom: 16 }}>
-          {erro}
-        </div>
-      )}
+      {carregando && <LoadingSpinner mensagem="Carregando..." tamanho={24} />}
+      <ErrorMessage mensagem={erro} onDismiss={() => setErro(null)} />
       {msg && (
         <div className="alert" style={{ marginBottom: 16 }}>
           {msg}
@@ -423,7 +416,7 @@ export default function AdminQuadrasPage() {
       )}
 
       {!carregando && quadrasFiltradas.length === 0 && (
-        <p>Nenhuma quadra encontrada com os filtros atuais.</p>
+        <EmptyState titulo="Nenhuma quadra encontrada com os filtros atuais." compact />
       )}
 
       {!carregando && quadrasFiltradas.length > 0 && (

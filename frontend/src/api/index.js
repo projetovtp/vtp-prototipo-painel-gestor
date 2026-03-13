@@ -1,0 +1,23 @@
+export { default as apiClient } from "./client";
+export { setNavigate } from "./interceptors";
+export { fetchAgendaSlots } from "./agendaApi";
+
+export { authApi } from "./endpoints/authApi";
+export { adminDashboardApi } from "./endpoints/adminDashboardApi";
+export { adminGestoresApi } from "./endpoints/adminGestoresApi";
+export { adminEmpresasApi } from "./endpoints/adminEmpresasApi";
+export { adminQuadrasApi } from "./endpoints/adminQuadrasApi";
+export { adminAgendaApi } from "./endpoints/adminAgendaApi";
+export { adminReservasApi } from "./endpoints/adminReservasApi";
+export { adminFinanceiroApi } from "./endpoints/adminFinanceiroApi";
+export { adminRepassesApi } from "./endpoints/adminRepassesApi";
+export { gestorDashboardApi } from "./endpoints/gestorDashboardApi";
+export { gestorEmpresasApi } from "./endpoints/gestorEmpresasApi";
+export { gestorQuadrasApi } from "./endpoints/gestorQuadrasApi";
+export { gestorAgendaApi } from "./endpoints/gestorAgendaApi";
+export { gestorReservasApi } from "./endpoints/gestorReservasApi";
+export { gestorFinanceiroApi } from "./endpoints/gestorFinanceiroApi";
+export { gestorClientesApi } from "./endpoints/gestorClientesApi";
+export { gestorConfiguracoesApi } from "./endpoints/gestorConfiguracoesApi";
+export { gestorMensagensApi } from "./endpoints/gestorMensagensApi";
+export { gestorRelatoriosApi } from "./endpoints/gestorRelatoriosApi";

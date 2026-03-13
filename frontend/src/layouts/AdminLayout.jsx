@@ -1,22 +1,11 @@
-// src/layouts/AdminLayout.jsx
-import React, { useEffect } from "react";
+import React from "react";
 import { Outlet, NavLink, useNavigate } from "react-router-dom";
 import PainelHeader from "../components/PainelHeader";
 import { useAuth } from "../context/AuthContext";
 
 function AdminLayout() {
   const navigate = useNavigate();
-  const { usuario, carregando, logout } = useAuth();
-
-  // Guard simples (UX): se não for admin, volta pro login
-  useEffect(() => {
-    if (carregando) return;
-
-    const tipo = String(usuario?.tipo || "").toLowerCase();
-    if (!usuario || tipo !== "admin") {
-      navigate("/login", { replace: true });
-    }
-  }, [usuario, carregando, navigate]);
+  const { logout } = useAuth();
 
   return (
     <div className="layout-root">
@@ -124,7 +113,7 @@ function AdminLayout() {
       </aside>
 
       <main className="layout-main">
-        <PainelHeader titulo="Painel Admin" />
+        <PainelHeader />
         <section className="layout-content">
           <Outlet />
         </section>

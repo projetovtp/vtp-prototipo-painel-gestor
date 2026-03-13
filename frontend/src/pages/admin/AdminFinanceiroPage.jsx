@@ -1,6 +1,7 @@
 // src/pages/admin/AdminFinanceiroPage.jsx
 import React, { useEffect, useMemo, useState } from "react";
-import api from "../../services/api";
+import { useAdminFinanceiro, useAdminGestores } from "../../hooks/api";
+import { ErrorMessage } from "../../components/ui";
 import "./adminfinanceiro.css";
 
 function toISODate(d) {
@@ -49,28 +50,18 @@ export default function AdminFinanceiroPage() {
   const def = useMemo(() => defaultPeriodo30(), []);
   const [from, setFrom] = useState(def.inicio);
   const [to, setTo] = useState(def.fim);
-
-  const [gestores, setGestores] = useState([]);
   const [gestorId, setGestorId] = useState("");
 
-  const [loading, setLoading] = useState(false);
-  const [erro, setErro] = useState("");
-
-  const [overview, setOverview] = useState(null);
-  const [resumo, setResumo] = useState(null);
+  const { overview, resumo, loading, erro, obterOverview, obterResumo } = useAdminFinanceiro();
+  const { gestores, listar: listarGestores } = useAdminGestores();
 
   async function carregarGestores() {
     try {
-      const { data } = await api.get("/admin/gestores-resumo");
-      setGestores(Array.isArray(data) ? data : []);
-    } catch (e) {
-      console.warn("[ADMIN/FINANCEIRO] falha ao carregar gestores:", e);
-    }
+      await listarGestores();
+    } catch {}
   }
 
   async function carregarTudo() {
-    setErro("");
-    setLoading(true);
     try {
       const params = {
         from,
@@ -79,23 +70,11 @@ export default function AdminFinanceiroPage() {
         gestorId: gestorId || undefined,
       };
 
-      const [rOverview, rResumo] = await Promise.all([
-        api.get("/admin/financeiro-overview", { params }),
-        api.get("/admin/financeiro/resumo", { params }),
+      await Promise.all([
+        obterOverview(params),
+        obterResumo(params),
       ]);
-
-      setOverview(rOverview?.data || null);
-      setResumo(rResumo?.data || null);
-    } catch (e) {
-      console.error("[ADMIN/FINANCEIRO] erro ao carregar:", e);
-      setErro(
-        e?.response?.data?.error || e?.message || "Falha ao carregar financeiro."
-      );
-      setOverview(null);
-      setResumo(null);
-    } finally {
-      setLoading(false);
-    }
+    } catch {}
   }
 
   useEffect(() => {
@@ -293,7 +272,7 @@ export default function AdminFinanceiroPage() {
           </div>
         </div>
 
-        {erro ? <div className="af-error">{erro}</div> : null}
+        <ErrorMessage mensagem={erro} onDismiss={() => setErro(null)} />
       </div>
 
       {/* RESUMO */}

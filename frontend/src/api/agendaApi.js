@@ -1,5 +1,5 @@
 // src/api/agendaApi.js
-import api from "../services/api";
+import apiClient from "./client";
 
 /**
  * Busca slots da agenda (visão cinema)
@@ -28,7 +28,7 @@ export async function fetchAgendaSlots({
   const prefix = modeUpper === "ADMIN" ? "admin" : "gestor";
 
   try {
-    const resp = await api.get(`/${prefix}/agenda/slots`, {
+    const resp = await apiClient.get(`/${prefix}/agenda/slots`, {
       params: {
         quadraId,
         periodo,

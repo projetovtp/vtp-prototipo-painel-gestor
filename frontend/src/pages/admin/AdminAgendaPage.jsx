@@ -1,7 +1,7 @@
 // src/pages/admin/AdminAgendaPage.jsx
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import api from "../../services/api";
+import { useAdminEmpresas, useAdminQuadras, useAdminAgenda } from "../../hooks/api";
 import { useAuth } from "../../context/AuthContext";
 
 // ⚠️ IMPORTS DA AGENDA – todos vindos de src/components/agenda
@@ -17,6 +17,10 @@ import { AgendaToolbar } from "../../components/agenda/AgendaToolbar";
 
 function AdminAgendaPage() {
   const { usuario } = useAuth();
+
+  const { listar: listarEmpresas } = useAdminEmpresas();
+  const { listar: listarQuadras } = useAdminQuadras();
+  const { listarRegras, listarBloqueios, criarRegrasLote, editarRegra, excluirRegra, criarBloqueiosLote, excluirBloqueio } = useAdminAgenda();
 
   const [empresas, setEmpresas] = useState([]);
   const [empresaSelecionadaId, setEmpresaSelecionadaId] = useState("");
@@ -81,7 +85,7 @@ function AdminAgendaPage() {
       setErroEmpresas("");
       setMensagem("");
 
-      const { data } = await api.get("/admin/empresas");
+      const data = await listarEmpresas();
       setEmpresas(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error("[ADMIN/AGENDA] Erro ao buscar empresas:", err);
@@ -116,9 +120,7 @@ function AdminAgendaPage() {
       setErroQuadras("");
       setMensagem("");
 
-      const { data } = await api.get("/admin/quadras", {
-        params: { empresaId },
-      });
+      const data = await listarQuadras({ empresaId });
 
       const lista = Array.isArray(data) ? data : [];
       setQuadras(lista);
@@ -190,17 +192,13 @@ function AdminAgendaPage() {
       setErroAgenda("");
       setMensagem("");
 
-      const [respRegras, respBloqueios] = await Promise.all([
-        api.get("/admin/agenda/regras", {
-          params: { quadraId },
-        }),
-        api.get("/admin/agenda/bloqueios", {
-          params: { quadraId },
-        }),
+      const [dataRegras, dataBloqueios] = await Promise.all([
+        listarRegras({ quadraId }),
+        listarBloqueios({ quadraId }),
       ]);
 
-      setRegras(respRegras.data?.regras || []);
-      setBloqueios(respBloqueios.data?.bloqueios || []);
+      setRegras(dataRegras?.regras || []);
+      setBloqueios(dataBloqueios?.bloqueios || []);
     } catch (err) {
       console.error("[GESTOR/AGENDA] Erro ao buscar agenda:", err);
       const mensagemLocal =
@@ -340,7 +338,7 @@ function AdminAgendaPage() {
           ativo: true,
         };
 
-        await api.put(`/admin/agenda/regras/${regraEditandoId}`, payload);
+        await editarRegra(regraEditandoId, payload);
       } else {
         // CRIAÇÃO EM LOTE
         if (!selectedQuadraIds.length) {
@@ -371,7 +369,7 @@ function AdminAgendaPage() {
          ativo: true,
         };
 
-        await api.post("/admin/agenda/regras/lote", payload);
+        await criarRegrasLote(payload);
       }
 
       await carregarAgendaDaQuadra(quadraSelecionadaId);
@@ -437,9 +435,7 @@ function AdminAgendaPage() {
       setErroAgenda("");
       setMensagem("");
 
-      await api.delete(`/admin/agenda/regras/${regraId}`, {
-        data: { quadraId: quadraSelecionadaId, softDelete: true },
-      });
+      await excluirRegra(regraId);
 
       await carregarAgendaDaQuadra(quadraSelecionadaId);
       setMensagem("Regra desativada com sucesso.");
@@ -512,7 +508,7 @@ function AdminAgendaPage() {
             : "Bloqueio manual"),
       };
 
-      await api.post("/admin/agenda/bloqueios/lote", payload);
+      await criarBloqueiosLote(payload);
 
       if (quadraSelecionadaId) {
         await carregarAgendaDaQuadra(quadraSelecionadaId);
@@ -544,9 +540,7 @@ function AdminAgendaPage() {
       setErroAgenda("");
       setMensagem("");
 
-      await api.delete(`/admin/agenda/bloqueios/${bloqueioId}`, {
-        data: { quadraId: quadraSelecionadaId },
-      });
+      await excluirBloqueio(bloqueioId);
 
       await carregarAgendaDaQuadra(quadraSelecionadaId);
       setMensagem("Bloqueio removido com sucesso.");

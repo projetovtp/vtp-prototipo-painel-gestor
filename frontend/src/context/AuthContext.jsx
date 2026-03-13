@@ -1,6 +1,9 @@
-// src/context/AuthContext.jsx
-import { createContext, useContext, useEffect, useState } from "react";
-import api from "../services/api";
+import { createContext, useCallback, useContext, useEffect, useState } from "react";
+import apiClient from "../api/client";
+import { setLogoutCallback } from "../api/interceptors";
+
+const TOKEN_KEY = "vaiterplay_token";
+const USER_KEY = "vaiterplay_usuario";
 
 const AuthContext = createContext(null);
 
@@ -8,73 +11,76 @@ export function AuthProvider({ children }) {
   const [usuario, setUsuario] = useState(null);
   const [carregando, setCarregando] = useState(true);
 
-  // Função para carregar usuário do localStorage
-  const carregarUsuario = () => {
-    const token = localStorage.getItem("vaiterplay_token");
-    const userJson = localStorage.getItem("vaiterplay_usuario");
+  const logout = useCallback(() => {
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(USER_KEY);
+    setUsuario(null);
+  }, []);
+
+  useEffect(() => {
+    setLogoutCallback(logout);
+    return () => setLogoutCallback(null);
+  }, [logout]);
+
+  useEffect(() => {
+    const token = localStorage.getItem(TOKEN_KEY);
+    const userJson = localStorage.getItem(USER_KEY);
 
     if (token && userJson) {
       try {
         const user = JSON.parse(userJson);
         setUsuario(user);
-        return true;
-      } catch (e) {
-        console.error("Erro ao ler usuário do localStorage", e);
-        localStorage.removeItem("vaiterplay_token");
-        localStorage.removeItem("vaiterplay_usuario");
-        setUsuario(null);
-        return false;
+      } catch {
+        logout();
       }
     }
-    setUsuario(null);
-    return false;
-  };
 
-  useEffect(() => {
-    carregarUsuario();
     setCarregando(false);
-  }, []);
 
-  // Sincroniza o estado com localStorage quando há mudanças em outras abas
+    if (token) {
+      apiClient.get("/auth/validar-token").catch(() => {
+        // 401 handled by interceptor (calls logout); other errors ignored
+      });
+    }
+  }, [logout]);
+
   useEffect(() => {
-    const handleStorageChange = () => {
-      carregarUsuario();
+    const handleStorageChange = (e) => {
+      if (e.key !== TOKEN_KEY && e.key !== USER_KEY) return;
+
+      const token = localStorage.getItem(TOKEN_KEY);
+      const userJson = localStorage.getItem(USER_KEY);
+
+      if (token && userJson) {
+        try {
+          setUsuario(JSON.parse(userJson));
+        } catch {
+          logout();
+        }
+      } else {
+        setUsuario(null);
+      }
     };
 
-    // Escuta mudanças no localStorage (de outras abas)
     window.addEventListener("storage", handleStorageChange);
+    return () => window.removeEventListener("storage", handleStorageChange);
+  }, [logout]);
 
-    return () => {
-      window.removeEventListener("storage", handleStorageChange);
-    };
-  }, []);
-
-  async function login(email, senha) {
-    const response = await api.post("/auth/login", { email, senha });
-
+  const login = useCallback(async (email, senha) => {
+    const response = await apiClient.post("/auth/login", { email, senha });
     const { token, usuario: dadosUsuario } = response.data;
 
-    // NORMALIZA o tipo para minúsculo: "ADMIN" -> "admin", "GESTOR" -> "gestor"
     const usuarioNormalizado = {
       ...dadosUsuario,
       tipo: (dadosUsuario.tipo || "").toLowerCase(),
     };
 
-    localStorage.setItem("vaiterplay_token", token);
-    localStorage.setItem(
-      "vaiterplay_usuario",
-      JSON.stringify(usuarioNormalizado)
-    );
+    localStorage.setItem(TOKEN_KEY, token);
+    localStorage.setItem(USER_KEY, JSON.stringify(usuarioNormalizado));
     setUsuario(usuarioNormalizado);
 
     return usuarioNormalizado;
-  }
-
-  function logout() {
-    localStorage.removeItem("vaiterplay_token");
-    localStorage.removeItem("vaiterplay_usuario");
-    setUsuario(null);
-  }
+  }, []);
 
   return (
     <AuthContext.Provider

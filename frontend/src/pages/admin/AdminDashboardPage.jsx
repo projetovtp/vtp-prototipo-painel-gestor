@@ -1,6 +1,7 @@
 // src/pages/admin/AdminDashboardPage.jsx
-import React, { useEffect, useMemo, useState } from "react";
-import api from "../../services/api";
+import React, { useEffect, useMemo } from "react";
+import { useAdminDashboard } from "../../hooks/api";
+import { ErrorMessage } from "../../components/ui";
 
 function formatBRL(value) {
   const n = Number(value || 0);
@@ -58,32 +59,16 @@ function KPI({ title, value, hint }) {
 }
 
 export default function AdminDashboardPage() {
-  const [loading, setLoading] = useState(false);
-  const [erro, setErro] = useState("");
-
-  const [overview, setOverview] = useState(null);
-  const [finance, setFinance] = useState(null);
+  const { overview, financeiroOverview, loading, erro, obterOverview, obterFinanceiroOverview } = useAdminDashboard();
 
   async function carregar() {
     try {
-      setLoading(true);
-      setErro("");
-
       const { from, to } = getMesAtualRange();
-
-      const [o, f] = await Promise.all([
-        api.get("/admin/dashboard-overview", { params: { from, to } }),
-        api.get("/admin/financeiro-overview", { params: { from, to } }),
+      await Promise.all([
+        obterOverview({ from, to }),
+        obterFinanceiroOverview({ from, to }),
       ]);
-
-      setOverview(o.data || null);
-      setFinance(f.data || null);
-    } catch (e) {
-      console.error("[ADMIN/DASH] erro ao carregar:", e);
-      setErro(e.response?.data?.error || "Erro ao carregar o dashboard do Admin.");
-    } finally {
-      setLoading(false);
-    }
+    } catch {}
   }
 
   useEffect(() => {
@@ -92,7 +77,7 @@ export default function AdminDashboardPage() {
   }, []);
 
   const kpis = overview?.kpis || {};
-  const finKpis = finance?.kpis || {};
+  const finKpis = financeiroOverview?.kpis || {};
 
   const ultimasReservas = overview?.ultimas_reservas || [];
   const vendasPorQuadra = overview?.vendas_por_quadra || [];
@@ -139,23 +124,7 @@ export default function AdminDashboardPage() {
         </button>
       </div>
 
-      {erro ? (
-        <div
-          style={{
-            marginTop: 12,
-            marginBottom: 12,
-            padding: "12px 16px",
-            borderRadius: 8,
-            border: "1px solid #fca5a5",
-            backgroundColor: "#fee2e2",
-            color: "#b91c1c",
-            fontSize: 14,
-            fontWeight: 600,
-          }}
-        >
-          ⚠️ {erro}
-        </div>
-      ) : null}
+      <ErrorMessage mensagem={erro} />
 
       {/* KPIs (mês atual) */}
       <div
