@@ -58,3 +58,23 @@ export function formatarHora(hora) {
 export function arredondar2(valor) {
   return Math.round((Number(valor || 0) + Number.EPSILON) * 100) / 100;
 }
+
+/**
+ * Formata string de hora (ex: "18:00:00") para exibição curta ("18:00").
+ * @param {string} hora
+ * @returns {string}
+ */
+export function formatarHoraStr(hora) {
+  if (!hora) return "—";
+  return String(hora).slice(0, 5);
+}
+
+/**
+ * Traduz status de reserva do backend para português.
+ * @param {string} status - "paid" | "pending" | "canceled"
+ * @returns {string}
+ */
+export function formatarStatus(status) {
+  const map = { paid: "Pago", pending: "Pendente", canceled: "Cancelado" };
+  return map[status] || status;
+}

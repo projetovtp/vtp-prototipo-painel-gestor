@@ -73,6 +73,8 @@ export default function GestorConfiguracoesQuadrasPage() {
   const [mensagemSucesso, setMensagemSucesso] = useState("");
   const [mensagemErro, setMensagemErro] = useState("");
 
+  const [quadraParaExcluir, setQuadraParaExcluir] = useState(null);
+
   const [formData, setFormData] = useState({
     estrutura: "", material: "", modalidades: [],
     inputModalidade: "", quantidadeQuadras: "", apelido: ""
@@ -178,10 +180,10 @@ export default function GestorConfiguracoesQuadrasPage() {
     setTimeout(() => setMensagemSucesso(""), 3000);
   }
 
-  function handleExcluirQuadra(quadra) {
-    if (!window.confirm(`Tem certeza que deseja excluir a quadra "${getQuadraDisplayName(quadra)}"? Esta ação não pode ser desfeita.`)) return;
-
-    setQuadras(prev => prev.filter(q => q.id !== quadra.id));
+  function handleConfirmarExclusao() {
+    if (!quadraParaExcluir) return;
+    setQuadras(prev => prev.filter(q => q.id !== quadraParaExcluir.id));
+    setQuadraParaExcluir(null);
     setMensagemSucesso("Quadra excluída com sucesso!");
     setTimeout(() => setMensagemSucesso(""), 3000);
   }
@@ -319,12 +321,33 @@ export default function GestorConfiguracoesQuadrasPage() {
                       >
                         {estaAtiva ? "Desativar" : "Ativar"}
                       </button>
-                      <button className="cfg-btn-delete" onClick={() => handleExcluirQuadra(quadra)}>Excluir</button>
+                      <button className="cfg-btn-delete" onClick={() => setQuadraParaExcluir(quadra)}>Excluir</button>
                     </div>
                   </div>
                 );
               })
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Popup de confirmação de exclusão */}
+      {quadraParaExcluir && (
+        <div className="cfg-modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setQuadraParaExcluir(null); }}>
+          <div className="cfg-confirm-popup" onClick={(e) => e.stopPropagation()}>
+            <div className="cfg-confirm-icon">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+                <path d="M12 9v4M12 17h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </div>
+            <h3 className="cfg-confirm-title">Excluir quadra</h3>
+            <p className="cfg-confirm-msg">
+              Tem certeza que deseja excluir <strong>{getQuadraDisplayName(quadraParaExcluir)}</strong>? Esta ação não pode ser desfeita.
+            </p>
+            <div className="cfg-confirm-actions">
+              <button type="button" className="cfg-btn-cancel" onClick={() => setQuadraParaExcluir(null)}>Cancelar</button>
+              <button type="button" className="btn-danger" onClick={handleConfirmarExclusao}>Excluir</button>
+            </div>
           </div>
         </div>
       )}

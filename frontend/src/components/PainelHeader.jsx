@@ -1,54 +1,14 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 import logoVaiTerPlay from "../assets/Design sem nome (4).png";
+import { gerarNotificacoes } from "../data/mockContatos";
 
 function PainelHeader({ notificacoesPendentes = 0, contatos = [], novaReserva = null }) {
   const { usuario, logout } = useAuth();
   const [mostrarNotificacoes, setMostrarNotificacoes] = useState(false);
   const popupRef = useRef(null);
 
-  const gerarNotificacoes = () => {
-    const notificacoes = [];
-
-    contatos.forEach((contato) => {
-      if (contato.naoLidas > 0 && !contato.fixo) {
-        notificacoes.push({
-          id: `msg-${contato.id}`,
-          titulo: `Nova mensagem de ${contato.nome}`,
-          mensagem: contato.ultimaMensagem || "Você tem mensagens não lidas",
-          hora: contato.hora || "Agora",
-          tipo: "mensagem",
-          contatoId: contato.id
-        });
-      }
-    });
-
-    if (novaReserva) {
-      notificacoes.push({
-        id: `reserva-${novaReserva.id || "new"}`,
-        titulo: "Nova reserva",
-        mensagem: novaReserva.mensagem || "Uma nova reserva foi criada",
-        hora: novaReserva.hora || "Agora",
-        tipo: "reserva"
-      });
-    }
-
-    return notificacoes.sort((a, b) => {
-      try {
-        const horaA = a.hora.split(":").map(Number);
-        const horaB = b.hora.split(":").map(Number);
-        if (horaA.length >= 2 && horaB.length >= 2) {
-          if (horaA[0] !== horaB[0]) return horaB[0] - horaA[0];
-          return horaB[1] - horaA[1];
-        }
-      } catch {
-        /* manter ordem original */
-      }
-      return 0;
-    });
-  };
-
-  const notificacoes = gerarNotificacoes();
+  const notificacoes = gerarNotificacoes(contatos, novaReserva);
 
   useEffect(() => {
     function handleClickOutside(event) {

@@ -2,63 +2,7 @@ import React from "react";
 import { Outlet, NavLink, useLocation, useNavigate } from "react-router-dom";
 import PainelHeader from "../components/PainelHeader";
 import logoVaiTerPlay from "../assets/Design sem nome (4).png";
-
-// Mock de contatos (mesmos dados do dashboard)
-const mockContatos = [
-  {
-    id: 0,
-    nome: "VaiTerPlay - Suporte",
-    telefone: "(11) 99999-9999",
-    ultimaMensagem: "Olá! Como posso ajudar você hoje?",
-    hora: "15:00",
-    naoLidas: 0,
-    avatar: "VS",
-    fixo: true
-  },
-  {
-    id: 1,
-    nome: "João Silva",
-    telefone: "(11) 98765-4321",
-    ultimaMensagem: "Tenho uma dúvida: qual o valor por hora?",
-    hora: "14:30",
-    naoLidas: 0,
-    avatar: "JS"
-  },
-  {
-    id: 2,
-    nome: "Maria Santos",
-    telefone: "(11) 91234-5678",
-    ultimaMensagem: "Confirmado! Obrigada",
-    hora: "13:15",
-    naoLidas: 0,
-    avatar: "MS"
-  },
-  {
-    id: 3,
-    nome: "Pedro Costa",
-    telefone: "(11) 99876-5432",
-    ultimaMensagem: "Qual o valor da quadra?",
-    hora: "12:45",
-    naoLidas: 1,
-    avatar: "PC"
-  },
-  {
-    id: 4,
-    nome: "Ana Oliveira",
-    telefone: "(11) 97654-3210",
-    ultimaMensagem: "Posso cancelar minha reserva?",
-    hora: "11:20",
-    naoLidas: 1,
-    avatar: "AO"
-  }
-];
-
-// Mock de nova reserva
-const novaReserva = {
-  id: 1,
-  mensagem: "Nova reserva criada para hoje às 18h - Quadra 1",
-  hora: "14:25"
-};
+import { mockContatos, mockNovaReserva, contarNotificacoesPendentes } from "../data/mockContatos";
 
 
 const chevronIcon = (
@@ -167,9 +111,7 @@ function GestorLayout() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  const contatosComNaoLidas = mockContatos.filter(c => (c.naoLidas || 0) > 0 && !c.fixo).length;
-  const temNovaReserva = novaReserva !== null;
-  const notificacoesPendentes = contatosComNaoLidas + (temNovaReserva ? 1 : 0);
+  const notificacoesPendentes = contarNotificacoesPendentes(mockContatos, mockNovaReserva);
 
   const isConfiguracoesRoute = location.pathname.startsWith("/gestor/configuracoes");
   const isRegrasHorariosRoute = location.pathname.startsWith("/gestor/regras-de-horarios");
@@ -247,7 +189,7 @@ function GestorLayout() {
         <PainelHeader
           notificacoesPendentes={notificacoesPendentes}
           contatos={mockContatos}
-          novaReserva={novaReserva}
+          novaReserva={mockNovaReserva}
         />
 
         <section className="layout-content">

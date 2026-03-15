@@ -42,6 +42,14 @@ import GestorBloqueiosPage from "./pages/gestor/GestorBloqueiosPage";
 // 📱 Páginas Mobile
 import GestorMobileMensagensPage from "./pages/gestor/mobile/GestorMobileMensagensPage";
 import GestorMobileChatPage from "./pages/gestor/mobile/GestorMobileChatPage";
+import GestorMobileClientesPage from "./pages/gestor/mobile/GestorMobileClientesPage";
+import GestorMobileRelatoriosPage from "./pages/gestor/mobile/GestorMobileRelatoriosPage";
+import GestorMobileReservasPage from "./pages/gestor/mobile/GestorMobileReservasPage";
+import GestorMobileRegrasSelecaoPage from "./pages/gestor/mobile/GestorMobileRegrasSelecaoPage";
+import GestorMobileAgendaPage from "./pages/gestor/mobile/GestorMobileAgendaPage";
+import GestorMobileBloqueiosPage from "./pages/gestor/mobile/GestorMobileBloqueiosPage";
+
+import ResponsivePage from "./components/ResponsivePage";
 
 import LoginPage from "./pages/LoginPage"; // tela de login (pública)
 
@@ -128,18 +136,18 @@ function App() {
         />
 
         {/* Agenda do Gestor (visualização tipo cinema + filtros) */}
-        <Route path="regras-de-horarios" element={<GestorRegrasSelecaoPage />} />
-        <Route path="regras-de-horarios/regras" element={<GestorAgendaPage />} />
-        <Route path="regras-de-horarios/bloqueios" element={<GestorBloqueiosPage />} />
+        <Route path="regras-de-horarios" element={<ResponsivePage desktop={GestorRegrasSelecaoPage} mobile={GestorMobileRegrasSelecaoPage} />} />
+        <Route path="regras-de-horarios/regras" element={<ResponsivePage desktop={GestorAgendaPage} mobile={GestorMobileAgendaPage} />} />
+        <Route path="regras-de-horarios/bloqueios" element={<ResponsivePage desktop={GestorBloqueiosPage} mobile={GestorMobileBloqueiosPage} />} />
 
         {/* Reservas */}
-        <Route path="reservas" element={<GestorReservasPage />} />
+        <Route path="reservas" element={<ResponsivePage desktop={GestorReservasPage} mobile={GestorMobileReservasPage} />} />
 
         {/* Clientes */}
-        <Route path="clientes" element={<GestorClientesPage />} />
+        <Route path="clientes" element={<ResponsivePage desktop={GestorClientesPage} mobile={GestorMobileClientesPage} />} />
 
         {/* Relatórios */}
-        <Route path="relatorios" element={<GestorRelatoriosPage />} />
+        <Route path="relatorios" element={<ResponsivePage desktop={GestorRelatoriosPage} mobile={GestorMobileRelatoriosPage} />} />
 
         {/* Financeiro do Gestor */}
         <Route path="financeiro" element={<GestorFinanceiroPage />} />
