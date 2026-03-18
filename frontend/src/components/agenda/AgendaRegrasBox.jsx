@@ -1,6 +1,7 @@
 import React from "react";
+import PropTypes from "prop-types";
 
-export default function AgendaRegrasBox({
+const AgendaRegrasBox = ({
   regras = [],
   quadras = [],
   quadraSelecionadaId,
@@ -19,7 +20,7 @@ export default function AgendaRegrasBox({
   onExcluirRegra,
   onAplicarLote,
   onResetForm,
-}) {
+}) => {
   function toggleQuadra(id) {
     if (!setSelectedQuadraIds) return;
     setSelectedQuadraIds((prev) =>
@@ -221,3 +222,48 @@ export default function AgendaRegrasBox({
     </div>
   );
 }
+
+AgendaRegrasBox.propTypes = {
+  regras: PropTypes.arrayOf(
+    PropTypes.shape({
+      id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+      dia_da_semana: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+      hora_inicio: PropTypes.string,
+      hora_fim: PropTypes.string,
+      valor: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+      id_quadra: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+    })
+  ),
+  quadras: PropTypes.arrayOf(
+    PropTypes.shape({
+      id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+      nome_dinamico: PropTypes.string,
+      nome: PropTypes.string,
+      tipo: PropTypes.string,
+    })
+  ),
+  quadraSelecionadaId: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+  selectedQuadraIds: PropTypes.arrayOf(PropTypes.oneOfType([PropTypes.string, PropTypes.number])),
+  setSelectedQuadraIds: PropTypes.func,
+  diasSelecionados: PropTypes.arrayOf(PropTypes.number),
+  setDiasSelecionados: PropTypes.func,
+  regraForm: PropTypes.shape({
+    diaSemana: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+    horaInicio: PropTypes.string,
+    horaFim: PropTypes.string,
+    precoHora: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+    ativo: PropTypes.bool,
+  }),
+  setRegraForm: PropTypes.func,
+  regraEditandoId: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+  setRegraEditandoId: PropTypes.func,
+  setEditingQuadraId: PropTypes.func,
+  salvandoRegra: PropTypes.bool,
+  excluindoRegraId: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+  onSalvarRegra: PropTypes.func,
+  onExcluirRegra: PropTypes.func,
+  onAplicarLote: PropTypes.func,
+  onResetForm: PropTypes.func,
+};
+
+export default AgendaRegrasBox;

@@ -1,12 +1,13 @@
+import PropTypes from "prop-types";
 import "./ui.css";
 
-export default function ErrorMessage({
+const ErrorMessage = ({
   mensagem,
   onRetry,
   retryLabel = "Tentar novamente",
   tipo = "banner",
   onDismiss,
-}) {
+}) => {
   if (!mensagem) return null;
 
   if (tipo === "fullPage") {
@@ -66,3 +67,13 @@ export default function ErrorMessage({
     </div>
   );
 }
+
+ErrorMessage.propTypes = {
+  mensagem: PropTypes.string,
+  onRetry: PropTypes.func,
+  retryLabel: PropTypes.string,
+  tipo: PropTypes.oneOf(["banner", "fullPage"]),
+  onDismiss: PropTypes.func,
+};
+
+export default ErrorMessage;

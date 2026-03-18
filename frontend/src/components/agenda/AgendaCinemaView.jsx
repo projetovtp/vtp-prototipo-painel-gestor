@@ -1,8 +1,9 @@
-// src/components/gestor/AgendaCinemaView.jsx
+// src/components/agenda/AgendaCinemaView.jsx
 import React, { useEffect, useMemo, useState } from "react";
-import { AgendaFilters } from "../../components/agenda/AgendaFilters";
-import { AgendaLegend } from "../../components/agenda/AgendaLegend";
-import { AgendaGrid } from "../../components/agenda/AgendaGrid";
+import PropTypes from "prop-types";
+import { AgendaFilters } from "./AgendaFilters";
+import { AgendaLegend } from "./AgendaLegend";
+import { AgendaGrid } from "./AgendaGrid";
 import { fetchAgendaSlots } from "../../api/agendaApi";
 
 function formatLabelBR(iso) {
@@ -39,7 +40,7 @@ function slotDescricao(slot) {
  * - quadraId (obrigatório para carregar)
  * - mode: "GESTOR" | "ADMIN"
  */
-function AgendaCinemaView({ quadraId, mode = "GESTOR" }) {
+const AgendaCinemaView = ({ quadraId, mode = "GESTOR" }) => {
   const [periodo, setPeriodo] = useState("semana");
   const [dataInicio, setDataInicio] = useState("");
   const [dataFim, setDataFim] = useState("");
@@ -156,5 +157,10 @@ function AgendaCinemaView({ quadraId, mode = "GESTOR" }) {
     </div>
   );
 }
+
+AgendaCinemaView.propTypes = {
+  quadraId: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+  mode: PropTypes.oneOf(["GESTOR", "ADMIN"]),
+};
 
 export default AgendaCinemaView;

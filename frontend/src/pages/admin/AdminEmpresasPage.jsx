@@ -1,8 +1,11 @@
 // src/pages/admin/AdminEmpresasPage.jsx
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import { useAdminEmpresas, useAdminGestores } from "../../hooks/api";
+import { useEffect, useMemo, useRef, useState } from "react"
+import { useAdminEmpresas, useAdminGestores } from "../../hooks/api"
+import useFocusTrap from "../../hooks/useFocusTrap"
+import { ConfirmacaoModal } from "../../components/ui"
+import "./admin.css"
 
-function AdminEmpresasPage() {
+const AdminEmpresasPage = () => {
   const [form, setForm] = useState({
     nome: "",
     enderecoResumo: "",
@@ -41,6 +44,12 @@ const [historicoMeta, setHistoricoMeta] = useState({ entidade_tipo: "", entidade
 
 // historicoRef: { entidade: "EMPRESA" | "GESTOR", id }
 
+  // ===== MODAL CONFIRMAÇÃO =====
+  const [confirmacaoAberta, setConfirmacaoAberta] = useState(false);
+  const [acaoPendente, setAcaoPendente] = useState(null); // { titulo, mensagem, textoConfirmar, executar }
+
+  const refModalConsultar = useFocusTrap(modalConsultarOpen, fecharModalConsultar);
+  const refModalHistorico = useFocusTrap(modalHistoricoOpen, fecharHistorico);
 
   const [selecionado, setSelecionado] = useState(null);
   // selecionado: { tipo: "GESTOR" | "EMPRESA", id, label }
@@ -200,17 +209,21 @@ const [historicoMeta, setHistoricoMeta] = useState({ entidade_tipo: "", entidade
     window?.scrollTo?.({ top: 0, behavior: "smooth" });
   }
 
+  function pedirConfirmacaoArquivar(empresaId) {
+    setAcaoPendente({
+      titulo: "Arquivar complexo",
+      mensagem: "Arquivar este complexo?",
+      textoConfirmar: "Arquivar",
+      executar: () => acaoArquivar(empresaId),
+    });
+    setConfirmacaoAberta(true);
+  }
+
   async function acaoArquivar(empresaId) {
     try {
       setMensagemSucesso("");
       setMensagemErro("");
-      const ok = window.confirm(
-        "Arquivar este complexo?\n\n(Se sua regra for diferente, me diga quais campos/valores o backend espera.)"
-      );
-      if (!ok) return;
-
       await editarEmpresa(empresaId, { status: "ARQUIVADA" });
-
       setMensagemSucesso("Complexo arquivado com sucesso.");
       await carregarEmpresas();
     } catch (err) {
@@ -220,17 +233,21 @@ const [historicoMeta, setHistoricoMeta] = useState({ entidade_tipo: "", entidade
     }
   }
 
+  function pedirConfirmacaoBloquear(empresaId) {
+    setAcaoPendente({
+      titulo: "Bloquear complexo",
+      mensagem: "Bloquear este complexo?",
+      textoConfirmar: "Bloquear",
+      executar: () => acaoBloquear(empresaId),
+    });
+    setConfirmacaoAberta(true);
+  }
+
   async function acaoBloquear(empresaId) {
     try {
       setMensagemSucesso("");
       setMensagemErro("");
-      const ok = window.confirm(
-        "Bloquear este complexo?\n\n(Se sua regra for diferente, me diga quais campos/valores o backend espera.)"
-      );
-      if (!ok) return;
-
       await editarEmpresa(empresaId, { status: "BLOQUEADA" });
-
       setMensagemSucesso("Complexo bloqueado com sucesso.");
       await carregarEmpresas();
     } catch (err) {
@@ -240,28 +257,37 @@ const [historicoMeta, setHistoricoMeta] = useState({ entidade_tipo: "", entidade
     }
   }
 
+  function pedirConfirmacaoExcluir(empresaId) {
+    setAcaoPendente({
+      titulo: "Excluir definitivamente",
+      mensagem: "⚠️ EXCLUIR DEFINITIVAMENTE? Isso é HARD DELETE. Só continue se tiver certeza.",
+      textoConfirmar: "Excluir",
+      executar: () => acaoExcluirHard(empresaId),
+    });
+    setConfirmacaoAberta(true);
+  }
+
   async function acaoExcluirHard(empresaId) {
     try {
       setMensagemSucesso("");
       setMensagemErro("");
-
-      const ok = window.confirm(
-        "⚠️ EXCLUIR DEFINITIVAMENTE?\n\nIsso é HARD DELETE.\nSó continue se tiver certeza."
-      );
-      if (!ok) return;
-
       await excluirEmpresa(empresaId);
-
       setMensagemSucesso("Complexo excluído definitivamente.");
       await carregarEmpresas();
-
-      // se estava editando esse item, limpa
       if (editandoId === empresaId) handleLimpar();
     } catch (err) {
       console.error("[ADMIN/EMPRESAS] Erro ao excluir:", err);
       const msgBackend = err.response?.data?.error;
       setMensagemErro(msgBackend || "Erro ao excluir o complexo.");
     }
+  }
+
+  async function handleConfirmarAcao() {
+    if (acaoPendente?.executar) {
+      await acaoPendente.executar();
+    }
+    setConfirmacaoAberta(false);
+    setAcaoPendente(null);
   }
 
   // =========================
@@ -411,87 +437,23 @@ function fecharHistorico() {
 }
 
 
-  // =========================
-  // UI do Modal (estilo simples, sem depender de CSS externo)
-  // =========================
-  const modalOverlayStyle = {
-    position: "fixed",
-    inset: 0,
-    background: "rgba(0,0,0,0.55)",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 16,
-    zIndex: 9999,
-  };
-
-  const modalCardStyle = {
-    width: "min(1100px, 98vw)",
-    maxHeight: "90vh",
-    background: "#fff",
-    borderRadius: 12,
-    overflow: "hidden",
-    boxShadow: "0 10px 30px rgba(0,0,0,0.25)",
-    display: "flex",
-    flexDirection: "column",
-  };
-
-  const modalHeaderStyle = {
-    padding: "14px 16px",
-    borderBottom: "1px solid #eee",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 12,
-  };
-
-  const modalBodyStyle = {
-  padding: 16,
-  display: "grid",
-  gridTemplateColumns: "380px 1fr",
-  gap: 16,
-  height: "100%",
-};
-
-
-  const modalFooterStyle = {
-    padding: 12,
-    borderTop: "1px solid #eee",
-    display: "flex",
-    justifyContent: "flex-end",
-    gap: 8,
-  };
-
-  function BotaoPequeno({ children, onClick, className, title, disabled }) {
-    return (
-      <button
-        type="button"
-        className={className}
-        onClick={onClick}
-        title={title}
-        disabled={disabled}
-        style={{
-          padding: "8px 10px",
-          fontSize: 13,
-          borderRadius: 8,
-          cursor: disabled ? "not-allowed" : "pointer",
-        }}
-      >
-        {children}
-      </button>
-    );
-  }
+  const BotaoPequeno = ({ children, onClick, className, title, disabled }) => (
+    <button
+      type="button"
+      className={`${className || ""} btn-pequeno`}
+      onClick={onClick}
+      title={title}
+      disabled={disabled}
+    >
+      {children}
+    </button>
+  )
 
   return (
     <div>
-      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        <h2 style={{ margin: 0 }}>Empresas / Complexos (Admin)</h2>
-        <button
-          type="button"
-          className="btn-outlined"
-          onClick={abrirModalConsultar}
-          style={{ height: 36 }}
-        >
+      <div className="flex-row">
+        <h2 className="margin-0">Empresas / Complexos (Admin)</h2>
+        <button type="button" className="btn-outlined btn-h36" onClick={abrirModalConsultar}>
           Consultar
         </button>
       </div>
@@ -504,12 +466,12 @@ function fecharHistorico() {
 
       {/* CARD DO FORMULÁRIO */}
       <div className="card">
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-          <h3 style={{ margin: 0 }}>
+        <div className="flex-row-between">
+          <h3 className="margin-0">
             {editandoId ? "Edição de Complexo" : "Cadastro de Complexo"}
           </h3>
           {editandoId && (
-            <span style={{ fontSize: 13, opacity: 0.8 }}>
+            <span className="text-muted-sm">
               Editando ID: <strong>{editandoId}</strong>
             </span>
           )}
@@ -629,7 +591,7 @@ function fecharHistorico() {
           </div>
 
           {/* BOTÕES */}
-          <div className="form-actions" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <div className="form-actions acoes-row">
             <button
               type="button"
               className="btn-outlined"
@@ -654,15 +616,14 @@ function fecharHistorico() {
       </div>
 
       {/* CARD DA LISTA */}
-      <div className="card" style={{ marginTop: "24px" }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-          <h3 style={{ margin: 0 }}>Lista de complexos cadastrados</h3>
+      <div className="card card-mb-lg">
+        <div className="flex-row-between">
+          <h3 className="margin-0">Lista de complexos cadastrados</h3>
           <button
             type="button"
-            className="btn-outlined"
+            className="btn-outlined btn-h36"
             onClick={carregarEmpresas}
             disabled={carregandoLista}
-            style={{ height: 36 }}
           >
             {carregandoLista ? "Atualizando..." : "Atualizar lista"}
           </button>
@@ -678,8 +639,8 @@ function fecharHistorico() {
           <div className="empresas-grid">
             {empresas.map((empresa) => (
               <div key={empresa.id} className="empresa-card">
-                <div className="empresa-card-header" style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-                  <h4 className="empresa-nome" style={{ margin: 0 }}>
+                <div className="empresa-card-header flex-row-between">
+                  <h4 className="empresa-nome margin-0">
                     {empresa.nome || "Complexo"}
                   </h4>
                   {empresa.status && (
@@ -687,7 +648,7 @@ function fecharHistorico() {
                   )}
                 </div>
 
-                <div className="empresa-detalhes" style={{ marginTop: 8 }}>
+                <div className="empresa-detalhes empresa-detalhes-mt">
                   {empresa.endereco_resumo && (
                     <p>
                       <strong>Endereço:</strong> {empresa.endereco_resumo}
@@ -705,49 +666,11 @@ function fecharHistorico() {
                   )}
                 </div>
 
-                {/* AÇÕES */}
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
-                  <button
-                    type="button"
-                    className="btn-primary"
-                    onClick={() => preencherFormParaEditar(empresa)}
-                    style={{ padding: "8px 10px", fontSize: 13, borderRadius: 8 }}
-                  >
-                    Editar
-                  </button>
-
-                  <button
-                    type="button"
-                    className="btn-outlined"
-                    onClick={() => acaoArquivar(empresa.id)}
-                    style={{ padding: "8px 10px", fontSize: 13, borderRadius: 8 }}
-                  >
-                    Arquivar
-                  </button>
-
-                  <button
-                    type="button"
-                    className="btn-outlined"
-                    onClick={() => acaoBloquear(empresa.id)}
-                    style={{ padding: "8px 10px", fontSize: 13, borderRadius: 8 }}
-                  >
-                    Bloquear
-                  </button>
-
-                  <button
-                    type="button"
-                    className="btn-outlined"
-                    onClick={() => acaoExcluirHard(empresa.id)}
-                    style={{
-                      padding: "8px 10px",
-                      fontSize: 13,
-                      borderRadius: 8,
-                      borderColor: "#c00",
-                      color: "#c00",
-                    }}
-                  >
-                    Excluir
-                  </button>
+                <div className="empresa-card-acoes">
+                  <BotaoPequeno className="btn-primary" onClick={() => preencherFormParaEditar(empresa)}>Editar</BotaoPequeno>
+                  <BotaoPequeno className="btn-outlined" onClick={() => pedirConfirmacaoArquivar(empresa.id)}>Arquivar</BotaoPequeno>
+                  <BotaoPequeno className="btn-outlined" onClick={() => pedirConfirmacaoBloquear(empresa.id)}>Bloquear</BotaoPequeno>
+                  <BotaoPequeno className="btn-outlined btn-outlined--danger" onClick={() => pedirConfirmacaoExcluir(empresa.id)}>Excluir</BotaoPequeno>
                 </div>
               </div>
             ))}
@@ -759,581 +682,299 @@ function fecharHistorico() {
           MODAL CONSULTAR
          ========================= */}
       {modalConsultarOpen && (
-        <div style={modalOverlayStyle} onMouseDown={fecharModalConsultar}>
-          <div style={modalCardStyle} onMouseDown={(e) => e.stopPropagation()}>
-            <div style={modalHeaderStyle}>
+        <div className="modal-overlay" onMouseDown={fecharModalConsultar}>
+          <div
+            ref={refModalConsultar}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="admin-empresas-modal-consultar-titulo"
+            tabIndex="-1"
+            className="modal-card-lg"
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <div className="modal-header">
               <div>
-                <strong style={{ fontSize: 16 }}>Consultar (Admin)</strong>
-                <div style={{ fontSize: 12, opacity: 0.75 }}>
+                <strong id="admin-empresas-modal-consultar-titulo" className="text-bold-md">Consultar (Admin)</strong>
+                <div className="text-muted-xs">
                   Digite para buscar por contém (gestores + empresas)
                 </div>
               </div>
-
-              <button type="button" className="btn-outlined" onClick={fecharModalConsultar}>
+              <button type="button" className="btn-outlined" aria-label="Fechar modal" onClick={fecharModalConsultar}>
                 Fechar
               </button>
             </div>
 
-            <div style={{ padding: 16, borderBottom: "1px solid #eee" }}>
-              <label style={{ display: "block", fontSize: 13, marginBottom: 6 }}>
-                Buscar
-              </label>
+            <div className="modal-busca-area">
+              <label className="modal-busca-label">Buscar</label>
               <input
                 type="text"
                 value={consultaQ}
                 onChange={(e) => setConsultaQ(e.target.value)}
                 placeholder="Ex.: nome do gestor, email, CPF, nome do complexo..."
-                style={{
-                  width: "100%",
-                  padding: 10,
-                  borderRadius: 10,
-                  border: "1px solid #ddd",
-                  outline: "none",
-                }}
+                className="modal-busca-input"
               />
-              <div style={{ marginTop: 8, fontSize: 12, opacity: 0.75 }}>
-                {consultaLoading
-                  ? "Buscando..."
-                  : consultaQ.trim().length < 2
-                  ? "Digite pelo menos 2 caracteres."
-                  : ""}
+              <div className="modal-busca-hint">
+                {consultaLoading ? "Buscando..." : consultaQ.trim().length < 2 ? "Digite pelo menos 2 caracteres." : ""}
               </div>
-              {consultaErro && (
-                <div style={{ marginTop: 8, color: "#c00", fontSize: 13 }}>
-                  {consultaErro}
-                </div>
-              )}
+              {consultaErro && <div className="modal-busca-erro">{consultaErro}</div>}
             </div>
 
-            <div style={modalBodyStyle}>
-              {/* COLUNA ESQUERDA: LISTA */}
-                <div style={{ overflowY: "auto", maxHeight: "calc(90vh - 200px)" }}>
+            <div className="modal-body-grid">
+              <div className="modal-lista-col">
+                <div className="resultado-titulo">Resultados</div>
 
-                <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>
-                  Resultados
-                </div>
-
-                {/* Gestores */}
-                <div style={{ marginBottom: 14 }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, opacity: 0.8, marginBottom: 6 }}>
-                    Gestores
-                  </div>
+                <div className="resultado-secao">
+                  <div className="resultado-secao-titulo">Gestores</div>
 
                   {(!consultaLoading && (consultaRes.gestores || []).length === 0) ? (
-                    <div style={{ fontSize: 12, opacity: 0.7 }}>Sem gestores</div>
+                    <div className="resultado-vazio">Sem gestores</div>
                   ) : (
-                    <div style={{ display: "grid", gap: 8 }}>
+                    <div className="resultado-grid">
                       {(consultaRes.gestores || []).map((g) => {
-                        const label = `${g.nome || "Gestor"}${g.email ? ` • ${g.email}` : ""}${
-                          g.cpf ? ` • ${g.cpf}` : ""
-                        }`;
-                        const ativoTxt =
-                          g.ativo === false ? " (inativo)" : "";
-
+                        const label = `${g.nome || "Gestor"}${g.email ? ` • ${g.email}` : ""}${g.cpf ? ` • ${g.cpf}` : ""}`
+                        const ativoTxt = g.ativo === false ? " (inativo)" : ""
+                        const selecionado_ = selecionado?.tipo === "GESTOR" && selecionado?.id === g.id
                         return (
                           <button
                             key={g.id}
                             type="button"
-                            onClick={() =>
-                              carregarDetalheSelecionado({
-                                tipo: "GESTOR",
-                                id: g.id,
-                                label: label + ativoTxt,
-                              })
-                            }
-                            style={{
-                              textAlign: "left",
-                              padding: 10,
-                              borderRadius: 10,
-                              border: "1px solid #e6e6e6",
-                              background:
-                                selecionado?.tipo === "GESTOR" && selecionado?.id === g.id
-                                   ? "#f1f5f9"
-                                   : "#fff",
-                              boxShadow:
-                                selecionado?.tipo === "GESTOR" && selecionado?.id === g.id
-                                   ? "inset 0 0 0 2px #2563eb"
-                                   : "none",
-                              cursor: "pointer",
-                            }}
+                            onClick={() => carregarDetalheSelecionado({ tipo: "GESTOR", id: g.id, label: label + ativoTxt })}
+                            className="resultado-item"
+                            style={selecionado_ ? { background: "#f1f5f9", boxShadow: "inset 0 0 0 2px #2563eb" } : undefined}
                           >
-                            <div style={{ fontWeight: 700, fontSize: 13 }}>
-                              {g.nome || "Gestor"}{ativoTxt}
-                            </div>
-                            <div style={{ fontSize: 12, opacity: 0.8 }}>
-                              {g.email || "—"} {g.cpf ? `• ${g.cpf}` : ""}
-                            </div>
+                            <div className="resultado-item-nome">{g.nome || "Gestor"}{ativoTxt}</div>
+                            <div className="resultado-item-sub">{g.email || "—"} {g.cpf ? `• ${g.cpf}` : ""}</div>
                           </button>
-                        );
+                        )
                       })}
                     </div>
                   )}
                 </div>
-                {/* =========================
-    MODAL HISTÓRICO (audit_log)
-   ========================= */}
-{modalHistoricoOpen && (
-  <div style={modalOverlayStyle} onMouseDown={fecharHistorico}>
-    <div style={modalCardStyle} onMouseDown={(e) => e.stopPropagation()}>
-      <div style={modalHeaderStyle}>
-        <div>
-          <strong style={{ fontSize: 16 }}>Histórico (Audit Log)</strong>
-          <div style={{ fontSize: 12, opacity: 0.75 }}>
-            {historicoMeta.entidade_tipo} • {historicoMeta.entidade_id}
-          </div>
-        </div>
-
-        <button type="button" className="btn-outlined" onClick={fecharHistorico}>
-          Fechar
-        </button>
-      </div>
-
-      <div style={{ padding: 16, overflow: "auto", maxHeight: "70vh" }}>
-        {historicoLoading && <div style={{ fontSize: 13 }}>Carregando histórico...</div>}
-
-        {!historicoLoading && historicoErro && (
-          <div style={{ fontSize: 13, color: "#c00" }}>{historicoErro}</div>
-        )}
-
-        {!historicoLoading && !historicoErro && historicoItens.length === 0 && (
-          <div style={{ fontSize: 13, opacity: 0.75 }}>Sem registros.</div>
-        )}
-
-        {!historicoLoading && !historicoErro && historicoItens.length > 0 && (
-          <div style={{ display: "grid", gap: 10 }}>
-            {historicoItens.map((it) => (
-              <div
-                key={it.id}
-                style={{
-                  border: "1px solid #e6e6e6",
-                  borderRadius: 10,
-                  padding: 10,
-                  background: "#fff",
-                }}
-              >
-                <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
-                  <div style={{ fontWeight: 800, fontSize: 13 }}>{it.acao || "AÇÃO"}</div>
-                  <div style={{ fontSize: 12, opacity: 0.7 }}>
-                    {it.created_at ? new Date(it.created_at).toLocaleString() : "—"}
-                  </div>
-                </div>
-                {/* NOVO: Entidade com label */}
-<div style={{ marginTop: 6, fontSize: 12, opacity: 0.8 }}>
-  Entidade:{" "}
-  <strong>{it.entidade_label || `${it.entidade_tipo || "—"} • ${it.entidade_id || "—"}`}</strong>
-</div>
-
-{it.resumo && (
-  <div style={{ marginTop: 6, fontSize: 13, opacity: 0.9 }}>{it.resumo}</div>
-)}
-
-{/* NOVO: Ator com label */}
-<div style={{ marginTop: 6, fontSize: 12, opacity: 0.75 }}>
-  Ator:{" "}
-  <strong>{it.actor_label || `${it.actor_tipo || "—"} • ${it.actor_id || "—"}`}</strong>
-</div>
-                {it.resumo && (
-                  <div style={{ marginTop: 6, fontSize: 13, opacity: 0.9 }}>{it.resumo}</div>
-                )}
-
-                <div style={{ marginTop: 6, fontSize: 12, opacity: 0.75 }}>
-                  Ator: <strong>{it.actor_tipo || "—"}</strong>{" "}
-                  {it.actor_label ? `• ${it.actor_label}` : ""}
-                </div>
-
-                {it.payload && (
-                  <details style={{ marginTop: 8 }}>
-                    <summary style={{ cursor: "pointer", fontSize: 12 }}>
-                      Ver payload
-                    </summary>
-                    <pre
-                      style={{
-                        marginTop: 8,
-                        padding: 10,
-                        borderRadius: 10,
-                        background: "#0b1220",
-                        color: "#f9fafb",
-                        overflow: "auto",
-                        fontSize: 12,
-                      }}
+                {modalHistoricoOpen && (
+                  <div className="modal-overlay modal-overlay--top" onMouseDown={fecharHistorico}>
+                    <div
+                      ref={refModalHistorico}
+                      role="dialog"
+                      aria-modal="true"
+                      aria-labelledby="admin-empresas-modal-historico-titulo"
+                      tabIndex="-1"
+                      className="modal-card-lg"
+                      onMouseDown={(e) => e.stopPropagation()}
                     >
-                      {JSON.stringify(it.payload, null, 2)}
-                    </pre>
-                  </details>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      <div style={modalFooterStyle}>
-        <button type="button" className="btn-outlined" onClick={fecharHistorico}>
-          Fechar
-        </button>
-      </div>
-    </div>
-  </div>
-)}
-
-
-                {/* Empresas */}
-<div>
-  <div
-    style={{
-      fontSize: 12,
-      fontWeight: 700,
-      opacity: 0.8,
-      marginBottom: 6,
-    }}
-  >
-    Empresas / Complexos
-  </div>
-
-  {(!consultaLoading && (consultaRes.empresas || []).length === 0) ? (
-    <div style={{ fontSize: 12, opacity: 0.7 }}>
-      <div>Nenhuma empresa encontrada para o termo.</div>
-
-      {(
-        selecionado?.tipo === "GESTOR" &&
-        detalheData?.tipo === "GESTOR" &&
-        Array.isArray(detalheData?.empresas) &&
-        detalheData.empresas.length > 0
-      ) ? (
-        <div style={{ marginTop: 6, fontSize: 12, opacity: 0.85 }}>
-          Este gestor tem <strong>{detalheData.empresas.length}</strong> empresas
-          (veja no detalhe).
-        </div>
-      ) : null}
-    </div>
-  ) : (
-    <div style={{ display: "grid", gap: 8 }}>
-      {(consultaRes.empresas || []).map((e) => {
-        const label = `${e.nome || "Complexo"}${e.slug ? ` • ${e.slug}` : ""}`;
-        const ativoTxt = e.ativo === false ? " (inativo)" : "";
-
-        return (
-          <button
-            key={e.id}
-            type="button"
-            onClick={() =>
-              carregarDetalheSelecionado({
-                tipo: "EMPRESA",
-                id: e.id,
-                label: label + ativoTxt,
-              })
-            }
-            style={{
-              textAlign: "left",
-              padding: 10,
-              borderRadius: 10,
-              border: "1px solid #e6e6e6",
-              background:
-  selecionado?.tipo === "EMPRESA" && selecionado?.id === e.id
-    ? "#f1f5f9"
-    : "#fff",
-boxShadow:
-  selecionado?.tipo === "EMPRESA" && selecionado?.id === e.id
-    ? "inset 0 0 0 2px #2563eb"
-    : "none",
-
-              cursor: "pointer",
-            }}
-          >
-            <div style={{ fontWeight: 700, fontSize: 13 }}>
-              {e.nome || "Complexo"}
-              {ativoTxt}
-            </div>
-            <div style={{ fontSize: 12, opacity: 0.8 }}>
-              {e.endereco_resumo || e.slug || "—"}
-            </div>
-          </button>
-        );
-      })}
-    </div>
-  )}
-</div>
-</div>
-
-{/* COLUNA DIREITA: DETALHE */}
-<div
-  id="admin-detalhe-scroll"
-  style={{
-    borderLeft: "1px solid #eee",
-    paddingLeft: 16,
-    overflowY: "auto",
-    maxHeight: "calc(90vh - 200px)",
-  }}
->
-
-
-  <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>
-    Detalhe
-  </div>
-
-  {!selecionado && (
-    <div style={{ fontSize: 13, opacity: 0.75 }}>
-      Selecione um item na lista para ver o detalhe aqui.
-    </div>
-  )}
-
-  {detalheLoading && (
-  <div style={{ display: "grid", gap: 10 }}>
-    {[1, 2, 3].map((i) => (
-      <div
-        key={i}
-        style={{
-          height: 48,
-          borderRadius: 10,
-          background:
-            "linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 37%, #f0f0f0 63%)",
-          backgroundSize: "400% 100%",
-          animation: "skeleton 1.4s ease infinite",
-        }}
-      />
-    ))}
-  </div>
-)}
-
-
-  {detalheErro && (
-    <div style={{ fontSize: 13, color: "#c00" }}>{detalheErro}</div>
-  )}
-
-  {!detalheLoading &&
-    !detalheErro &&
-    detalheData &&
-    detalheData.tipo === "GESTOR" && (
-      <div style={{ display: "grid", gap: 12 }}>
-        <div className="card" style={{ padding: 12 }}>
-          <div style={{ fontWeight: 800, fontSize: 14 }}>
-            {detalheData.gestor?.nome || "Gestor"}
-          </div>
-          <div style={{ fontSize: 13, opacity: 0.85 }}>
-            {detalheData.gestor?.email || "—"}{" "}
-            {detalheData.gestor?.cpf ? `• ${detalheData.gestor.cpf}` : ""}
-          </div>
-          <div style={{ fontSize: 12, opacity: 0.75, marginTop: 6 }}>
-            Empresas:{" "}
-            <strong>{detalheData.contagens?.empresas ?? 0}</strong> • Quadras:{" "}
-            <strong>{detalheData.contagens?.quadras ?? 0}</strong>
-          </div>
-
-          <div
-            style={{
-              marginTop: 10,
-              display: "flex",
-              justifyContent: "flex-end",
-            }}
-          >
-            <button
-              type="button"
-              className="btn-outlined"
-              onClick={() => abrirHistorico("GESTOR", detalheData.gestor.id)}
-
-            >
-              Histórico
-            </button>
-          </div>
-        </div>
-
-        <div className="card" style={{ padding: 12 }}>
-          <div style={{ fontWeight: 800, fontSize: 13, marginBottom: 8 }}>
-            Empresas vinculadas
-          </div>
-
-          {(detalheData.empresas || []).length === 0 ? (
-            <div style={{ fontSize: 13, opacity: 0.75 }}>
-              Nenhuma empresa vinculada.
-            </div>
-          ) : (
-            <div style={{ display: "grid", gap: 10 }}>
-              {(detalheData.empresas || []).map((emp) => {
-                const qds = quadrasPorEmpresaNoDetalheGestor[emp.id] || [];
-                return (
-                  <div
-                    key={emp.id}
-                    style={{
-                      border: "1px solid #eee",
-                      borderRadius: 10,
-                      padding: 10,
-                    }}
-                  >
-                    <div style={{ fontWeight: 800, fontSize: 13 }}>
-                      {emp.nome || "Complexo"}
-                    </div>
-                    <div style={{ fontSize: 12, opacity: 0.8 }}>
-                      {emp.endereco_resumo || "—"}
-                    </div>
-                    <div style={{ fontSize: 12, opacity: 0.75, marginTop: 6 }}>
-                      Quadras: <strong>{qds.length}</strong>
-                    </div>
-
-                    {qds.length > 0 && (
-                      <div
-                        style={{
-                          marginTop: 8,
-                          display: "grid",
-                          gap: 6,
-                        }}
-                      >
-                        {qds.slice(0, 8).map((q) => (
-                          <div
-                            key={q.id}
-                            style={{ fontSize: 12, opacity: 0.9 }}
-                          >
-                            • {q.informacoes || "Quadra"}{" "}
-                            {q.modalidade ? `(${q.modalidade})` : ""}{" "}
-                            {q.status ? `— ${q.status}` : ""}
+                      <div className="modal-header">
+                        <div>
+                          <strong id="admin-empresas-modal-historico-titulo" className="text-bold-md">Histórico (Audit Log)</strong>
+                          <div className="text-muted-xs">
+                            {historicoMeta.entidade_tipo} • {historicoMeta.entidade_id}
                           </div>
-                        ))}
-                        {qds.length > 8 && (
-                          <div style={{ fontSize: 12, opacity: 0.7 }}>
-                            +{qds.length - 8} quadras...
+                        </div>
+                        <button type="button" className="btn-outlined" aria-label="Fechar modal" onClick={fecharHistorico}>Fechar</button>
+                      </div>
+
+                      <div style={{ padding: 16, overflow: "auto", maxHeight: "70vh" }}>
+                        {historicoLoading && <div className="text-bold-sm">Carregando histórico...</div>}
+                        {!historicoLoading && historicoErro && <div className="msg-erro-inline">{historicoErro}</div>}
+                        {!historicoLoading && !historicoErro && historicoItens.length === 0 && (
+                          <div className="msg-vazio">Sem registros.</div>
+                        )}
+                        {!historicoLoading && !historicoErro && historicoItens.length > 0 && (
+                          <div className="resultado-grid">
+                            {historicoItens.map((it) => (
+                              <div key={it.id} className="historico-item">
+                                <div className="historico-item-header">
+                                  <div className="historico-item-acao">{it.acao || "AÇÃO"}</div>
+                                  <div className="historico-item-data">
+                                    {it.created_at ? new Date(it.created_at).toLocaleString() : "—"}
+                                  </div>
+                                </div>
+                                <div className="historico-item-entidade">
+                                  Entidade: <strong>{it.entidade_label || `${it.entidade_tipo || "—"} • ${it.entidade_id || "—"}`}</strong>
+                                </div>
+                                {it.resumo && <div className="historico-item-resumo">{it.resumo}</div>}
+                                <div className="historico-item-ator">
+                                  Ator: <strong>{it.actor_label || `${it.actor_tipo || "—"} • ${it.actor_id || "—"}`}</strong>
+                                </div>
+                                {it.payload && (
+                                  <details>
+                                    <summary style={{ cursor: "pointer", fontSize: 12 }}>Ver payload</summary>
+                                    <pre className="historico-payload-pre">{JSON.stringify(it.payload, null, 2)}</pre>
+                                  </details>
+                                )}
+                              </div>
+                            ))}
                           </div>
                         )}
                       </div>
-                    )}
+
+                      <div className="modal-footer">
+                        <button type="button" className="btn-outlined" onClick={fecharHistorico}>Fechar</button>
+                      </div>
+                    </div>
                   </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </div>
-    )}
-
-  {!detalheLoading &&
-    !detalheErro &&
-    detalheData &&
-    detalheData.tipo === "EMPRESA" && (
-      <div style={{ display: "grid", gap: 12 }}>
-        <div className="card" style={{ padding: 12 }}>
-          <div style={{ fontWeight: 800, fontSize: 14 }}>
-            {detalheData.empresa?.nome || "Complexo"}
-          </div>
-          <div style={{ fontSize: 13, opacity: 0.85 }}>
-            {detalheData.empresa?.endereco_resumo || "—"}
-          </div>
-          <div style={{ fontSize: 12, opacity: 0.75, marginTop: 6 }}>
-            Quadras: <strong>{detalheData.contagens?.quadras ?? 0}</strong>
-          </div>
-
-          <div
-            style={{
-              marginTop: 10,
-              display: "flex",
-              gap: 8,
-              justifyContent: "flex-end",
-              flexWrap: "wrap",
-            }}
-          >
-            <BotaoPequeno
-              className="btn-primary"
-              onClick={() => {
-                preencherFormParaEditar(detalheData.empresa);
-                fecharModalConsultar();
-              }}
-            >
-              Editar
-            </BotaoPequeno>
-
-            <BotaoPequeno
-              className="btn-outlined"
-              onClick={() => acaoArquivar(detalheData.empresa?.id)}
-            >
-              Arquivar
-            </BotaoPequeno>
-
-            <BotaoPequeno
-              className="btn-outlined"
-              onClick={() => acaoBloquear(detalheData.empresa?.id)}
-            >
-              Bloquear
-            </BotaoPequeno>
-
-            <BotaoPequeno
-              className="btn-outlined"
-              onClick={() => acaoExcluirHard(detalheData.empresa?.id)}
-              title="Hard delete"
-            >
-              Excluir
-            </BotaoPequeno>
-            {detalheData?.empresa?.id && (
-  <BotaoPequeno
-    className="btn-outlined"
-    onClick={() => abrirHistorico("EMPRESA", detalheData.empresa.id)}
-  >
-    Histórico
-  </BotaoPequeno>
-)}
+                )}
 
 
-          </div>
-        </div>
-
-        <div className="card" style={{ padding: 12 }}>
-          <div style={{ fontWeight: 800, fontSize: 13, marginBottom: 6 }}>
-            Gestor dono
-          </div>
-          {detalheData.gestor ? (
-            <div style={{ fontSize: 13, opacity: 0.9 }}>
-              <div>
-                <strong>{detalheData.gestor.nome || "Gestor"}</strong>
-              </div>
-              <div style={{ opacity: 0.85 }}>
-                {detalheData.gestor.email || "—"}{" "}
-                {detalheData.gestor.cpf ? `• ${detalheData.gestor.cpf}` : ""}
-              </div>
-            </div>
-          ) : (
-            <div style={{ fontSize: 13, opacity: 0.75 }}>
-              Não encontrado (ou não retornou do backend).
-            </div>
-          )}
-        </div>
-
-        <div className="card" style={{ padding: 12 }}>
-          <div style={{ fontWeight: 800, fontSize: 13, marginBottom: 8 }}>
-            Quadras
-          </div>
-
-          {(detalheData.quadras || []).length === 0 ? (
-            <div style={{ fontSize: 13, opacity: 0.75 }}>
-              Nenhuma quadra cadastrada para esta empresa.
-            </div>
-          ) : (
-            <div style={{ display: "grid", gap: 6 }}>
-              {(detalheData.quadras || []).map((q) => (
-                <div key={q.id} style={{ fontSize: 13 }}>
-                  <strong>{q.informacoes || "Quadra"}</strong>{" "}
-                   {q.modalidade ? `(${q.modalidade})` : ""}{" "}
-                   {q.status ? `— ${q.status}` : ""}
+                <div>
+                  <div className="resultado-secao-titulo">Empresas / Complexos</div>
+                  {(!consultaLoading && (consultaRes.empresas || []).length === 0) ? (
+                    <div className="resultado-vazio">
+                      <div>Nenhuma empresa encontrada para o termo.</div>
+                      {selecionado?.tipo === "GESTOR" && detalheData?.tipo === "GESTOR" && Array.isArray(detalheData?.empresas) && detalheData.empresas.length > 0 && (
+                        <div className="text-muted-xs">
+                          Este gestor tem <strong>{detalheData.empresas.length}</strong> empresas (veja no detalhe).
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="resultado-grid">
+                      {(consultaRes.empresas || []).map((e) => {
+                        const label = `${e.nome || "Complexo"}${e.slug ? ` • ${e.slug}` : ""}`
+                        const ativoTxt = e.ativo === false ? " (inativo)" : ""
+                        const selecionado_ = selecionado?.tipo === "EMPRESA" && selecionado?.id === e.id
+                        return (
+                          <button
+                            key={e.id}
+                            type="button"
+                            onClick={() => carregarDetalheSelecionado({ tipo: "EMPRESA", id: e.id, label: label + ativoTxt })}
+                            className="resultado-item"
+                            style={selecionado_ ? { background: "#f1f5f9", boxShadow: "inset 0 0 0 2px #2563eb" } : undefined}
+                          >
+                            <div className="resultado-item-nome">{e.nome || "Complexo"}{ativoTxt}</div>
+                            <div className="resultado-item-sub">{e.endereco_resumo || e.slug || "—"}</div>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-    )}
-</div>
-</div>
+              </div>
 
-<div style={modalFooterStyle}>
-  <button
-    type="button"
-    className="btn-outlined"
-    onClick={fecharModalConsultar}
-  >
-    Fechar
-  </button>
-</div>
-</div>
-</div>
-)}
-</div>
-);
+              <div id="admin-detalhe-scroll" className="modal-detalhe-col">
+                <div className="resultado-titulo">Detalhe</div>
+
+                {!selecionado && <div className="msg-vazio">Selecione um item na lista para ver o detalhe aqui.</div>}
+
+                {detalheLoading && (
+                  <div className="resultado-grid">
+                    {[1, 2, 3].map((i) => <div key={i} className="skeleton-item" />)}
+                  </div>
+                )}
+
+                {detalheErro && <div className="msg-erro-inline">{detalheErro}</div>}
+
+                {!detalheLoading && !detalheErro && detalheData && detalheData.tipo === "GESTOR" && (
+                  <div className="resultado-grid">
+                    <div className="card kpi-card">
+                      <div className="detalhe-titulo">{detalheData.gestor?.nome || "Gestor"}</div>
+                      <div className="detalhe-subtitulo">
+                        {detalheData.gestor?.email || "—"} {detalheData.gestor?.cpf ? `• ${detalheData.gestor.cpf}` : ""}
+                      </div>
+                      <div className="detalhe-meta">
+                        Empresas: <strong>{detalheData.contagens?.empresas ?? 0}</strong> • Quadras: <strong>{detalheData.contagens?.quadras ?? 0}</strong>
+                      </div>
+                      <div className="detalhe-acoes">
+                        <button type="button" className="btn-outlined" onClick={() => abrirHistorico("GESTOR", detalheData.gestor.id)}>Histórico</button>
+                      </div>
+                    </div>
+
+                    <div className="card kpi-card">
+                      <div className="text-bold-sm margin-bottom-sm">Empresas vinculadas</div>
+                      {(detalheData.empresas || []).length === 0 ? (
+                        <div className="msg-vazio">Nenhuma empresa vinculada.</div>
+                      ) : (
+                        <div className="resultado-grid">
+                          {(detalheData.empresas || []).map((emp) => {
+                            const qds = quadrasPorEmpresaNoDetalheGestor[emp.id] || []
+                            return (
+                              <div key={emp.id} className="empresa-detalhe-card">
+                                <div className="empresa-detalhe-nome">{emp.nome || "Complexo"}</div>
+                                <div className="empresa-detalhe-end">{emp.endereco_resumo || "—"}</div>
+                                <div className="empresa-detalhe-qtd">Quadras: <strong>{qds.length}</strong></div>
+                                {qds.length > 0 && (
+                                  <div className="empresa-detalhe-quadras">
+                                    {qds.slice(0, 8).map((q) => (
+                                      <div key={q.id} className="empresa-detalhe-quadra-item">
+                                        • {q.informacoes || "Quadra"} {q.modalidade ? `(${q.modalidade})` : ""} {q.status ? `— ${q.status}` : ""}
+                                      </div>
+                                    ))}
+                                    {qds.length > 8 && <div className="text-muted-xs">+{qds.length - 8} quadras...</div>}
+                                  </div>
+                                )}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {!detalheLoading && !detalheErro && detalheData && detalheData.tipo === "EMPRESA" && (
+                  <div className="resultado-grid">
+                    <div className="card kpi-card">
+                      <div className="detalhe-titulo">{detalheData.empresa?.nome || "Complexo"}</div>
+                      <div className="detalhe-subtitulo">{detalheData.empresa?.endereco_resumo || "—"}</div>
+                      <div className="detalhe-meta">Quadras: <strong>{detalheData.contagens?.quadras ?? 0}</strong></div>
+                      <div className="detalhe-acoes-multi">
+                        <BotaoPequeno className="btn-primary" onClick={() => { preencherFormParaEditar(detalheData.empresa); fecharModalConsultar() }}>Editar</BotaoPequeno>
+                        <BotaoPequeno className="btn-outlined" onClick={() => pedirConfirmacaoArquivar(detalheData.empresa?.id)}>Arquivar</BotaoPequeno>
+                        <BotaoPequeno className="btn-outlined" onClick={() => pedirConfirmacaoBloquear(detalheData.empresa?.id)}>Bloquear</BotaoPequeno>
+                        <BotaoPequeno className="btn-outlined" onClick={() => pedirConfirmacaoExcluir(detalheData.empresa?.id)} title="Hard delete">Excluir</BotaoPequeno>
+                        {detalheData?.empresa?.id && (
+                          <BotaoPequeno className="btn-outlined" onClick={() => abrirHistorico("EMPRESA", detalheData.empresa.id)}>Histórico</BotaoPequeno>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="card kpi-card">
+                      <div className="text-bold-sm margin-bottom-sm">Gestor dono</div>
+                      {detalheData.gestor ? (
+                        <div>
+                          <div><strong>{detalheData.gestor.nome || "Gestor"}</strong></div>
+                          <div className="detalhe-subtitulo">{detalheData.gestor.email || "—"} {detalheData.gestor.cpf ? `• ${detalheData.gestor.cpf}` : ""}</div>
+                        </div>
+                      ) : (
+                        <div className="msg-vazio">Não encontrado (ou não retornou do backend).</div>
+                      )}
+                    </div>
+
+                    <div className="card kpi-card">
+                      <div className="text-bold-sm margin-bottom-sm">Quadras</div>
+                      {(detalheData.quadras || []).length === 0 ? (
+                        <div className="msg-vazio">Nenhuma quadra cadastrada para esta empresa.</div>
+                      ) : (
+                        <div className="resultado-grid">
+                          {(detalheData.quadras || []).map((q) => (
+                            <div key={q.id} className="text-bold-sm">
+                              <strong>{q.informacoes || "Quadra"}</strong> {q.modalidade ? `(${q.modalidade})` : ""} {q.status ? `— ${q.status}` : ""}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="modal-footer">
+              <button type="button" className="btn-outlined" onClick={fecharModalConsultar}>Fechar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <ConfirmacaoModal
+        aberto={confirmacaoAberta}
+        titulo={acaoPendente?.titulo || "Confirmar"}
+        mensagem={acaoPendente?.mensagem || ""}
+        onFechar={() => { setConfirmacaoAberta(false); setAcaoPendente(null); }}
+        onConfirmar={handleConfirmarAcao}
+        textoConfirmar={acaoPendente?.textoConfirmar || "Confirmar"}
+      />
+    </div>
+  )
 }
 
-export default AdminEmpresasPage;
+export default AdminEmpresasPage
 

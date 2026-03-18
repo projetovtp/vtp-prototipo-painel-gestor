@@ -1,352 +1,23 @@
 import React, { useEffect, useState, useMemo, useCallback } from "react";
 import { useGestorReservas, useGestorQuadras, useGestorAgenda } from "../../hooks/api";
 import { ErrorMessage, LoadingSpinner, EmptyState } from "../../components/ui";
+import { DetalhesReservaModal } from "../../components/modals";
+import { gerarReservasExemploReservas } from "../../mocks/mockReservas";
 
-const formatarDataBR = (isoDate) => {
-  if (!isoDate) return "";
-  const [ano, mes, dia] = isoDate.split("-");
-  return `${dia}/${mes}/${ano}`;
-};
-
-const formatarMoeda = (valor) => {
-  if (!valor && valor !== 0) return "R$ 0,00";
-  return new Intl.NumberFormat("pt-BR", {
-    style: "currency",
-    currency: "BRL",
-  }).format(valor);
-};
-
-const formatarCPF = (cpf) => {
-  if (!cpf) return "";
-  const cpfLimpo = cpf.replace(/\D/g, "");
-  return cpfLimpo.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
-};
-
-const formatarTelefone = (telefone) => {
-  if (!telefone) return "";
-  const telLimpo = telefone.replace(/\D/g, "");
-  if (telLimpo.length === 11)
-    return telLimpo.replace(/(\d{2})(\d{5})(\d{4})/, "($1) $2-$3");
-  if (telLimpo.length === 10)
-    return telLimpo.replace(/(\d{2})(\d{4})(\d{4})/, "($1) $2-$3");
-  return telefone;
-};
+import {
+  formatarDataBR,
+  formatarMoeda,
+  formatarNomeQuadra,
+  agregarSlotsGrupo,
+} from "../../utils/formatters";
+import { DIAS_SEMANA_ABREVIADOS, MESES } from "../../utils/constants";
 
 const getNomeDiaSemana = (dataISO) => {
-  const dias = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
   const data = new Date(`${dataISO}T12:00:00`);
-  return dias[data.getDay()];
+  return DIAS_SEMANA_ABREVIADOS[data.getDay()];
 };
 
-const getNomeMes = (mes) => {
-  const meses = [
-    "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
-    "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro",
-  ];
-  return meses[mes];
-};
-
-const DIAS_SEMANA = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
-
-const extrairNomeQuadra = (quadra) => {
-  if (!quadra) return "Quadra não encontrada";
-  if (quadra.nome) return quadra.nome;
-  return `${quadra.tipo || "Quadra"}${quadra.modalidade ? ` - ${quadra.modalidade}` : ""}`;
-};
-
-// ─── Componente de campo da reserva (label + value) ─────────────────────────
-
-const CampoReserva = ({ label, children }) => (
-  <div>
-    <label className="rv-modal-field-label">{label}</label>
-    <div className="rv-modal-field-value">{children}</div>
-  </div>
-);
-
-// ─── Dados do cliente dentro do modal ────────────────────────────────────────
-
-const DadosCliente = ({ reserva }) => {
-  const nome = reserva.usuario_nome || reserva.nome;
-  return (
-    <div>
-      <label className="rv-modal-field-label">Dados do Cliente</label>
-      <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 6 }}>
-        {nome && (
-          <div className="rv-client-row">
-            <span className="rv-client-row-label">Nome: </span>
-            <span className="rv-client-row-value">{nome}</span>
-          </div>
-        )}
-        {reserva.user_cpf && (
-          <div className="rv-client-row">
-            <span className="rv-client-row-label">CPF: </span>
-            <span className="rv-client-row-value">{formatarCPF(reserva.user_cpf)}</span>
-          </div>
-        )}
-        {reserva.phone && (
-          <div className="rv-client-row">
-            <span className="rv-client-row-label">Telefone: </span>
-            <span className="rv-client-row-value">{formatarTelefone(reserva.phone)}</span>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-};
-
-// ─── Card de reserva individual (usado na lista múltipla) ────────────────────
-
-const ReservaCard = ({ reserva, index, onCancelar, cancelando }) => {
-  const statusPg = reserva.pago_via_pix ? "Reservado" : "Pendente";
-  const nomeQuadra = extrairNomeQuadra(reserva.quadra);
-
-  return (
-    <div className="rv-reserva-item">
-      <div className="rv-reserva-item-header">
-        <h4 className="rv-reserva-item-title">Reserva {index + 1}</h4>
-        <span className={`rv-modal-status rv-modal-status--${statusPg === "Reservado" ? "reservado" : "pendente"}`}>
-          {statusPg}
-        </span>
-      </div>
-
-      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        <CampoReserva label="Quadra">{nomeQuadra}</CampoReserva>
-        <CampoReserva label="Data e Horário">
-          {formatarDataBR(reserva.data)} às {reserva.hora}
-        </CampoReserva>
-        <DadosCliente reserva={reserva} />
-        <CampoReserva label="Valor">
-          <span className="rv-modal-field-value--lg">
-            {formatarMoeda(reserva.preco_total || 0)}
-          </span>
-        </CampoReserva>
-
-        <button
-          type="button"
-          className="dash-btn--cancel-sm"
-          onClick={() => onCancelar(reserva.id)}
-          disabled={cancelando}
-        >
-          {cancelando ? "Cancelando..." : "Cancelar Reserva"}
-        </button>
-      </div>
-    </div>
-  );
-};
-
-// ─── Modal de detalhes / criar reserva ───────────────────────────────────────
-
-const DetalhesReservaModal = ({ aberto, onFechar, reserva, reservas, onCancelado, onCriada }) => {
-  const { cancelar: cancelarReserva, criar: criarReserva } = useGestorReservas();
-  const [cancelando, setCancelando] = useState(false);
-  const [salvando, setSalvando] = useState(false);
-  const [erro, setErro] = useState("");
-  const [nome, setNome] = useState("");
-  const [cpf, setCpf] = useState("");
-  const [phone, setPhone] = useState("");
-  const [valor, setValor] = useState("");
-
-  const reservasDoSlot = reserva?.todasReservas || reservas || [];
-  const listaReservas = reservasDoSlot.length > 0 ? reservasDoSlot : (reserva ? [reserva] : []);
-  const reservaAtual = listaReservas[0] || reserva;
-  const temMultiplasReservas = listaReservas.length > 1;
-  const isNovaReserva = reservaAtual && !reservaAtual.id;
-
-  useEffect(() => {
-    if (aberto && isNovaReserva) {
-      setValor(reservaAtual.preco_hora ? String(reservaAtual.preco_hora) : "");
-      setNome("");
-      setCpf("");
-      setPhone("");
-      setErro("");
-    }
-  }, [aberto, isNovaReserva, reservaAtual]);
-
-  if (!aberto || !reservaAtual) return null;
-
-  const handleCancelar = async (reservaId) => {
-    if (!window.confirm("Tem certeza que deseja cancelar esta reserva?")) return;
-    try {
-      setCancelando(true);
-      setErro("");
-      await cancelarReserva(reservaId);
-      if (onCancelado) onCancelado();
-      onFechar();
-    } catch (error) {
-      console.error("[CANCELAR RESERVA] Erro:", error);
-      setErro(error?.response?.data?.error || "Erro ao cancelar reserva.");
-    } finally {
-      setCancelando(false);
-    }
-  };
-
-  const handleCriarReserva = async () => {
-    try {
-      setSalvando(true);
-      setErro("");
-      if (!cpf || !nome) {
-        setErro("Informe pelo menos CPF e nome do cliente.");
-        setSalvando(false);
-        return;
-      }
-      const body = {
-        quadraId: reservaAtual.quadra_id,
-        data: reservaAtual.data,
-        hora: reservaAtual.hora,
-        nome,
-        cpf,
-        phone,
-      };
-      if (valor !== "") body.valor = Number(valor);
-      await criarReserva(body);
-      if (onCriada) onCriada();
-      onFechar();
-    } catch (error) {
-      console.error("[CRIAR RESERVA] Erro:", error);
-      setErro(error?.response?.data?.error || "Erro ao criar reserva.");
-    } finally {
-      setSalvando(false);
-    }
-  };
-
-  const statusPagamento = reservaAtual.pago_via_pix ? "Reservado" : "Pendente";
-  const nomeQuadra = extrairNomeQuadra(reservaAtual.quadra);
-
-  const tituloModal = isNovaReserva
-    ? "Nova Reserva"
-    : temMultiplasReservas
-      ? `Detalhe das reservas (${listaReservas.length})`
-      : "Detalhes da Reserva";
-
-  return (
-    <div className="vt-modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) onFechar(); }}>
-      <div
-        className="vt-modal"
-        style={{ maxWidth: temMultiplasReservas ? 700 : 500 }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="vt-modal-header">
-          <h3 className="dash-modal-title">{tituloModal}</h3>
-          <button type="button" className="vt-modal-close" onClick={onFechar}>×</button>
-        </div>
-
-        <div className="vt-modal-body" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <ErrorMessage mensagem={erro} onDismiss={() => setErro(null)} />
-
-          {temMultiplasReservas && !isNovaReserva ? (
-            <div style={{ display: "flex", flexDirection: "column", gap: 16, maxHeight: "60vh", overflowY: "auto" }}>
-              {listaReservas.map((reservaItem, index) => (
-                <ReservaCard
-                  key={reservaItem.id || index}
-                  reserva={reservaItem}
-                  index={index}
-                  onCancelar={handleCancelar}
-                  cancelando={cancelando}
-                />
-              ))}
-            </div>
-          ) : (
-            <>
-              <CampoReserva label="Quadra">{nomeQuadra}</CampoReserva>
-              <CampoReserva label="Data e Horário">
-                {formatarDataBR(reservaAtual.data)} às {reservaAtual.hora}
-              </CampoReserva>
-
-              {!isNovaReserva ? (
-                <>
-                  <DadosCliente reserva={reservaAtual} />
-                  <div style={{ display: "flex", gap: 24 }}>
-                    <div style={{ flex: 1 }}>
-                      <CampoReserva label="Valor">
-                        <span className="rv-modal-field-value--lg">
-                          {formatarMoeda(reservaAtual.preco_total || 0)}
-                        </span>
-                      </CampoReserva>
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <label className="rv-modal-field-label">Status do Pagamento</label>
-                      <div style={{ marginTop: 4 }}>
-                        <span className={`rv-modal-status rv-modal-status--${statusPagamento === "Reservado" ? "reservado" : "pendente"}`}>
-                          {statusPagamento}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="form-field">
-                    <label>Nome do Cliente *</label>
-                    <input
-                      type="text"
-                      value={nome}
-                      onChange={(e) => setNome(e.target.value)}
-                      placeholder="Nome completo"
-                    />
-                  </div>
-                  <div className="form-field">
-                    <label>CPF *</label>
-                    <input
-                      type="text"
-                      value={cpf}
-                      onChange={(e) => setCpf(e.target.value)}
-                      placeholder="000.000.000-00"
-                    />
-                  </div>
-                  <div className="form-field">
-                    <label>Telefone</label>
-                    <input
-                      type="text"
-                      value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
-                      placeholder="(00) 00000-0000"
-                    />
-                  </div>
-                  <div className="form-field">
-                    <label>Valor</label>
-                    <input
-                      type="number"
-                      value={valor}
-                      onChange={(e) => setValor(e.target.value)}
-                      placeholder="0.00"
-                      step="0.01"
-                    />
-                  </div>
-                </>
-              )}
-            </>
-          )}
-        </div>
-
-        <div className="dash-modal-actions">
-          <button type="button" className="dash-btn dash-btn--secondary" onClick={onFechar}>
-            Fechar
-          </button>
-          {!isNovaReserva && !temMultiplasReservas && (
-            <button
-              type="button"
-              className="dash-btn dash-btn--danger"
-              onClick={() => handleCancelar(reservaAtual.id)}
-              disabled={cancelando}
-            >
-              {cancelando ? "Cancelando..." : "Cancelar Reserva"}
-            </button>
-          )}
-          {isNovaReserva && (
-            <button
-              type="button"
-              className="dash-btn dash-btn--primary"
-              onClick={handleCriarReserva}
-              disabled={salvando}
-            >
-              {salvando ? "Salvando..." : "Criar Reserva"}
-            </button>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-};
+const getNomeMes = (mes) => MESES[mes];
 
 // ─── Slot de horário individual (mesmo estilo do Dashboard) ──────────────────
 
@@ -519,7 +190,7 @@ const GestorReservasPage = () => {
       const quadrasExpandidas = [];
       const quadrasPorNome = {};
       quadrasCarregadas.forEach((quadra) => {
-        const nome = extrairNomeQuadra(quadra);
+        const nome = formatarNomeQuadra(quadra);
         if (!quadrasPorNome[nome]) quadrasPorNome[nome] = [];
         quadrasPorNome[nome].push(quadra);
       });
@@ -580,47 +251,8 @@ const GestorReservasPage = () => {
   }, [regrasHorarios]);
 
   const gerarReservasExemplo = useCallback((quadraId, dataISO, horaStr) => {
-    if (!quadras || quadras.length === 0) return { status: "DISPONIVEL", reserva: null, bloqueio: null };
-
     const quadra = quadras.find(q => q.id === quadraId);
-    if (!quadra) return { status: "DISPONIVEL", reserva: null, bloqueio: null };
-
-    const nomeQuadra = extrairNomeQuadra(quadra);
-    const hora = parseInt(horaStr.split(":")[0]);
-    const hash = quadraId.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
-
-    if (nomeQuadra.includes("Beach tennis") || nomeQuadra.includes("Beach Tennis")) {
-      const idx = hash % 6;
-      if (hora === 14) {
-        if (idx === 0) return { status: "RESERVADO", reserva: { id: `reserva-paga-${quadraId}-${dataISO}-${horaStr}`, user_cpf: "123.456.789-00", phone: "(11) 98765-4321", preco_total: 150, pago_via_pix: true, nome: "João Silva", quadra_id: quadraId, data: dataISO, hora: horaStr }, bloqueio: null };
-        if (idx === 1) return { status: "RESERVADO", reserva: { id: `reserva-pendente-${quadraId}-${dataISO}-${horaStr}`, user_cpf: "987.654.321-00", phone: "(11) 91234-5678", preco_total: 150, pago_via_pix: false, nome: "Maria Santos", quadra_id: quadraId, data: dataISO, hora: horaStr }, bloqueio: null };
-      }
-      if (idx === 0 && (hora === 9 || hora === 10)) return { status: "BLOQUEADO", bloqueio: { motivo: "Bloqueado", id: `bloqueio-${quadraId}-${dataISO}-${horaStr}` }, reserva: null };
-      if (idx === 3 && (hora === 18 || hora === 19)) return { status: "RESERVADO", reserva: { id: `reserva-paga-${quadraId}-${dataISO}-${horaStr}`, user_cpf: "111.222.333-44", phone: "(11) 99876-5432", preco_total: 150, pago_via_pix: true, nome: "Pedro Oliveira", quadra_id: quadraId, data: dataISO, hora: horaStr }, bloqueio: null };
-    }
-
-    if (nomeQuadra.includes("Pádel") || nomeQuadra.includes("Padel")) {
-      const idx = hash % 3;
-      if (idx === 0 && (hora === 11 || hora === 12)) return { status: "BLOQUEADO", bloqueio: { motivo: "Bloqueado", id: `bloqueio-${quadraId}-${dataISO}-${horaStr}` }, reserva: null };
-      if (idx === 1 && (hora === 18 || hora === 19)) return { status: "RESERVADO", reserva: { id: `reserva-paga-${quadraId}-${dataISO}-${horaStr}`, user_cpf: "555.666.777-88", phone: "(11) 97654-3210", preco_total: 200, pago_via_pix: true, nome: "Ana Costa", quadra_id: quadraId, data: dataISO, hora: horaStr }, bloqueio: null };
-      if (idx === 2 && (hora === 20 || hora === 21)) return { status: "RESERVADO", reserva: { id: `reserva-pendente-${quadraId}-${dataISO}-${horaStr}`, user_cpf: "999.888.777-66", phone: "(11) 96543-2109", preco_total: 200, pago_via_pix: false, nome: "Carlos Mendes", quadra_id: quadraId, data: dataISO, hora: horaStr }, bloqueio: null };
-    }
-
-    const reservaReal = reservas.find((r) => {
-      const reservaData = r.data?.split("T")[0] || r.data;
-      const reservaHora = r.hora || r.hora_inicio || "";
-      return r.quadra_id === quadraId && reservaData === dataISO && reservaHora.startsWith(horaStr.split(":")[0]);
-    });
-
-    if (reservaReal) {
-      return {
-        status: "RESERVADO",
-        reserva: { id: reservaReal.id, user_cpf: reservaReal.user_cpf, phone: reservaReal.phone, preco_total: reservaReal.preco_total, pago_via_pix: reservaReal.pago_via_pix, nome: reservaReal.nome || reservaReal.user_name },
-        bloqueio: null,
-      };
-    }
-
-    return { status: "DISPONIVEL", reserva: null, bloqueio: null };
+    return gerarReservasExemploReservas(quadra, dataISO, horaStr, reservas);
   }, [quadras, reservas]);
 
   const gerarSlotsMock = useCallback((dataISO) => {
@@ -679,7 +311,7 @@ const GestorReservasPage = () => {
 
   const getNomeQuadra = (quadraId) => {
     const quadra = quadras.find(q => q.id === quadraId);
-    return extrairNomeQuadra(quadra);
+    return formatarNomeQuadra(quadra);
   };
 
   const gruposQuadras = useMemo(() => {
@@ -692,44 +324,10 @@ const GestorReservasPage = () => {
     return grupos;
   }, [quadras]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const agregarSlotsGrupo = useCallback((quadrasGrupo) => {
-    const slotsAgregados = {};
-
-    quadrasGrupo.forEach((quadra) => {
-      const slots = slotsPorQuadra[quadra.id] || [];
-      slots.forEach((slot) => {
-        const hora = slot.hora || slot.hora_inicio || "";
-        if (!slotsAgregados[hora]) {
-          slotsAgregados[hora] = {
-            hora,
-            hora_fim: slot.hora_fim || `${String(parseInt(hora.split(":")[0]) + 1).padStart(2, "0")}:00`,
-            disponiveis: 0,
-            reservadasPagas: 0,
-            reservadasPendentes: 0,
-            bloqueadas: 0,
-            total: quadrasGrupo.length,
-            reservas: [],
-            bloqueios: [],
-            preco_hora: slot.preco_hora || 100,
-          };
-        }
-
-        const status = (slot.status || "").toUpperCase();
-        if (status === "DISPONIVEL" || status === "LIVRE") {
-          slotsAgregados[hora].disponiveis++;
-        } else if (status === "RESERVADO" || status === "RESERVADA") {
-          if (slot.reserva?.pago_via_pix === true) slotsAgregados[hora].reservadasPagas++;
-          else slotsAgregados[hora].reservadasPendentes++;
-          if (slot.reserva) slotsAgregados[hora].reservas.push(slot.reserva);
-        } else if (status === "BLOQUEADO" || status === "BLOQUEADA") {
-          slotsAgregados[hora].bloqueadas++;
-          if (slot.bloqueio) slotsAgregados[hora].bloqueios.push(slot.bloqueio);
-        }
-      });
-    });
-
-    return Object.values(slotsAgregados).sort((a, b) => a.hora.localeCompare(b.hora));
-  }, [slotsPorQuadra]);
+  const agregarSlots = useCallback(
+    (quadrasGrupo) => agregarSlotsGrupo(quadrasGrupo, slotsPorQuadra),
+    [slotsPorQuadra]
+  );
 
   // ─── Navegação ─────────────────────────────────────────────────────────────
 
@@ -797,7 +395,7 @@ const GestorReservasPage = () => {
             key={nomeGrupo}
             nomeGrupo={nomeGrupo}
             quadrasGrupo={quadrasGrupo}
-            slotsAgregados={agregarSlotsGrupo(quadrasGrupo)}
+            slotsAgregados={agregarSlots(quadrasGrupo)}
             dataISO={dataISO}
             quadras={quadras}
             onAbrirModal={abrirModal}
@@ -848,7 +446,7 @@ const GestorReservasPage = () => {
     return (
       <div>
         <div className="rv-calendar-header">
-          {DIAS_SEMANA.map(d => <div key={d} className="rv-calendar-header-cell">{d}</div>)}
+          {DIAS_SEMANA_ABREVIADOS.map(d => <div key={d} className="rv-calendar-header-cell">{d}</div>)}
         </div>
         <div className="rv-calendar-grid">
           {diasSemana.map((dia) => {
@@ -912,7 +510,7 @@ const GestorReservasPage = () => {
     return (
       <div>
         <div className="rv-calendar-header">
-          {DIAS_SEMANA.map(d => <div key={d} className="rv-calendar-header-cell">{d}</div>)}
+          {DIAS_SEMANA_ABREVIADOS.map(d => <div key={d} className="rv-calendar-header-cell">{d}</div>)}
         </div>
         <div className="rv-calendar-grid">
           {dias.map((dia, index) => {

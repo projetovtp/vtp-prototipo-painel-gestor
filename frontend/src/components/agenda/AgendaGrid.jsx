@@ -1,5 +1,6 @@
 // src/pages/components/agenda/AgendaGrid.jsx
 import React, { useMemo } from "react";
+import PropTypes from "prop-types";
 
 /**
  * Grade estilo "cinema":
@@ -164,3 +165,19 @@ export function AgendaGrid({ dias }) {
     </div>
   );
 }
+
+AgendaGrid.propTypes = {
+  dias: PropTypes.arrayOf(
+    PropTypes.shape({
+      id: PropTypes.string.isRequired,
+      label: PropTypes.string,
+      slots: PropTypes.arrayOf(
+        PropTypes.shape({
+          hora: PropTypes.string,
+          status: PropTypes.oneOf(["disponivel", "reservada", "bloqueada"]),
+          descricao: PropTypes.string,
+        })
+      ),
+    })
+  ),
+};

@@ -2397,11 +2397,21 @@ html {
   margin-bottom: var(--space-xl);
 }
 
+.dash-modal-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .dash-modal-title {
   font-size: 20px;
   font-weight: 700;
   color: var(--color-text);
   margin: 0;
+}
+
+.confirmacao-modal-titulo {
+  margin-bottom: 16px;
 }
 
 .dash-modal-subtitle {
@@ -4383,6 +4393,54 @@ html {
   justify-content: flex-end;
 }
 
+/* -- Modal de edição -- */
+
+.rh-modal-edicao {
+  max-width: 500px;
+}
+
+.rh-modal-edicao-titulo {
+  font-size: var(--font-xl);
+  font-weight: 600;
+}
+
+/* -- Modal de confirmação -- */
+
+.rh-modal-confirm {
+  max-width: 420px;
+}
+
+.rh-modal-confirm--wide {
+  max-width: 450px;
+}
+
+.rh-modal-confirm-body {
+  padding: 24px;
+}
+
+.rh-modal-confirm-titulo {
+  font-size: var(--font-xl);
+  font-weight: 600;
+  color: var(--color-text);
+  margin-bottom: 8px;
+}
+
+.rh-modal-confirm-desc {
+  font-size: var(--font-base);
+  color: var(--color-text-secondary);
+  line-height: 1.5;
+}
+
+.rh-modal-actions .btn-danger-solid {
+  padding: 10px 20px;
+}
+
+/* -- Overlay com z-index elevado (modal sobre modal) -- */
+
+.rh-overlay-top {
+  z-index: 1100;
+}
+
 /* -- Loading placeholder -- */
 
 .rh-loading-box {
@@ -5216,6 +5274,11 @@ html {
 }
 
 /* -- Modal: success -- */
+
+.gf-modal-flex {
+  display: flex;
+  flex-direction: column;
+}
 
 .gf-success-modal {
   display: flex;

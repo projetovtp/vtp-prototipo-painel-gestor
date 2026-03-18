@@ -21,64 +21,13 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useAdminGestores, useAdminEmpresas, useAdminQuadras, useAdminReservas } from "../../hooks/api";
 import { adminReservasApi } from "../../api/endpoints/adminReservasApi";
-
-// -------------------- utils --------------------
-const round2 = (v) => Math.round((Number(v || 0) + Number.EPSILON) * 100) / 100;
-
-function formatarDataBR(iso) {
-  if (!iso) return "—";
-  const s = String(iso).slice(0, 10); // YYYY-MM-DD
-  const [y, m, d] = s.split("-");
-  if (!y || !m || !d) return s;
-  return `${d}/${m}/${y}`;
-}
-
-function formatNomeQuadra(q) {
-  if (!q) return "—";
-  return (
-    q.nome_dinamico ||
-    q.nome ||
-    `${q.tipo || "Quadra"}${q.material ? ` • ${q.material}` : ""}${
-      q.modalidade ? ` • ${q.modalidade}` : ""
-    }`
-  );
-}
-
-function normalizarStatusSlot(slot) {
-  const raw = String(slot?.status || "").toLowerCase().trim();
-  if (raw === "reservado" || raw === "reservada") return "reservado";
-  if (raw === "bloqueado" || raw === "bloqueada") return "bloqueado";
-  if (raw === "disponivel" || raw === "disponível") return "disponivel";
-
-  // backend admin/grade tende a mandar "DISPONIVEL/RESERVADO/BLOQUEADO"
-  if (raw.includes("reserv")) return "reservado";
-  if (raw.includes("bloq")) return "bloqueado";
-  return "disponivel";
-}
-
-function corSlot(slot) {
-  const st = normalizarStatusSlot(slot);
-  if (st === "disponivel") return "#198754"; // verde
-  if (st === "reservado") return "#dc3545"; // vermelho
-  return "#6c757d"; // cinza
-}
-
-function hojeISO() {
-  return new Date().toISOString().slice(0, 10);
-}
-
-function plusDiasISO(baseISO, dias) {
-  const d = new Date(baseISO ? `${String(baseISO).slice(0, 10)}T00:00:00` : Date.now());
-  d.setDate(d.getDate() + dias);
-  return d.toISOString().slice(0, 10);
-}
-
-function safeStr(v) {
-  return v == null ? "" : String(v);
-}
+import { formatarDataBR, formatarNomeQuadra, arredondar2, hojeISO, plusDiasISO, safeStr } from "../../utils/formatters";
+import { normalizarStatusSlot, corSlotPorStatus } from "../../utils/status";
+import { ConfirmacaoModal } from "../../components/ui";
+import slotStyles from "./AdminReservasPage.module.css";
 
 // -------------------- MODAL: Criar Reserva --------------------
-function CriarReservaModal({
+const CriarReservaModal = ({
   aberto,
   onFechar,
   quadraId,
@@ -87,7 +36,7 @@ function CriarReservaModal({
   dataSug,
   horaSug,
   precoSug,
-}) {
+}) => {
   const [data, setData] = useState("");
   const [hora, setHora] = useState("");
   const [cpf, setCpf] = useState("");
@@ -242,7 +191,7 @@ function CriarReservaModal({
 }
 
 // -------------------- MODAL: Editar/Cancelar --------------------
-function EditarReservaModal({ aberto, onFechar, reserva, onAtualizado }) {
+const EditarReservaModal = ({ aberto, onFechar, reserva, onAtualizado }) => {
   const [data, setData] = useState("");
   const [hora, setHora] = useState("");
   const [cpf, setCpf] = useState("");
@@ -251,6 +200,7 @@ function EditarReservaModal({ aberto, onFechar, reserva, onAtualizado }) {
   const [salvando, setSalvando] = useState(false);
   const [cancelando, setCancelando] = useState(false);
   const [erro, setErro] = useState("");
+  const [confirmacaoCancelarAberta, setConfirmacaoCancelarAberta] = useState(false);
 
   useEffect(() => {
     if (!aberto || !reserva) return;
@@ -292,8 +242,11 @@ function EditarReservaModal({ aberto, onFechar, reserva, onAtualizado }) {
     }
   };
 
+  const pedirConfirmacaoCancelar = () => {
+    setConfirmacaoCancelarAberta(true);
+  };
+
   const cancelar = async () => {
-    if (!window.confirm("ATENÇÃO: Deseja realmente CANCELAR esta reserva?")) return;
     try {
       setCancelando(true);
       setErro("");
@@ -368,7 +321,7 @@ function EditarReservaModal({ aberto, onFechar, reserva, onAtualizado }) {
           </div>
 
           <div style={styles.footer}>
-            <button className="btn btn-outline-danger" onClick={cancelar} disabled={cancelando || salvando}>
+            <button className="btn btn-outline-danger" onClick={pedirConfirmacaoCancelar} disabled={cancelando || salvando}>
               {cancelando ? "Cancelando..." : "Cancelar reserva"}
             </button>
             <div style={{ flex: 1 }} />
@@ -381,19 +334,28 @@ function EditarReservaModal({ aberto, onFechar, reserva, onAtualizado }) {
           </div>
         </div>
       </div>
+
+      <ConfirmacaoModal
+        aberto={confirmacaoCancelarAberta}
+        titulo="Cancelar reserva"
+        mensagem="ATENÇÃO: Deseja realmente CANCELAR esta reserva?"
+        onFechar={() => setConfirmacaoCancelarAberta(false)}
+        onConfirmar={async () => { setConfirmacaoCancelarAberta(false); await cancelar(); }}
+        textoConfirmar="Sim, cancelar"
+      />
     </div>
   );
 }
 
 // -------------------- MODAL: Avançado (Tabela Global) --------------------
-function AvancadoModal({
+const AvancadoModal = ({
   aberto,
   onFechar,
   gestores,
   empresas,
   quadras,
   onEditarReserva, // callback(reservaPadronizada)
-}) {
+}) => {
   const [inicio, setInicio] = useState(hojeISO());
   const [fim, setFim] = useState(plusDiasISO(hojeISO(), 7));
   const [status, setStatus] = useState("");
@@ -519,7 +481,7 @@ function AvancadoModal({
   const nomeQuadra = (it) => {
     const q = it?.quadras;
     if (!q) return "—";
-    return formatNomeQuadra(q);
+    return formatarNomeQuadra(q);
   };
 
   return (
@@ -651,7 +613,7 @@ function AvancadoModal({
           <option value="">Todas</option>
           {(quadrasFiltradas || []).map((q) => (
             <option key={q.id} value={q.id}>
-              {formatNomeQuadra(q)}
+              {formatarNomeQuadra(q)}
             </option>
           ))}
         </select>
@@ -771,7 +733,7 @@ function AvancadoModal({
                             <td>{nomeGestor(gestorIdLinha)}</td>
                             <td>{safeStr(it.user_cpf || it.cpf || "")}</td>
                             <td>{safeStr(it.phone || "")}</td>
-                            <td>R$ {round2(it.preco_total).toFixed(2)}</td>
+                            <td>R$ {arredondar2(it.preco_total).toFixed(2)}</td>
                             <td>
                               <div style={{ display: "flex", gap: 8 }}>
                                 <button
@@ -824,7 +786,7 @@ function AvancadoModal({
 }
 
 // -------------------- PAGE: Admin Reservas (cinema clone + avançado) --------------------
-export default function AdminReservasPage() {
+const AdminReservasPage = () => {
   const { listar: listarGestores } = useAdminGestores();
   const { listar: listarEmpresas } = useAdminEmpresas();
   const { listar: listarQuadrasApi } = useAdminQuadras();
@@ -878,7 +840,7 @@ export default function AdminReservasPage() {
     return (quadras || []).find((q) => String(q.id) === String(quadraId)) || null;
   }, [quadras, quadraId]);
 
-  const quadraNome = useMemo(() => formatNomeQuadra(quadraSelecionada), [quadraSelecionada]);
+  const quadraNome = useMemo(() => formatarNomeQuadra(quadraSelecionada), [quadraSelecionada]);
 
   async function carregarBases() {
     try {
@@ -1039,17 +1001,7 @@ export default function AdminReservasPage() {
                     return (
                       <div
                         key={`${dia.data}-${slot.hora}`}
-                        style={{
-                          minWidth: "92px",
-                          textAlign: "center",
-                          padding: "6px 8px",
-                          borderRadius: "4px",
-                          backgroundColor: corSlot(slot),
-                          color: "#fff",
-                          fontSize: "0.85rem",
-                          cursor: statusNorm === "bloqueado" ? "not-allowed" : "pointer",
-                          opacity: statusNorm === "bloqueado" ? 0.7 : 1,
-                        }}
+                        className={`${slotStyles.slotCell} ${slotStyles[corSlotPorStatus(slot)]} ${statusNorm === "bloqueado" ? slotStyles.slotCellBloqueado : ""}`}
                         title={String(slot.status || "").toUpperCase()}
                         onClick={() => {
                           if (statusNorm === "bloqueado") return;
@@ -1057,10 +1009,10 @@ export default function AdminReservasPage() {
                           return abrirModalEditarFromSlot({ ...slot, data: dia.data });
                         }}
                       >
-                        <div style={{ fontWeight: 700 }}>{String(slot.hora || "").slice(0, 5)}</div>
-                        <div style={{ fontSize: 11, opacity: 0.95, marginTop: 2 }}>
-                          {statusNorm === "disponivel" && `R$ ${round2(slot.preco_hora).toFixed(2)}`}
-                          {statusNorm === "reservado" && `R$ ${round2(slot?.reserva?.preco_total).toFixed(2)}`}
+                        <div className={slotStyles.slotHora}>{String(slot.hora || "").slice(0, 5)}</div>
+                        <div className={slotStyles.slotDetalhe}>
+                          {statusNorm === "disponivel" && `R$ ${arredondar2(slot.preco_hora).toFixed(2)}`}
+                          {statusNorm === "reservado" && `R$ ${arredondar2(slot?.reserva?.preco_total).toFixed(2)}`}
                           {statusNorm === "bloqueado" && "BLOQ"}
                         </div>
                       </div>
@@ -1149,7 +1101,7 @@ export default function AdminReservasPage() {
           <option value="">Selecione...</option>
           {(quadrasFiltradas || []).map((q) => (
             <option key={q.id} value={q.id}>
-              {formatNomeQuadra(q)}
+              {formatarNomeQuadra(q)}
             </option>
           ))}
         </select>
@@ -1269,6 +1221,8 @@ export default function AdminReservasPage() {
     </div>
   );
 }
+
+export default AdminReservasPage;
 
 // -------------------- estilos --------------------
 const styles = {

@@ -2,7 +2,7 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
 
-export default function GestorMobileConfiguracoesPage() {
+const GestorMobileConfiguracoesPage = () => {
   const navigate = useNavigate();
 
   const opcoes = [
@@ -111,3 +111,5 @@ export default function GestorMobileConfiguracoesPage() {
     </div>
   );
 }
+
+export default GestorMobileConfiguracoesPage;

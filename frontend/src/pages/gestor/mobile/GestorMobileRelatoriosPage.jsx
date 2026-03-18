@@ -2,23 +2,17 @@ import React, { useState, useEffect, useRef, useMemo } from "react";
 import html2canvas from "html2canvas";
 import { jsPDF } from "jspdf";
 
-function formatBRL(v) {
-  return Number(v || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-}
-
-function formatDateBR(yyyyMmDd) {
-  if (!yyyyMmDd) return "—";
-  const [y, m, d] = String(yyyyMmDd).slice(0, 10).split("-");
-  return !y || !m || !d ? yyyyMmDd : `${d}/${m}/${y}`;
-}
+import {
+  formatarMoeda as formatBRL,
+  formatarDataBR as formatDateBR,
+} from "../../../utils/formatters";
 
 function fmtDate(ano, mes, dia) {
   return `${ano}-${String(mes + 1).padStart(2, "0")}-${String(dia).padStart(2, "0")}`;
 }
 
-const MESES = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 const MESES_CURTO = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
-const DIAS_SEMANA = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+import { DIAS_SEMANA_ABREVIADOS, MESES } from "../../../utils/constants";
 
 function calcularDatasParaPeriodo(p) {
   const h = new Date();
@@ -72,7 +66,7 @@ async function exportarParaPDF(contentRef, titulo, textoData, setExportando) {
   }
 }
 
-export default function GestorMobileRelatoriosPage() {
+const GestorMobileRelatoriosPage = () => {
   const hoje = new Date();
   const datasIniciais = calcularDatasParaPeriodo("mes");
   const [periodo, setPeriodo] = useState("mes");
@@ -294,7 +288,7 @@ export default function GestorMobileRelatoriosPage() {
               Calendário — {MESES_CURTO[mesAtual]} {anoAtual}
             </div>
             <div className="mrp-cal-weekdays">
-              {DIAS_SEMANA.map((d) => <div key={d} className="mrp-cal-wd">{d}</div>)}
+              {DIAS_SEMANA_ABREVIADOS.map((d) => <div key={d} className="mrp-cal-wd">{d}</div>)}
             </div>
             <div className="mrp-cal-days">
               {(() => {
@@ -372,7 +366,7 @@ export default function GestorMobileRelatoriosPage() {
             </div>
 
             <div className="mrp-cal-weekdays" style={{ padding: "0" }}>
-              {DIAS_SEMANA.map((d) => <div key={d} className="mrp-cal-wd">{d}</div>)}
+              {DIAS_SEMANA_ABREVIADOS.map((d) => <div key={d} className="mrp-cal-wd">{d}</div>)}
             </div>
             <div className="mrp-cal-days" style={{ marginBottom: "var(--space-lg)" }}>
               {getDiasDoMes(mesCalendario, anoCalendario).map((dia, i) => {
@@ -397,3 +391,5 @@ export default function GestorMobileRelatoriosPage() {
     </div>
   );
 }
+
+export default GestorMobileRelatoriosPage;

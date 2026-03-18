@@ -4,23 +4,7 @@ import { useAdminFinanceiro, useAdminGestores } from "../../hooks/api";
 import { ErrorMessage } from "../../components/ui";
 import "./adminfinanceiro.css";
 
-function toISODate(d) {
-  const pad = (n) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-}
-
-function defaultPeriodo30() {
-  const fim = new Date();
-  const inicio = new Date();
-  inicio.setDate(inicio.getDate() - 30);
-  return { inicio: toISODate(inicio), fim: toISODate(fim) };
-}
-
-function formatBRL(v) {
-  const n = Number(v || 0);
-  if (!Number.isFinite(n)) return "R$ 0,00";
-  return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-}
+import { formatarMoeda as formatBRL, defaultPeriodo30 } from "../../utils/formatters";
 
 function safeNum(v) {
   const n = Number(v);
@@ -46,7 +30,7 @@ function pickObj(obj, keys) {
   return null;
 }
 
-export default function AdminFinanceiroPage() {
+const AdminFinanceiroPage = () => {
   const def = useMemo(() => defaultPeriodo30(), []);
   const [from, setFrom] = useState(def.inicio);
   const [to, setTo] = useState(def.fim);
@@ -364,3 +348,5 @@ export default function AdminFinanceiroPage() {
     </div>
   );
 }
+
+export default AdminFinanceiroPage;

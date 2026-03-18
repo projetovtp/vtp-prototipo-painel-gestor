@@ -3,7 +3,7 @@ import { Outlet, NavLink, useNavigate } from "react-router-dom";
 import PainelHeader from "../components/PainelHeader";
 import { useAuth } from "../context/AuthContext";
 
-function AdminLayout() {
+const AdminLayout = () => {
   const navigate = useNavigate();
   const { logout } = useAuth();
 

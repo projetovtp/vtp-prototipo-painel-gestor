@@ -39,7 +39,7 @@ const ESTADOS_NOME = {
   SC:"Santa Catarina",SP:"São Paulo",SE:"Sergipe",TO:"Tocantins"
 };
 
-export default function GestorConfiguracoesPage() {
+const GestorConfiguracoesPage = () => {
   const navigate = useNavigate();
   const {
     obterComplexo,
@@ -382,3 +382,5 @@ export default function GestorConfiguracoesPage() {
     </div>
   );
 }
+
+export default GestorConfiguracoesPage;

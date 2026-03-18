@@ -1,5 +1,6 @@
 // src/components/agenda/AgendaToolbar.jsx
 import React from "react";
+import PropTypes from "prop-types";
 
 /**
  * Barra superior da Agenda (título + visão + ações principais).
@@ -89,3 +90,9 @@ export function AgendaToolbar({ viewMode, onChangeViewMode, onRefresh }) {
     </div>
   );
 }
+
+AgendaToolbar.propTypes = {
+  viewMode: PropTypes.oneOf(["cinema", "tabela"]),
+  onChangeViewMode: PropTypes.func,
+  onRefresh: PropTypes.func,
+};

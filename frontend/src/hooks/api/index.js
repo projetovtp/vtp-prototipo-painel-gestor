@@ -16,3 +16,4 @@ export { useGestorClientes } from "./useGestorClientes";
 export { useGestorConfiguracoes } from "./useGestorConfiguracoes";
 export { useGestorMensagens } from "./useGestorMensagens";
 export { useGestorRelatorios } from "./useGestorRelatorios";
+export { useNotificacoes } from "./useNotificacoes";

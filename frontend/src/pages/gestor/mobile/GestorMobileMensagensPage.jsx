@@ -57,7 +57,7 @@ const MOCK_CONVERSAS = [
   },
 ];
 
-export default function GestorMobileMensagensPage() {
+const GestorMobileMensagensPage = () => {
   const navigate = useNavigate();
   const [busca, setBusca] = useState("");
   const [filtro, setFiltro] = useState("tudo");
@@ -169,3 +169,5 @@ export default function GestorMobileMensagensPage() {
     </div>
   );
 }
+
+export default GestorMobileMensagensPage;

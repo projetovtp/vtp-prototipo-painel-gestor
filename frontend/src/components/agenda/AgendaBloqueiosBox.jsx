@@ -1,6 +1,7 @@
 import React from "react";
+import PropTypes from "prop-types";
 
-export default function AgendaBloqueiosBox({
+const AgendaBloqueiosBox = ({
   bloqueios = [],
   quadras = [],
   quadraSelecionadaId,
@@ -15,7 +16,7 @@ export default function AgendaBloqueiosBox({
   onSalvarBloqueio,
   onExcluirBloqueio,
   onResetForm,
-}) {
+}) => {
   function toggleQuadra(id) {
     if (!setSelectedQuadraIds) return;
     setSelectedQuadraIds((prev) =>
@@ -159,3 +160,42 @@ export default function AgendaBloqueiosBox({
     </div>
   );
 }
+
+AgendaBloqueiosBox.propTypes = {
+  bloqueios: PropTypes.arrayOf(
+    PropTypes.shape({
+      id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+      data: PropTypes.string,
+      motivo: PropTypes.string,
+      hora_inicio: PropTypes.string,
+      hora_fim: PropTypes.string,
+    })
+  ),
+  quadras: PropTypes.arrayOf(
+    PropTypes.shape({
+      id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+      nome_dinamico: PropTypes.string,
+      nome: PropTypes.string,
+      tipo: PropTypes.string,
+    })
+  ),
+  quadraSelecionadaId: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+  selectedQuadraIds: PropTypes.arrayOf(PropTypes.oneOfType([PropTypes.string, PropTypes.number])),
+  setSelectedQuadraIds: PropTypes.func,
+  bloquearComplexoInteiro: PropTypes.bool,
+  setBloquearComplexoInteiro: PropTypes.func,
+  bloqueioForm: PropTypes.shape({
+    data: PropTypes.string,
+    motivo: PropTypes.string,
+    horaInicio: PropTypes.string,
+    horaFim: PropTypes.string,
+  }),
+  setBloqueioForm: PropTypes.func,
+  salvandoBloqueio: PropTypes.bool,
+  excluindoBloqueioId: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+  onSalvarBloqueio: PropTypes.func,
+  onExcluirBloqueio: PropTypes.func,
+  onResetForm: PropTypes.func,
+};
+
+export default AgendaBloqueiosBox;

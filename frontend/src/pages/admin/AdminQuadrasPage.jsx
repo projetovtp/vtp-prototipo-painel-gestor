@@ -1,9 +1,13 @@
 // src/pages/admin/AdminQuadrasPage.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import { useAdminQuadras, useAdminEmpresas } from "../../hooks/api";
-import { ErrorMessage, LoadingSpinner, EmptyState } from "../../components/ui";
+import { ErrorMessage, LoadingSpinner, EmptyState, ConfirmacaoModal } from "../../components/ui";
+import useFocusTrap from "../../hooks/useFocusTrap";
 
-export default function AdminQuadrasPage() {
+import "./admin.css";
+import { statusLabelQuadra } from "../../utils/status";
+
+const AdminQuadrasPage = () => {
   console.log("[ADMIN/QUADRAS] componente renderizado");
 
   const [carregando, setCarregando] = useState(false);
@@ -20,6 +24,8 @@ export default function AdminQuadrasPage() {
 
   // form (criar/editar no mesmo lugar)
   const [formAberto, setFormAberto] = useState(false);
+  const [confirmacaoAberta, setConfirmacaoAberta] = useState(false);
+  const [quadraParaExcluir, setQuadraParaExcluir] = useState(null);
   const [modoEdicao, setModoEdicao] = useState(false);
   const [quadraEditId, setQuadraEditId] = useState(null);
 
@@ -70,18 +76,7 @@ export default function AdminQuadrasPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ✅ fechar modal com ESC
-  useEffect(() => {
-    function onKeyDown(e) {
-      if (e.key === "Escape" && formAberto) {
-        setFormAberto(false);
-        limparForm();
-      }
-    }
-
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [formAberto]);
+  const refModalForm = useFocusTrap(formAberto, () => { setFormAberto(false); limparForm(); });
 
   // ----------------------------
   // helpers form
@@ -272,12 +267,12 @@ export default function AdminQuadrasPage() {
     }
   }
 
-  async function excluirSoft(quadra) {
-    const ok = window.confirm(
-      `Confirma excluir (soft delete) a quadra "${quadra.tipo || "Quadra"}"?`
-    );
-    if (!ok) return;
+  function pedirConfirmacaoExcluir(quadra) {
+    setQuadraParaExcluir(quadra);
+    setConfirmacaoAberta(true);
+  }
 
+  async function excluirSoft(quadra) {
     try {
       setErro("");
       setMsg("");
@@ -288,6 +283,14 @@ export default function AdminQuadrasPage() {
       console.error("[ADMIN/QUADRAS] Erro ao excluir:", err);
       setErro(err.response?.data?.error || "Erro ao excluir quadra.");
     }
+  }
+
+  async function handleConfirmarExcluir() {
+    if (quadraParaExcluir) {
+      await excluirSoft(quadraParaExcluir);
+    }
+    setConfirmacaoAberta(false);
+    setQuadraParaExcluir(null);
   }
 
   // ----------------------------
@@ -338,21 +341,12 @@ export default function AdminQuadrasPage() {
     return { id: empresaId, nome: "Empresa não carregada" };
   }
 
-  function labelStatus(status) {
-    const s = String(status || "").toLowerCase();
-    if (s === "ativa") return "Ativa";
-    if (s === "inativa") return "Inativa";
-    if (s === "manutencao") return "Em manutenção";
-    if (s === "excluida") return "Excluída";
-    return "—";
-  }
-
   return (
     <div className="page">
       <div className="page-header">
         <div>
           <h1 className="page-title">Quadras (Admin)</h1>
-          <p style={{ margin: 0, opacity: 0.7, fontSize: 13 }}>
+          <p className="page-subtitle">
             Visão global: todas as quadras de todas as empresas/gestores.
           </p>
         </div>
@@ -363,14 +357,15 @@ export default function AdminQuadrasPage() {
       </div>
 
       {/* Filtros */}
-      <div className="card" style={{ padding: 12 }}>
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <label style={{ fontSize: 12, opacity: 0.75 }}>Empresa</label>
+      <div className="card quadras-filtros-card">
+        <div className="quadras-filtros-row">
+          <div className="quadras-filtros-campo">
+            <label className="filtro-label-mini">Empresa</label>
             <select
+              className="select-mini"
+              style={{ minWidth: 240 }}
               value={filtroEmpresaId}
               onChange={(e) => setFiltroEmpresaId(e.target.value)}
-              style={{ padding: 8, borderRadius: 8, border: "1px solid #ddd", minWidth: 240 }}
             >
               <option value="">Todas</option>
               {(empresas || []).map((e) => (
@@ -381,12 +376,13 @@ export default function AdminQuadrasPage() {
             </select>
           </div>
 
-          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <label style={{ fontSize: 12, opacity: 0.75 }}>Status</label>
+          <div className="quadras-filtros-campo">
+            <label className="filtro-label-mini">Status</label>
             <select
+              className="select-mini"
+              style={{ minWidth: 180 }}
               value={filtroStatus}
               onChange={(e) => setFiltroStatus(e.target.value)}
-              style={{ padding: 8, borderRadius: 8, border: "1px solid #ddd", minWidth: 180 }}
             >
               <option value="">Todos</option>
               <option value="ativa">Ativa</option>
@@ -395,13 +391,13 @@ export default function AdminQuadrasPage() {
             </select>
           </div>
 
-          <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: 1 }}>
-            <label style={{ fontSize: 12, opacity: 0.75 }}>Busca</label>
+          <div className="quadras-filtros-campo--flex">
+            <label className="filtro-label-mini">Busca</label>
             <input
+              className="campo-input"
               value={busca}
               onChange={(e) => setBusca(e.target.value)}
               placeholder="tipo, material, modalidade..."
-              style={{ padding: 8, borderRadius: 8, border: "1px solid #ddd" }}
             />
           </div>
         </div>
@@ -410,8 +406,9 @@ export default function AdminQuadrasPage() {
       {carregando && <LoadingSpinner mensagem="Carregando..." tamanho={24} />}
       <ErrorMessage mensagem={erro} onDismiss={() => setErro(null)} />
       {msg && (
-        <div className="alert" style={{ marginBottom: 16 }}>
-          {msg}
+        <div className="alert-sucesso-agenda">
+          <span className="alert-sucesso-agenda-icone">✅</span>
+          <span>{msg}</span>
         </div>
       )}
 
@@ -455,7 +452,7 @@ export default function AdminQuadrasPage() {
                         </div>
 
                         <span className={`quadra-status-badge ${badgeClass}`}>
-                          {labelStatus(q.status)}
+                          {statusLabelQuadra(q.status)}
                         </span>
                       </div>
 
@@ -471,7 +468,7 @@ export default function AdminQuadrasPage() {
                           </p>
                         )}
 
-                        <p style={{ marginTop: 6 }}>
+                        <p>
                           <strong>Taxa override:</strong>{" "}
                           {q.taxa_plataforma_override == null
                             ? "— (usa taxa global do Gestor)"
@@ -488,7 +485,7 @@ export default function AdminQuadrasPage() {
                           {String(q.status || "").toLowerCase() === "ativa" ? "Desativar" : "Reativar"}
                         </button>
 
-                        <button className="btn-danger" type="button" onClick={() => excluirSoft(q)}>
+                        <button className="btn-danger" type="button" onClick={() => pedirConfirmacaoExcluir(q)}>
                           Excluir
                         </button>
                       </div>
@@ -510,26 +507,31 @@ export default function AdminQuadrasPage() {
             limparForm();
           }}
         >
-          <div className="vt-modal" onClick={(e) => e.stopPropagation()}>
+          <div
+            ref={refModalForm}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="admin-quadras-modal-titulo"
+            tabIndex="-1"
+            className="vt-modal"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="vt-modal-header">
               <div>
-                <h2 style={{ margin: 0 }}>
-                  {modoEdicao ? "Editar quadra (Admin)" : "Nova quadra (Admin)"}
-                </h2>
-                <p style={{ margin: 0, opacity: 0.7, fontSize: 13 }}>
+                <h2 id="admin-quadras-modal-titulo">{modoEdicao ? "Editar quadra (Admin)" : "Nova quadra (Admin)"}</h2>
+                <p className="page-subtitle">
                   {modoEdicao ? "Edite os dados da quadra e salve." : "Cadastre a nova quadra e salve."}
                 </p>
               </div>
 
               <button
-                className="vt-modal-close"
                 type="button"
+                className="vt-modal-close"
+                aria-label="Fechar modal"
                 onClick={() => {
                   setFormAberto(false);
                   limparForm();
                 }}
-                aria-label="Fechar"
-                title="Fechar"
               >
                 ✕
               </button>
@@ -573,15 +575,14 @@ export default function AdminQuadrasPage() {
                 </div>
               ) : (
                 <form onSubmit={salvar}>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                      <label style={{ fontWeight: 700, fontSize: 13 }}>Empresa *</label>
+                  <div className="modal-form-grid-2">
+                    <div className="form-field">
+                      <label>Empresa *</label>
                       <select
                         name="empresaId"
                         value={form.empresaId}
                         onChange={handleChange}
-                        style={{ padding: 10, borderRadius: 8, border: "1px solid #ddd" }}
-                      >
+>
                         <option value="">Selecione...</option>
                         {(empresas || []).map((e) => (
                           <option key={e.id} value={e.id}>
@@ -589,110 +590,92 @@ export default function AdminQuadrasPage() {
                           </option>
                         ))}
                       </select>
-                      <small style={{ opacity: 0.75 }}>
+                      <small>
                         O Gestor é inferido automaticamente pela empresa selecionada.
                       </small>
                     </div>
 
-                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                      <label style={{ fontWeight: 700, fontSize: 13 }}>Status</label>
+                    <div className="form-field">
+                      <label>Status</label>
                       <select
                         name="status"
                         value={form.status}
                         onChange={handleChange}
-                        style={{ padding: 10, borderRadius: 8, border: "1px solid #ddd" }}
-                      >
+>
                         <option value="ativa">Ativa</option>
                         <option value="inativa">Inativa</option>
                         <option value="manutencao">Manutenção</option>
                       </select>
                     </div>
 
-                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                      <label style={{ fontWeight: 700, fontSize: 13 }}>Tipo *</label>
+                    <div className="form-field">
+                      <label>Tipo *</label>
                       <input
                         name="tipo"
                         value={form.tipo}
                         onChange={handleChange}
-                        style={{ padding: 10, borderRadius: 8, border: "1px solid #ddd" }}
-                      />
+/>
                     </div>
 
-                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                      <label style={{ fontWeight: 700, fontSize: 13 }}>Material *</label>
+                    <div className="form-field">
+                      <label>Material *</label>
                       <input
                         name="material"
                         value={form.material}
                         onChange={handleChange}
-                        style={{ padding: 10, borderRadius: 8, border: "1px solid #ddd" }}
-                      />
+/>
                     </div>
 
-                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                      <label style={{ fontWeight: 700, fontSize: 13 }}>Modalidade *</label>
+                    <div className="form-field">
+                      <label>Modalidade *</label>
                       <input
                         name="modalidade"
                         value={form.modalidade}
                         onChange={handleChange}
-                        style={{ padding: 10, borderRadius: 8, border: "1px solid #ddd" }}
-                      />
+/>
                     </div>
 
-                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                      <label style={{ fontWeight: 700, fontSize: 13 }}>Taxa override (opcional)</label>
+                    <div className="form-field">
+                      <label>Taxa override (opcional)</label>
                       <input
                         name="taxa_plataforma_override"
                         value={form.taxa_plataforma_override}
                         onChange={handleChange}
                         placeholder="ex: 10 (ou 0)"
-                        style={{ padding: 10, borderRadius: 8, border: "1px solid #ddd" }}
-                      />
-                      <small style={{ opacity: 0.75 }}>
+/>
+                      <small>
                         Se preenchida, sobrescreve a taxa global do Gestor.
                       </small>
                     </div>
 
-                    <div style={{ display: "flex", flexDirection: "column", gap: 6, gridColumn: "1 / -1" }}>
-                      <label style={{ fontWeight: 700, fontSize: 13 }}>Avisos</label>
+                    <div className="form-field form-field-full">
+                      <label>Avisos</label>
                       <input
                         name="aviso"
                         value={form.aviso}
                         onChange={handleChange}
                         placeholder="Ex.: Chegar 10 min antes / Proibido travas altas / etc."
-                        style={{ padding: 10, borderRadius: 8, border: "1px solid #ddd" }}
-                      />
-                      <small style={{ opacity: 0.75 }}>Avisos importantes antes da reserva.</small>
+/>
+                      <small>Avisos importantes antes da reserva.</small>
                     </div>
 
-                    <div style={{ display: "flex", flexDirection: "column", gap: 6, gridColumn: "1 / -1" }}>
-                      <label style={{ fontWeight: 700, fontSize: 13 }}>Informações / Descrição</label>
+                    <div className="form-field form-field-full">
+                      <label>Informações / Descrição</label>
                       <textarea
                         name="informacoes"
                         value={form.informacoes}
                         onChange={handleChange}
                         rows={5}
                         placeholder="Descreva a quadra, dimensões, estrutura, bar/estacionamento/vestiário, regras..."
-                        style={{
-                          padding: 10,
-                          borderRadius: 8,
-                          border: "1px solid #ddd",
-                          resize: "vertical",
-                        }}
+                        style={{ resize: "vertical" }}
                       />
-                      <small style={{ opacity: 0.75 }}>
+                      <small>
                         Texto completo que ajuda o cliente a decidir.
                       </small>
                     </div>
                   </div>
 
-                  <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "1fr 1fr 1fr",
-                      gap: 12,
-                      marginTop: 14,
-                    }}
-                  >
+                  <div className="modal-form-grid-3">
                     <div className="photo-slot">
                       <span className="photo-label">Foto 1</span>
                       <input type="file" accept="image/*" onChange={(e) => handleFileChange(e, "foto1")} />
@@ -718,7 +701,7 @@ export default function AdminQuadrasPage() {
                     </div>
                   </div>
 
-                  <div style={{ marginTop: 14, display: "flex", gap: 10, justifyContent: "flex-end" }}>
+                  <div className="modal-form-acoes">
                     <button className="btn-outlined" type="button" onClick={limparForm} disabled={carregando}>
                       Limpar
                     </button>
@@ -732,6 +715,17 @@ export default function AdminQuadrasPage() {
           </div>
         </div>
       )}
+
+      <ConfirmacaoModal
+        aberto={confirmacaoAberta}
+        titulo="Excluir quadra"
+        mensagem={quadraParaExcluir ? `Confirma excluir (soft delete) a quadra "${quadraParaExcluir.tipo || "Quadra"}"?` : ""}
+        onFechar={() => { setConfirmacaoAberta(false); setQuadraParaExcluir(null); }}
+        onConfirmar={handleConfirmarExcluir}
+        textoConfirmar="Excluir"
+      />
     </div>
   );
 }
+
+export default AdminQuadrasPage;

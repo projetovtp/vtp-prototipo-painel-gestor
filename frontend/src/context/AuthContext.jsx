@@ -1,9 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import apiClient from "../api/client";
 import { setLogoutCallback } from "../api/interceptors";
-
-const TOKEN_KEY = "vaiterplay_token";
-const USER_KEY = "vaiterplay_usuario";
+import { TOKEN_KEY, USER_KEY } from "../utils/constants";
 
 const AuthContext = createContext(null);
 

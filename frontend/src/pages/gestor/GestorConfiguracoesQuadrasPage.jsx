@@ -61,7 +61,7 @@ function getQuadraDisplayName(quadra) {
   return `${quadra.estrutura || "Quadra"}${quadra.modalidades?.length ? ` - ${quadra.modalidades[0]}` : ""}`;
 }
 
-export default function GestorConfiguracoesQuadrasPage() {
+const GestorConfiguracoesQuadrasPage = () => {
   const navigate = useNavigate();
 
   const [quadras, setQuadras] = useState(MOCK_QUADRAS);
@@ -453,3 +453,5 @@ export default function GestorConfiguracoesQuadrasPage() {
     </div>
   );
 }
+
+export default GestorConfiguracoesQuadrasPage;

@@ -7,7 +7,7 @@ import {
   mockNovaReserva,
   gerarNotificacoes,
   contarNotificacoesPendentes
-} from "../data/mockContatos";
+} from "../mocks/mockNotificacoes";
 
 const NAV_ITEMS = [
   { key: "mensagens", label: "Mensagens", path: "/gestor/mensagens", match: ["/mensagens", "/chat"] },
@@ -90,7 +90,7 @@ const NAV_ICONS = {
   ),
 };
 
-export default function MobileLayout() {
+const MobileLayout = () => {
   const { usuario, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -294,3 +294,5 @@ export default function MobileLayout() {
     </div>
   );
 }
+
+export default MobileLayout;

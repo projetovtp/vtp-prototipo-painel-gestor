@@ -3,19 +3,10 @@ import { useGestorQuadras, useGestorAgenda } from "../../../hooks/api";
 import { useAuth } from "../../../context/AuthContext";
 import { ErrorMessage, EmptyState } from "../../../components/ui";
 
-function formatBRL(v) { return Number(v || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }); }
+import { formatarMoeda as formatBRL, formatarNomeQuadra } from "../../../utils/formatters";
+import { DIAS_SEMANA_REGRAS } from "../../../utils/constants";
 
-const DIAS_SEMANA = [
-  { valor: 1, nome: "Segunda-feira", abrev: "Seg" },
-  { valor: 2, nome: "Terça-feira", abrev: "Ter" },
-  { valor: 3, nome: "Quarta-feira", abrev: "Qua" },
-  { valor: 4, nome: "Quinta-feira", abrev: "Qui" },
-  { valor: 5, nome: "Sexta-feira", abrev: "Sex" },
-  { valor: 6, nome: "Sábado", abrev: "Sáb" },
-  { valor: 0, nome: "Domingo", abrev: "Dom" },
-];
-
-export default function GestorMobileAgendaPage() {
+const GestorMobileAgendaPage = () => {
   const { usuario } = useAuth();
   const { listar: listarQuadrasApi } = useGestorQuadras();
   const { listarRegras, criarRegra, editarRegra: editarRegraApi, excluirRegra } = useGestorAgenda();
@@ -113,9 +104,7 @@ export default function GestorMobileAgendaPage() {
     try { setCarregando(true); await Promise.all(regras.map((r) => excluirRegra(r.id))); setMensagem("Todas as regras removidas!"); await carregarRegras(); setTimeout(() => setMensagem(""), 3000); } catch (e) { setErro(e.response?.data?.error || "Erro ao limpar."); } finally { setCarregando(false); }
   }
 
-  function fmtNomeQuadra(q) { return q.modalidade ? `${q.tipo || "Quadra"} - ${q.modalidade}` : q.tipo || "Quadra"; }
-
-  const regrasPorDia = DIAS_SEMANA.map((d) => ({ ...d, regras: regras.filter((r) => r.dia_semana === d.valor) }));
+  const regrasPorDia = DIAS_SEMANA_REGRAS.map((d) => ({ ...d, regras: regras.filter((r) => r.dia_semana === d.valor) }));
 
   useEffect(() => {
     if (formAberto) { document.body.style.overflow = "hidden"; return () => { document.body.style.overflow = ""; }; }
@@ -127,7 +116,7 @@ export default function GestorMobileAgendaPage() {
       <div className="mhr-court-bar">
         <select className="mhr-court-select" value={quadraId} onChange={(e) => setQuadraId(e.target.value)}>
           <option value="">Selecione uma quadra</option>
-          {quadras.map((q) => <option key={q.id} value={q.id}>{fmtNomeQuadra(q)}</option>)}
+          {quadras.map((q) => <option key={q.id} value={q.id}>{formatarNomeQuadra(q)}</option>)}
         </select>
       </div>
 
@@ -204,12 +193,12 @@ export default function GestorMobileAgendaPage() {
             <div className="mhr-sheet-body">
               <label className="mhr-form-label">Dias da Semana</label>
               <div className="mhr-day-chips">
-                {DIAS_SEMANA.map((d) => {
+                {DIAS_SEMANA_REGRAS.map((d) => {
                   const sel = form.diasSemana.includes(d.valor);
                   const dis = !!editId && !sel;
                   return (
                     <button key={d.valor} className={`mhr-day-chip${sel ? " mhr-day-chip--sel" : ""}${dis ? " mhr-day-chip--dis" : ""}`} onClick={() => !dis && toggleDia(d.valor)} disabled={dis}>
-                      {d.abrev}
+                      {d.abreviacao}
                     </button>
                   );
                 })}
@@ -267,3 +256,5 @@ export default function GestorMobileAgendaPage() {
     </div>
   );
 }
+
+export default GestorMobileAgendaPage;

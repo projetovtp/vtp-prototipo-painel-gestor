@@ -1,11 +1,12 @@
+import PropTypes from "prop-types";
 import "./ui.css";
 
-export default function LoadingSpinner({
+const LoadingSpinner = ({
   mensagem = "Carregando...",
   tamanho = 32,
   fullPage = false,
   inline = false,
-}) {
+}) => {
   if (inline) {
     return (
       <span className="vtp-loading-inline">
@@ -42,3 +43,12 @@ export default function LoadingSpinner({
 
   return content;
 }
+
+LoadingSpinner.propTypes = {
+  mensagem: PropTypes.string,
+  tamanho: PropTypes.number,
+  fullPage: PropTypes.bool,
+  inline: PropTypes.bool,
+};
+
+export default LoadingSpinner;

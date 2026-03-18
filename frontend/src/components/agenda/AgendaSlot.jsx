@@ -1,5 +1,6 @@
 // src/components/agenda/AgendaSlot.jsx
 import React from "react";
+import PropTypes from "prop-types";
 
 /**
  * Representa um bloco de horário (slot) na grade estilo cinema.
@@ -48,3 +49,9 @@ export function AgendaSlot({ status, label, onClick }) {
     </button>
   );
 }
+
+AgendaSlot.propTypes = {
+  status: PropTypes.oneOf(["disponivel", "reservada", "bloqueada"]).isRequired,
+  label: PropTypes.string,
+  onClick: PropTypes.func,
+};

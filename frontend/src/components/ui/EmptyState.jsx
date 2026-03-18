@@ -1,3 +1,4 @@
+import PropTypes from "prop-types";
 import "./ui.css";
 
 const defaultIcon = (
@@ -9,14 +10,14 @@ const defaultIcon = (
   </svg>
 );
 
-export default function EmptyState({
+const EmptyState = ({
   titulo,
   descricao,
   icone,
   acao,
   acaoLabel,
   compact = false,
-}) {
+}) => {
   return (
     <div className={`vtp-empty ${compact ? "vtp-empty-compact" : ""}`}>
       <div className="vtp-empty-icon">{icone || defaultIcon}</div>
@@ -30,3 +31,14 @@ export default function EmptyState({
     </div>
   );
 }
+
+EmptyState.propTypes = {
+  titulo: PropTypes.string,
+  descricao: PropTypes.string,
+  icone: PropTypes.node,
+  acao: PropTypes.func,
+  acaoLabel: PropTypes.string,
+  compact: PropTypes.bool,
+};
+
+export default EmptyState;

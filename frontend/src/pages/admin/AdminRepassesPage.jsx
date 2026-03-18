@@ -2,24 +2,9 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useAdminRepasses, useAdminGestores } from "../../hooks/api";
 import { ErrorMessage, EmptyState } from "../../components/ui";
 
-function toISODate(d) {
-  const pad = (n) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-}
+import { formatarMoeda as formatBRL, defaultPeriodo30 } from "../../utils/formatters";
 
-function defaultPeriodo30() {
-  const fim = new Date();
-  const inicio = new Date();
-  inicio.setDate(inicio.getDate() - 30);
-  return { inicio: toISODate(inicio), fim: toISODate(fim) };
-}
-
-function formatBRL(v) {
-  const n = Number(v || 0);
-  return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-}
-
-export default function AdminRepassesPage() {
+const AdminRepassesPage = () => {
   const def = useMemo(() => defaultPeriodo30(), []);
   const [from, setFrom] = useState(def.inicio);
   const [to, setTo] = useState(def.fim);
@@ -306,6 +291,8 @@ export default function AdminRepassesPage() {
     </div>
   );
 }
+
+export default AdminRepassesPage;
 
 const labelSmall = { display: "block", fontSize: 12, opacity: 0.8, marginBottom: 6 };
 

@@ -2,17 +2,17 @@ import React, { useEffect, useState, useMemo, useCallback } from "react";
 import { useGestorReservas, useGestorQuadras, useGestorAgenda } from "../../../hooks/api";
 import { ErrorMessage, LoadingSpinner, EmptyState } from "../../../components/ui";
 
-const formatarDataBR = (iso) => { if (!iso) return ""; const [a, m, d] = iso.split("-"); return `${d}/${m}/${a}`; };
-const formatarMoeda = (v) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v || 0);
-const formatarCPF = (c) => { if (!c) return ""; return c.replace(/\D/g, "").replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4"); };
-const formatarTelefone = (t) => { if (!t) return ""; const l = t.replace(/\D/g, ""); if (l.length === 11) return l.replace(/(\d{2})(\d{5})(\d{4})/, "($1) $2-$3"); if (l.length === 10) return l.replace(/(\d{2})(\d{4})(\d{4})/, "($1) $2-$3"); return t; };
+import {
+  formatarDataBR,
+  formatarMoeda,
+  formatarCPF,
+  formatarTelefone,
+  formatarNomeQuadra,
+  agregarSlotsGrupo,
+} from "../../../utils/formatters";
+import { DIAS_SEMANA_ABREVIADOS, MESES } from "../../../utils/constants";
 
-const DIAS_SEMANA = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
-const MESES = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
-
-const extrairNomeQuadra = (q) => { if (!q) return "Quadra"; if (q.nome) return q.nome; return `${q.tipo || "Quadra"}${q.modalidade ? ` - ${q.modalidade}` : ""}`; };
-
-export default function GestorMobileReservasPage() {
+const GestorMobileReservasPage = () => {
   const { listar: listarReservasApi, cancelar: cancelarReserva, criar: criarReserva } = useGestorReservas();
   const { listar: listarQuadrasApi } = useGestorQuadras();
   const { listarRegras } = useGestorAgenda();
@@ -61,7 +61,7 @@ export default function GestorMobileReservasPage() {
       let qc = dados.quadras || [];
       const expandidas = [];
       const porNome = {};
-      qc.forEach((q) => { const n = extrairNomeQuadra(q); if (!porNome[n]) porNome[n] = []; porNome[n].push(q); });
+      qc.forEach((q) => { const n = formatarNomeQuadra(q); if (!porNome[n]) porNome[n] = []; porNome[n].push(q); });
       Object.entries(porNome).forEach(([n, grupo]) => {
         if (n.toLowerCase().includes("beach tennis")) { const p = grupo[0]; for (let i = grupo.length; i < 6; i++) expandidas.push({ ...p, id: `bt-${i + 1}-${p.id}` }); }
         if (n.toLowerCase().includes("pádel") || n.toLowerCase().includes("padel")) { const p = grupo[0]; for (let i = grupo.length; i < 3; i++) expandidas.push({ ...p, id: `pd-${i + 1}-${p.id}` }); }
@@ -89,7 +89,7 @@ export default function GestorMobileReservasPage() {
     if (!quadras.length) return { status: "DISPONIVEL", reserva: null, bloqueio: null };
     const quadra = quadras.find((q) => q.id === qId);
     if (!quadra) return { status: "DISPONIVEL", reserva: null, bloqueio: null };
-    const nm = extrairNomeQuadra(quadra);
+    const nm = formatarNomeQuadra(quadra);
     const hora = parseInt(horaStr.split(":")[0]);
     const hash = String(qId).split("").reduce((a, c) => a + c.charCodeAt(0), 0);
 
@@ -142,24 +142,14 @@ export default function GestorMobileReservasPage() {
 
   const gruposQuadras = useMemo(() => {
     const g = {};
-    quadras.forEach((q) => { const n = extrairNomeQuadra(q); if (!g[n]) g[n] = []; g[n].push(q); });
+    quadras.forEach((q) => { const n = formatarNomeQuadra(q); if (!g[n]) g[n] = []; g[n].push(q); });
     return g;
   }, [quadras]);
 
-  const agregarSlotsGrupo = useCallback((grupo) => {
-    const agg = {};
-    grupo.forEach((q) => {
-      (slotsPorQuadra[q.id] || []).forEach((s) => {
-        const h = s.hora;
-        if (!agg[h]) agg[h] = { hora: h, hora_fim: s.hora_fim || `${String(parseInt(h) + 1).padStart(2, "0")}:00`, disponiveis: 0, reservadasPagas: 0, reservadasPendentes: 0, bloqueadas: 0, total: grupo.length, reservas: [], preco_hora: s.preco_hora || 100 };
-        const st = (s.status || "").toUpperCase();
-        if (st === "DISPONIVEL" || st === "LIVRE") agg[h].disponiveis++;
-        else if (st === "RESERVADO" || st === "RESERVADA") { if (s.reserva?.pago_via_pix) agg[h].reservadasPagas++; else agg[h].reservadasPendentes++; if (s.reserva) agg[h].reservas.push(s.reserva); }
-        else if (st === "BLOQUEADO" || st === "BLOQUEADA") agg[h].bloqueadas++;
-      });
-    });
-    return Object.values(agg).sort((a, b) => a.hora.localeCompare(b.hora));
-  }, [slotsPorQuadra]);
+  const agregarSlots = useCallback(
+    (grupo) => agregarSlotsGrupo(grupo, slotsPorQuadra),
+    [slotsPorQuadra]
+  );
 
   // Navigation
   const avancarDia = () => { const d = new Date(`${dataSel}T12:00:00`); d.setDate(d.getDate() + 1); setDataSel(d.toISOString().split("T")[0]); };
@@ -216,7 +206,7 @@ export default function GestorMobileReservasPage() {
   function labelData() {
     if (modo === "dia") {
       const d = new Date(`${dataSel}T12:00:00`);
-      return `${DIAS_SEMANA[d.getDay()]}, ${d.getDate()} ${MESES[d.getMonth()].slice(0, 3)}`;
+      return `${DIAS_SEMANA_ABREVIADOS[d.getDay()]}, ${d.getDate()} ${MESES[d.getMonth()].slice(0, 3)}`;
     }
     if (modo === "mes") return `${MESES[mesAtual.getMonth()]} ${mesAtual.getFullYear()}`;
     const ref = new Date(`${dataSel}T12:00:00`);
@@ -234,7 +224,7 @@ export default function GestorMobileReservasPage() {
       const d = new Date(ini); d.setDate(ini.getDate() + i);
       const iso = d.toISOString().split("T")[0];
       const rDia = reservas.filter((r) => r.data === iso);
-      dias.push({ dia: d.getDate(), data: iso, nomeDia: DIAS_SEMANA[d.getDay()], temRegras: dataTemRegras(iso), temReservas: rDia.length > 0, qtd: rDia.length });
+      dias.push({ dia: d.getDate(), data: iso, nomeDia: DIAS_SEMANA_ABREVIADOS[d.getDay()], temRegras: dataTemRegras(iso), temReservas: rDia.length > 0, qtd: rDia.length });
     }
     return dias;
   }
@@ -312,7 +302,7 @@ export default function GestorMobileReservasPage() {
             {/* Month view */}
             {modo === "mes" && !diaClicado && (
               <>
-                <div className="mrsv-month-wd">{DIAS_SEMANA.map((d) => <div key={d} className="mrsv-month-wd-cell">{d}</div>)}</div>
+                <div className="mrsv-month-wd">{DIAS_SEMANA_ABREVIADOS.map((d) => <div key={d} className="mrsv-month-wd-cell">{d}</div>)}</div>
                 <div className="mrsv-month-grid">
                   {getDiasMes().map((d, i) => {
                     if (!d) return <div key={`e-${i}`} className="mrsv-month-cell" />;
@@ -358,7 +348,7 @@ export default function GestorMobileReservasPage() {
               {reservaSel.map((r, i) => (
                 <div key={r.id || i} className="mrsv-detail-card">
                   <div className="mrsv-detail-top">
-                    <span className="mrsv-detail-quadra">{extrairNomeQuadra(quadras.find((q) => q.id === r.quadra_id))}</span>
+                    <span className="mrsv-detail-quadra">{formatarNomeQuadra(quadras.find((q) => q.id === r.quadra_id))}</span>
                     <span className={`mrsv-detail-badge mrsv-detail-badge--${r.pago_via_pix ? "pago" : "pendente"}`}>{r.pago_via_pix ? "Reservado" : "Pendente"}</span>
                   </div>
                   <div className="mrsv-detail-row">{formatarDataBR(r.data)} • {r.hora}</div>
@@ -392,7 +382,7 @@ export default function GestorMobileReservasPage() {
             <div className="mrsv-sheet-scroll">
               <ErrorMessage mensagem={erro} onDismiss={() => setErro(null)} />
               <div className="mrsv-new-info">
-                <span>{extrairNomeQuadra(novaData.quadra)}</span>
+                <span>{formatarNomeQuadra(novaData.quadra)}</span>
                 <span>{formatarDataBR(novaData.data)} • {novaData.hora}</span>
               </div>
               <div className="mrsv-new-form">
@@ -419,7 +409,7 @@ export default function GestorMobileReservasPage() {
     if (!entries.length) return <div className="mrsv-center"><EmptyState titulo="Nenhuma quadra encontrada" compact /></div>;
 
     return entries.map(([nomeGrupo, grupo]) => {
-      const slots = agregarSlotsGrupo(grupo);
+      const slots = agregarSlots(grupo);
       const totalQ = grupo.length;
       if (!slots.length) return (
         <div key={nomeGrupo} className="mrsv-group">
@@ -475,3 +465,5 @@ export default function GestorMobileReservasPage() {
     });
   }
 }
+
+export default GestorMobileReservasPage;

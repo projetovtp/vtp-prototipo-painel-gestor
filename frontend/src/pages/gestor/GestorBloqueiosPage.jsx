@@ -3,18 +3,10 @@ import { useGestorQuadras, useGestorAgenda } from "../../hooks/api";
 import { useAuth } from "../../context/AuthContext";
 import { ErrorMessage } from "../../components/ui";
 
-function formatDateBR(yyyyMmDd) {
-  if (!yyyyMmDd) return "—";
-  const s = String(yyyyMmDd).slice(0, 10);
-  const [y, m, d] = s.split("-");
-  if (!y || !m || !d) return s;
-  return `${d}/${m}/${y}`;
-}
+import { formatarDataBR as formatDateBR, formatarNomeQuadra } from "../../utils/formatters";
+import { DIAS_SEMANA_ABREVIADOS, MESES } from "../../utils/constants";
 
-const DIAS_SEMANA_ABREV = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
-const NOMES_MESES = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
-
-export default function GestorBloqueiosPage() {
+const GestorBloqueiosPage = () => {
   const { usuario } = useAuth();
   const { listar: listarQuadrasApi } = useGestorQuadras();
   const { listarBloqueios, criarBloqueiosLote, excluirBloqueio } = useGestorAgenda();
@@ -289,12 +281,6 @@ export default function GestorBloqueiosPage() {
     }
   }
 
-  function formatarNomeQuadra(quadra) {
-    const tipo = quadra.tipo || "Quadra";
-    const modalidade = quadra.modalidade || "";
-    return modalidade ? `${tipo} - ${modalidade}` : tipo;
-  }
-
   const diasDoMes = gerarDiasDoMes();
   const isOperando = salvandoBloqueio || removendoBloqueio;
 
@@ -359,7 +345,7 @@ export default function GestorBloqueiosPage() {
                   ← Anterior
                 </button>
                 <h4 style={{ fontSize: "var(--font-lg)", fontWeight: 600 }}>
-                  {NOMES_MESES[mesBloqueio.getMonth()]} {mesBloqueio.getFullYear()}
+                  {MESES[mesBloqueio.getMonth()]} {mesBloqueio.getFullYear()}
                 </h4>
                 <button
                   type="button"
@@ -375,7 +361,7 @@ export default function GestorBloqueiosPage() {
               </div>
 
               <div className="rh-calendar-grid">
-                {DIAS_SEMANA_ABREV.map(dia => (
+                {DIAS_SEMANA_ABREVIADOS.map(dia => (
                   <div key={dia} className="rh-calendar-day-header">{dia}</div>
                 ))}
                 {diasDoMes.map((dia, index) => {
@@ -556,3 +542,5 @@ export default function GestorBloqueiosPage() {
     </div>
   );
 }
+
+export default GestorBloqueiosPage;

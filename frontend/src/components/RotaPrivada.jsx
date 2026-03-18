@@ -2,7 +2,7 @@ import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { LoadingSpinner } from "./ui";
 
-export default function RotaPrivada({ children, role }) {
+const RotaPrivada = ({ children, role }) => {
   const { usuario, carregando } = useAuth();
   const location = useLocation();
 
@@ -26,3 +26,5 @@ export default function RotaPrivada({ children, role }) {
 
   return children;
 }
+
+export default RotaPrivada;

@@ -1,5 +1,6 @@
 // src/components/agenda/AgendaLegend.jsx
 import React from "react";
+import PropTypes from "prop-types";
 
 export function AgendaLegend() {
   const boxStyle = {
@@ -54,3 +55,5 @@ export function AgendaLegend() {
     </div>
   );
 }
+
+AgendaLegend.propTypes = {};

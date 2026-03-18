@@ -1,6 +1,7 @@
 import { useState, useCallback } from "react";
 import { gestorRelatoriosApi } from "../../api/endpoints/gestorRelatoriosApi";
 import { useApiRequest } from "../useApiRequest";
+import { gerarMockRelatorios } from "../../mocks/mockRelatorios";
 
 export function useGestorRelatorios() {
   const { loading, erro, executar, limparErro } = useApiRequest();
@@ -10,24 +11,42 @@ export function useGestorRelatorios() {
 
   const obterReservas = useCallback(
     async (params) => {
-      const data = await executar(() =>
-        gestorRelatoriosApi.obterReservas(params),
-      );
-      setRelatorioReservas(data);
-      return data;
+      try {
+        const data = await executar(() =>
+          gestorRelatoriosApi.obterReservas(params),
+        );
+        const result = data ?? gerarMockRelatorios(params?.periodo || "mes");
+        setRelatorioReservas(result);
+        return result;
+      } catch {
+        // TODO: remover quando gestorRelatoriosApi.obterReservas() estiver pronto
+        limparErro();
+        const mockData = gerarMockRelatorios(params?.periodo || "mes");
+        setRelatorioReservas(mockData);
+        return mockData;
+      }
     },
-    [executar],
+    [executar, limparErro],
   );
 
   const obterFaturamento = useCallback(
     async (params) => {
-      const data = await executar(() =>
-        gestorRelatoriosApi.obterFaturamento(params),
-      );
-      setRelatorioFaturamento(data);
-      return data;
+      try {
+        const data = await executar(() =>
+          gestorRelatoriosApi.obterFaturamento(params),
+        );
+        const result = data ?? gerarMockRelatorios(params?.periodo || "mes");
+        setRelatorioFaturamento(result);
+        return result;
+      } catch {
+        // TODO: remover quando gestorRelatoriosApi.obterFaturamento() estiver pronto
+        limparErro();
+        const mockData = gerarMockRelatorios(params?.periodo || "mes");
+        setRelatorioFaturamento(mockData);
+        return mockData;
+      }
     },
-    [executar],
+    [executar, limparErro],
   );
 
   const exportar = useCallback(

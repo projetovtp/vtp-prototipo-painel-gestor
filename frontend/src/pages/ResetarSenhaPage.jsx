@@ -1,147 +1,144 @@
 // src/pages/ResetarSenhaPage.jsx
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
-import api from "../services/api";
+import { useEffect, useMemo, useRef, useState } from "react"
+import { useLocation, useNavigate } from "react-router-dom"
+import { authApi } from "../api/endpoints/authApi"
+import { useApiRequest } from "../hooks/useApiRequest"
+import { validarSenha } from "../utils/validacoes"
+import "./auth.css"
 
-function useQuery() {
-  const { search } = useLocation();
-  return useMemo(() => new URLSearchParams(search), [search]);
+const useQuery = () => {
+  const { search } = useLocation()
+  return useMemo(() => new URLSearchParams(search), [search])
 }
 
-export default function ResetarSenhaPage() {
-  const query = useQuery();
-  const navigate = useNavigate();
+const CampoSenha = ({ label, value, setValue, mostrar, setMostrar, inputRef, disabled }) => (
+  <div className="auth-campo">
+    <label className="auth-label">{label}</label>
+    <div className="auth-campo-senha">
+      <input
+        ref={inputRef}
+        type={mostrar ? "text" : "password"}
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        required
+        disabled={disabled}
+        className="auth-input"
+      />
+      <button
+        type="button"
+        onClick={() => setMostrar((v) => !v)}
+        className="auth-btn-toggle-senha"
+        disabled={disabled}
+        aria-label={mostrar ? "Ocultar senha" : "Mostrar senha"}
+      >
+        {mostrar ? "Ocultar" : "Ver"}
+      </button>
+    </div>
+  </div>
+)
 
-  const email = (query.get("email") || "").toLowerCase();
-  const token = query.get("token") || "";
+const ResetarSenhaPage = () => {
+  const query = useQuery()
+  const navigate = useNavigate()
+  const { loading: carregando, executar } = useApiRequest()
 
-  const [novaSenha, setNovaSenha] = useState("");
-  const [confirmarSenha, setConfirmarSenha] = useState("");
+  const email = (query.get("email") || "").toLowerCase()
+  const token = query.get("token") || ""
 
-  const [mostrar1, setMostrar1] = useState(false);
-  const [mostrar2, setMostrar2] = useState(false);
+  const [novaSenha, setNovaSenha] = useState("")
+  const [confirmarSenha, setConfirmarSenha] = useState("")
+  const [mostrar1, setMostrar1] = useState(false)
+  const [mostrar2, setMostrar2] = useState(false)
+  const [mensagem, setMensagem] = useState("")
+  const [tipoMsg, setTipoMsg] = useState("info")
 
-  const [mensagem, setMensagem] = useState("");
-  const [tipoMsg, setTipoMsg] = useState("info"); // erro | aviso | info | sucesso
-  const [carregando, setCarregando] = useState(false);
-
-  const inputNovaRef = useRef(null);
+  const inputNovaRef = useRef(null)
 
   useEffect(() => {
-    inputNovaRef.current?.focus?.();
-  }, []);
+    inputNovaRef.current?.focus?.()
+  }, [])
 
-  // 🚨 Se abrir sem token/email → bloqueia fluxo
   useEffect(() => {
     if (!email || !token) {
-      setTipoMsg("aviso");
-      setMensagem(
-        "Link inválido ou incompleto. Solicite um novo link de redefinição de senha."
-      );
+      setTipoMsg("aviso")
+      setMensagem("Link inválido ou incompleto. Solicite um novo link de redefinição de senha.")
     }
-  }, [email, token]);
+  }, [email, token])
 
-  function validarSenha(s) {
-    if (s.length < 8) return "A senha deve ter pelo menos 8 caracteres.";
-    if (!/[A-Za-z]/.test(s) || !/[0-9]/.test(s))
-      return "A senha deve conter letras e números.";
-    return "";
-  }
-
-  function alertStyle() {
-    if (tipoMsg === "sucesso")
-      return { background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.3)", color: "#166534" };
-    if (tipoMsg === "aviso")
-      return { background: "rgba(245,158,11,0.1)", border: "1px solid rgba(245,158,11,0.3)", color: "#92400e" };
-    if (tipoMsg === "info")
-      return { background: "rgba(55,100,140,0.1)", border: "1px solid rgba(55,100,140,0.3)", color: "#1e3a5f" };
-    return { background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", color: "#991b1b" };
-  }
-
-  async function handleSubmit(e) {
-    e.preventDefault();
-    setMensagem("");
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    setMensagem("")
 
     if (!email || !token) {
-      setTipoMsg("aviso");
-      setMensagem("Link inválido. Solicite um novo link.");
-      return;
+      setTipoMsg("aviso")
+      setMensagem("Link inválido. Solicite um novo link.")
+      return
     }
 
     if (!novaSenha || !confirmarSenha) {
-      setTipoMsg("erro");
-      setMensagem("Informe e confirme a nova senha.");
-      return;
+      setTipoMsg("erro")
+      setMensagem("Informe e confirme a nova senha.")
+      return
     }
 
-    const err = validarSenha(novaSenha);
-    if (err) {
-      setTipoMsg("erro");
-      setMensagem(err);
-      return;
+    const errValidacao = validarSenha(novaSenha)
+    if (errValidacao) {
+      setTipoMsg("erro")
+      setMensagem(errValidacao)
+      return
     }
 
     if (novaSenha !== confirmarSenha) {
-      setTipoMsg("erro");
-      setMensagem("As senhas não conferem.");
-      return;
+      setTipoMsg("erro")
+      setMensagem("As senhas não conferem.")
+      return
     }
 
-    setCarregando(true);
     try {
-      await api.post("/auth/resetar-senha", {
-        email,
-        token,
-        novaSenha,
-        confirmarSenha,
-      });
-
-      setTipoMsg("sucesso");
-      setMensagem("Senha redefinida com sucesso! Você já pode fazer login.");
+      await executar(() => authApi.resetarSenha({ email, token, novaSenha, confirmarSenha }))
+      setTipoMsg("sucesso")
+      setMensagem("Senha redefinida com sucesso! Você já pode fazer login.")
     } catch (err) {
-      const msg =
-        err?.response?.data?.error ||
-        "Falha ao redefinir senha. O link pode ter expirado.";
-
-      const raw = msg.toLowerCase();
+      const msg = err?.response?.data?.error || "Falha ao redefinir senha. O link pode ter expirado."
+      const raw = msg.toLowerCase()
 
       if (raw.includes("expir") || raw.includes("token")) {
-        setTipoMsg("aviso");
-        setMensagem(
-          "Este link expirou ou já foi utilizado. Solicite um novo link."
-        );
+        setTipoMsg("aviso")
+        setMensagem("Este link expirou ou já foi utilizado. Solicite um novo link.")
       } else {
-        setTipoMsg("erro");
-        setMensagem(msg);
+        setTipoMsg("erro")
+        setMensagem(msg)
       }
-    } finally {
-      setCarregando(false);
     }
   }
 
   return (
-    <div style={wrapperStyle}>
-      <div style={cardStyle}>
-        <h1 style={{ textAlign: "center", fontSize: 22, color: "#37648c" }}>Redefinir senha</h1>
-        <p style={{ textAlign: "center", fontSize: 13, color: "#6b7280" }}>
-          Defina uma nova senha para sua conta.
-        </p>
+    <div className="auth-wrapper">
+      <div className="auth-card">
+        <h1 className="auth-titulo">Redefinir senha</h1>
+        <p className="auth-subtitulo">Defina uma nova senha para sua conta.</p>
 
         {mensagem && (
-          <div style={{ ...alertStyle(), padding: 12, borderRadius: 12, marginBottom: 14 }}>
+          <div className={`auth-alerta auth-alerta--${tipoMsg}`}>
             {mensagem}
 
             {(tipoMsg === "aviso" || tipoMsg === "erro") && (
-              <div style={{ marginTop: 10 }}>
-                <button onClick={() => navigate("/esqueci-senha")} style={linkBtn}>
+              <div className="auth-alerta-acao">
+                <button
+                  onClick={() => navigate("/esqueci-senha")}
+                  className="auth-link-btn"
+                >
                   Solicitar novo link
                 </button>
               </div>
             )}
 
             {tipoMsg === "sucesso" && (
-              <div style={{ marginTop: 10 }}>
-                <button onClick={() => navigate("/login")} style={linkBtn}>
+              <div className="auth-alerta-acao">
+                <button
+                  onClick={() => navigate("/login")}
+                  className="auth-link-btn"
+                >
                   Ir para login
                 </button>
               </div>
@@ -169,111 +166,17 @@ export default function ResetarSenhaPage() {
             disabled={carregando}
           />
 
-          <button 
-            type="submit" 
-            disabled={carregando} 
-            style={submitBtn(carregando)}
-            onMouseEnter={(e) => {
-              if (!carregando) e.target.style.background = "#2d5070";
-            }}
-            onMouseLeave={(e) => {
-              if (!carregando) e.target.style.background = "#37648c";
-            }}
+          <button
+            type="submit"
+            disabled={carregando}
+            className="auth-btn-primario auth-btn-primario--full"
           >
             {carregando ? "Salvando..." : "Salvar nova senha"}
           </button>
         </form>
       </div>
     </div>
-  );
+  )
 }
 
-function CampoSenha({ label, value, setValue, mostrar, setMostrar, inputRef, disabled }) {
-  return (
-    <div style={{ marginBottom: 14 }}>
-      <label style={{ fontSize: 13, color: "#111827" }}>{label}</label>
-      <div style={{ display: "flex", gap: 8 }}>
-        <input
-          ref={inputRef}
-          type={mostrar ? "text" : "password"}
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          required
-          disabled={disabled}
-          style={inputStyle}
-          onFocus={(e) => {
-            e.target.style.borderColor = "#37648c";
-          }}
-          onBlur={(e) => {
-            e.target.style.borderColor = "#d1d5db";
-          }}
-        />
-        <button type="button" onClick={() => setMostrar(v => !v)} style={eyeBtn}>
-          {mostrar ? "Ocultar" : "Ver"}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-/* ===== estilos ===== */
-
-const wrapperStyle = {
-  minHeight: "100vh",
-  display: "flex",
-  justifyContent: "center",
-  alignItems: "center",
-  background: "#ffffff",
-  padding: 16,
-};
-
-const cardStyle = {
-  width: "100%",
-  maxWidth: 460,
-  padding: 24,
-  borderRadius: 16,
-  background: "#ffffff",
-  border: "1px solid #e5e7eb",
-  color: "#111827",
-  boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
-};
-
-const inputStyle = {
-  flex: 1,
-  padding: "10px 12px",
-  borderRadius: 10,
-  border: "1px solid #d1d5db",
-  background: "#ffffff",
-  color: "#111827",
-  outline: "none",
-};
-
-const eyeBtn = {
-  padding: "10px 12px",
-  borderRadius: 10,
-  border: "1px solid #d1d5db",
-  background: "#ffffff",
-  color: "#37648c",
-  cursor: "pointer",
-};
-
-const submitBtn = (loading) => ({
-  width: "100%",
-  padding: "10px 12px",
-  borderRadius: 999,
-  border: "none",
-  fontWeight: 700,
-  cursor: loading ? "not-allowed" : "pointer",
-  background: "#37648c",
-  color: "#ffffff",
-  opacity: loading ? 0.75 : 1,
-});
-
-const linkBtn = {
-  background: "transparent",
-  border: "none",
-  color: "#37648c",
-  cursor: "pointer",
-  textDecoration: "underline",
-  fontWeight: 700,
-};
+export default ResetarSenhaPage

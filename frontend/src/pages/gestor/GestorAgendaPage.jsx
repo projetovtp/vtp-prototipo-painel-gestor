@@ -2,23 +2,12 @@ import React, { useEffect, useState } from "react";
 import { useGestorQuadras, useGestorAgenda } from "../../hooks/api";
 import { useAuth } from "../../context/AuthContext";
 import { ErrorMessage, EmptyState } from "../../components/ui";
+import useFocusTrap from "../../hooks/useFocusTrap";
 
-function formatBRL(v) {
-  const n = Number(v || 0);
-  return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-}
+import { formatarMoeda as formatBRL, formatarNomeQuadra } from "../../utils/formatters";
+import { DIAS_SEMANA_REGRAS } from "../../utils/constants";
 
-const DIAS_SEMANA = [
-  { valor: 1, nome: "Segunda-feira", abreviacao: "Seg" },
-  { valor: 2, nome: "Terça-feira", abreviacao: "Ter" },
-  { valor: 3, nome: "Quarta-feira", abreviacao: "Qua" },
-  { valor: 4, nome: "Quinta-feira", abreviacao: "Qui" },
-  { valor: 5, nome: "Sexta-feira", abreviacao: "Sex" },
-  { valor: 6, nome: "Sábado", abreviacao: "Sáb" },
-  { valor: 0, nome: "Domingo", abreviacao: "Dom" }
-];
-
-export default function GestorAgendaPage() {
+const GestorAgendaPage = () => {
   const { usuario } = useAuth();
   const { listar: listarQuadrasApi } = useGestorQuadras();
   const { listarRegras, criarRegra, editarRegra: editarRegraApi, excluirRegra } = useGestorAgenda();
@@ -41,6 +30,12 @@ export default function GestorAgendaPage() {
   const [modalLimparDia, setModalLimparDia] = useState({ aberto: false, diaSemana: null, diaNome: "" });
   const [modalRemoverDoModal, setModalRemoverDoModal] = useState(false);
   const [salvandoRegra, setSalvandoRegra] = useState(false);
+
+  const refModalEdicao = useFocusTrap(modalEdicaoAberto, () => fecharModalEdicao());
+  const refModalRemover = useFocusTrap(modalRemoverDoModal, () => setModalRemoverDoModal(false));
+  const refModalExcluir = useFocusTrap(modalExcluirRegra.aberto, () => setModalExcluirRegra({ aberto: false, regraId: null }));
+  const refModalLimparTodas = useFocusTrap(modalLimparTodasAberto, () => setModalLimparTodasAberto(false));
+  const refModalLimparDia = useFocusTrap(modalLimparDia.aberto, () => setModalLimparDia({ aberto: false, diaSemana: null, diaNome: "" }));
 
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState("");
@@ -216,7 +211,7 @@ export default function GestorAgendaPage() {
           })
         ));
         const diasNomes = diasSemanaValidos.map(d => {
-          const dia = DIAS_SEMANA.find(ds => ds.valor === Number(d));
+          const dia = DIAS_SEMANA_REGRAS.find(ds => ds.valor === Number(d));
           return dia ? dia.nome : d;
         }).join(", ");
         setMensagem(`Regras criadas com sucesso para: ${diasNomes}!`);
@@ -415,7 +410,7 @@ export default function GestorAgendaPage() {
   // --- Clear day rules ---
 
   function abrirModalLimparDia(diaSemana) {
-    const dia = DIAS_SEMANA.find(d => d.valor === diaSemana);
+    const dia = DIAS_SEMANA_REGRAS.find(d => d.valor === diaSemana);
     setModalLimparDia({ aberto: true, diaSemana, diaNome: dia?.nome || "" });
   }
 
@@ -451,13 +446,7 @@ export default function GestorAgendaPage() {
     setRegraEditandoId(null);
   }
 
-  function formatarNomeQuadra(quadra) {
-    const tipo = quadra.tipo || "Quadra";
-    const modalidade = quadra.modalidade || "";
-    return modalidade ? `${tipo} - ${modalidade}` : tipo;
-  }
-
-  const regrasPorDia = DIAS_SEMANA.map(dia => ({
+  const regrasPorDia = DIAS_SEMANA_REGRAS.map(dia => ({
     ...dia,
     regras: regras.filter(r => r.dia_semana === dia.valor)
   }));
@@ -534,7 +523,7 @@ export default function GestorAgendaPage() {
               <div className="form-field form-field-full">
                 <label>Dias da Semana {regraEditandoId && "(edição de uma regra específica)"}</label>
                 <div className="rh-dia-chips">
-                  {DIAS_SEMANA.map(dia => {
+                  {DIAS_SEMANA_REGRAS.map(dia => {
                     const isSelecionado = regraForm.diasSemana.includes(dia.valor);
                     const isDisabled = !!regraEditandoId;
                     let cls = "rh-dia-chip";
@@ -670,15 +659,23 @@ export default function GestorAgendaPage() {
       {/* Modal de Edição */}
       {modalEdicaoAberto && regraEditando && (
         <div className="vt-modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) fecharModalEdicao(); }}>
-          <div className="vt-modal" style={{ maxWidth: 500 }} onClick={(e) => e.stopPropagation()}>
+          <div
+            ref={refModalEdicao}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="agenda-modal-edicao-titulo"
+            tabIndex="-1"
+            className="vt-modal rh-modal-edicao"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="vt-modal-header">
-              <h3 style={{ fontSize: "var(--font-xl)", fontWeight: 600 }}>Editar Regra de Horários</h3>
-              <button type="button" className="vt-modal-close" onClick={fecharModalEdicao}>×</button>
+              <h3 id="agenda-modal-edicao-titulo" className="rh-modal-edicao-titulo">Editar Regra de Horários</h3>
+              <button type="button" className="vt-modal-close" aria-label="Fechar modal" onClick={fecharModalEdicao}>×</button>
             </div>
             <div className="vt-modal-body">
               <div className="rh-modal-info">
                 <strong style={{ color: "var(--color-text)" }}>Dia da semana:</strong>{" "}
-                {DIAS_SEMANA.find(d => d.valor === regraEditando.dia_semana)?.nome || "—"}
+                {DIAS_SEMANA_REGRAS.find(d => d.valor === regraEditando.dia_semana)?.nome || "—"}
               </div>
 
               <form onSubmit={handleSalvarEdicaoModal}>
@@ -746,21 +743,29 @@ export default function GestorAgendaPage() {
 
       {/* Modal de Confirmação - Remover do Modal de Edição */}
       {modalRemoverDoModal && regraEditando && (
-        <div className="vt-modal-overlay" style={{ zIndex: 1100 }} onClick={(e) => { if (e.target === e.currentTarget) setModalRemoverDoModal(false); }}>
-          <div className="vt-modal" style={{ maxWidth: 420 }} onClick={(e) => e.stopPropagation()}>
-            <div className="vt-modal-body" style={{ padding: 24 }}>
+        <div className="vt-modal-overlay rh-overlay-top" onClick={(e) => { if (e.target === e.currentTarget) setModalRemoverDoModal(false); }}>
+          <div
+            ref={refModalRemover}
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="agenda-modal-remover-titulo"
+            tabIndex="-1"
+            className="vt-modal rh-modal-confirm"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="vt-modal-body rh-modal-confirm-body">
               <div className="rh-confirm-icon">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M12 2C6.48 2 2 6.48 2 12C2 17.52 6.48 22 12 22C17.52 22 22 17.52 22 12C22 6.48 17.52 2 12 2ZM13 17H11V15H13V17ZM13 13H11V7H13V13Z" fill="#991b1b"/></svg>
               </div>
-              <h3 style={{ fontSize: "var(--font-xl)", fontWeight: 600, color: "var(--color-text)", marginBottom: 8 }}>
+              <h3 id="agenda-modal-remover-titulo" className="rh-modal-confirm-titulo">
                 Remover esta Regra?
               </h3>
-              <p style={{ fontSize: "var(--font-base)", color: "var(--color-text-secondary)", lineHeight: 1.5 }}>
-                A regra de <strong>{DIAS_SEMANA.find(d => d.valor === regraEditando.dia_semana)?.nome}</strong> ({regraEditando.hora_inicio} às {regraEditando.hora_fim}) será permanentemente removida.
+              <p className="rh-modal-confirm-desc">
+                A regra de <strong>{DIAS_SEMANA_REGRAS.find(d => d.valor === regraEditando.dia_semana)?.nome}</strong> ({regraEditando.hora_inicio} às {regraEditando.hora_fim}) será permanentemente removida.
               </p>
               <div className="rh-modal-actions">
                 <button type="button" className="btn-outlined" onClick={() => setModalRemoverDoModal(false)}>Cancelar</button>
-                <button type="button" className="btn-danger-solid" onClick={handleRemoverDoModal} style={{ padding: "10px 20px" }}>Remover</button>
+                <button type="button" className="btn-danger-solid" onClick={handleRemoverDoModal}>Remover</button>
               </div>
             </div>
           </div>
@@ -770,20 +775,28 @@ export default function GestorAgendaPage() {
       {/* Modal de Confirmação - Excluir Regra Individual */}
       {modalExcluirRegra.aberto && (
         <div className="vt-modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setModalExcluirRegra({ aberto: false, regraId: null }); }}>
-          <div className="vt-modal" style={{ maxWidth: 420 }} onClick={(e) => e.stopPropagation()}>
-            <div className="vt-modal-body" style={{ padding: 24 }}>
+          <div
+            ref={refModalExcluir}
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="agenda-modal-excluir-titulo"
+            tabIndex="-1"
+            className="vt-modal rh-modal-confirm"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="vt-modal-body rh-modal-confirm-body">
               <div className="rh-confirm-icon">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M12 2C6.48 2 2 6.48 2 12C2 17.52 6.48 22 12 22C17.52 22 22 17.52 22 12C22 6.48 17.52 2 12 2ZM13 17H11V15H13V17ZM13 13H11V7H13V13Z" fill="#991b1b"/></svg>
               </div>
-              <h3 style={{ fontSize: "var(--font-xl)", fontWeight: 600, color: "var(--color-text)", marginBottom: 8 }}>
+              <h3 id="agenda-modal-excluir-titulo" className="rh-modal-confirm-titulo">
                 Remover esta Regra?
               </h3>
-              <p style={{ fontSize: "var(--font-base)", color: "var(--color-text-secondary)", lineHeight: 1.5 }}>
+              <p className="rh-modal-confirm-desc">
                 Esta regra será permanentemente removida. Esta ação não pode ser desfeita.
               </p>
               <div className="rh-modal-actions">
                 <button type="button" className="btn-outlined" onClick={() => setModalExcluirRegra({ aberto: false, regraId: null })}>Cancelar</button>
-                <button type="button" className="btn-danger-solid" onClick={handleExcluirRegra} style={{ padding: "10px 20px" }}>Remover</button>
+                <button type="button" className="btn-danger-solid" onClick={handleExcluirRegra}>Remover</button>
               </div>
             </div>
           </div>
@@ -793,20 +806,28 @@ export default function GestorAgendaPage() {
       {/* Modal de Confirmação - Limpar Todas as Regras */}
       {modalLimparTodasAberto && (
         <div className="vt-modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setModalLimparTodasAberto(false); }}>
-          <div className="vt-modal" style={{ maxWidth: 450 }} onClick={(e) => e.stopPropagation()}>
-            <div className="vt-modal-body" style={{ padding: 24 }}>
+          <div
+            ref={refModalLimparTodas}
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="agenda-modal-limpar-todas-titulo"
+            tabIndex="-1"
+            className="vt-modal rh-modal-confirm rh-modal-confirm--wide"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="vt-modal-body rh-modal-confirm-body">
               <div className="rh-confirm-icon">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M12 2C6.48 2 2 6.48 2 12C2 17.52 6.48 22 12 22C17.52 22 22 17.52 22 12C22 6.48 17.52 2 12 2ZM13 17H11V15H13V17ZM13 13H11V7H13V13Z" fill="#991b1b"/></svg>
               </div>
-              <h3 style={{ fontSize: "var(--font-xl)", fontWeight: 600, color: "var(--color-text)", marginBottom: 8 }}>
+              <h3 id="agenda-modal-limpar-todas-titulo" className="rh-modal-confirm-titulo">
                 Limpar Todas as Regras?
               </h3>
-              <p style={{ fontSize: "var(--font-base)", color: "var(--color-text-secondary)", lineHeight: 1.5 }}>
+              <p className="rh-modal-confirm-desc">
                 Tem certeza que deseja remover <strong>TODAS as {regras.length} regras</strong> desta quadra? Esta ação não pode ser desfeita e todas as regras de horários serão permanentemente excluídas.
               </p>
               <div className="rh-modal-actions">
                 <button type="button" className="btn-outlined" onClick={() => setModalLimparTodasAberto(false)} disabled={carregando}>Cancelar</button>
-                <button type="button" className="btn-danger-solid" onClick={handleLimparTodasRegras} disabled={carregando} style={{ padding: "10px 20px" }}>
+                <button type="button" className="btn-danger-solid" onClick={handleLimparTodasRegras} disabled={carregando}>
                   {carregando ? "Removendo..." : "Sim, Limpar Todas"}
                 </button>
               </div>
@@ -818,20 +839,28 @@ export default function GestorAgendaPage() {
       {/* Modal de Confirmação - Limpar Dia */}
       {modalLimparDia.aberto && (
         <div className="vt-modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setModalLimparDia({ aberto: false, diaSemana: null, diaNome: "" }); }}>
-          <div className="vt-modal" style={{ maxWidth: 450 }} onClick={(e) => e.stopPropagation()}>
-            <div className="vt-modal-body" style={{ padding: 24 }}>
+          <div
+            ref={refModalLimparDia}
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="agenda-modal-limpar-dia-titulo"
+            tabIndex="-1"
+            className="vt-modal rh-modal-confirm rh-modal-confirm--wide"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="vt-modal-body rh-modal-confirm-body">
               <div className="rh-confirm-icon">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M12 2C6.48 2 2 6.48 2 12C2 17.52 6.48 22 12 22C17.52 22 22 17.52 22 12C22 6.48 17.52 2 12 2ZM13 17H11V15H13V17ZM13 13H11V7H13V13Z" fill="#991b1b"/></svg>
               </div>
-              <h3 style={{ fontSize: "var(--font-xl)", fontWeight: 600, color: "var(--color-text)", marginBottom: 8 }}>
+              <h3 id="agenda-modal-limpar-dia-titulo" className="rh-modal-confirm-titulo">
                 Limpar Regras de {modalLimparDia.diaNome}?
               </h3>
-              <p style={{ fontSize: "var(--font-base)", color: "var(--color-text-secondary)", lineHeight: 1.5 }}>
+              <p className="rh-modal-confirm-desc">
                 Todas as regras de <strong>{modalLimparDia.diaNome}</strong> serão permanentemente removidas.
               </p>
               <div className="rh-modal-actions">
                 <button type="button" className="btn-outlined" onClick={() => setModalLimparDia({ aberto: false, diaSemana: null, diaNome: "" })} disabled={carregando}>Cancelar</button>
-                <button type="button" className="btn-danger-solid" onClick={handleLimparDia} disabled={carregando} style={{ padding: "10px 20px" }}>
+                <button type="button" className="btn-danger-solid" onClick={handleLimparDia} disabled={carregando}>
                   {carregando ? "Removendo..." : "Sim, Limpar"}
                 </button>
               </div>
@@ -842,3 +871,5 @@ export default function GestorAgendaPage() {
     </div>
   );
 }
+
+export default GestorAgendaPage;

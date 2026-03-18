@@ -3,7 +3,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useGestorMensagens } from "../../../hooks/api";
 import { LoadingSpinner, EmptyState } from "../../../components/ui";
-import { mockContatos } from "../../../data/mockContatos";
+import { mockContatos } from "../../../mocks/mockNotificacoes";
 import {
   formatarMoeda,
   formatarDataBR,
@@ -88,7 +88,7 @@ const IconClose = () => (
   </svg>
 );
 
-export default function GestorMobileChatPage() {
+const GestorMobileChatPage = () => {
   const { chatId } = useParams();
   const navigate = useNavigate();
   const [novaMensagem, setNovaMensagem] = useState("");
@@ -380,3 +380,5 @@ export default function GestorMobileChatPage() {
     </div>
   );
 }
+
+export default GestorMobileChatPage;

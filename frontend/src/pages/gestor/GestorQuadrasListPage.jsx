@@ -3,8 +3,9 @@ import { useGestorEmpresas, useGestorQuadras } from "../../hooks/api";
 import { useAuth } from "../../context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { LoadingSpinner, ErrorMessage, EmptyState } from "../../components/ui";
+import { statusLabelQuadra } from "../../utils/status";
 
-function GestorQuadrasListPage() {
+const GestorQuadrasListPage = () => {
   const { usuario } = useAuth();
   const navigate = useNavigate();
   const {
@@ -229,12 +230,6 @@ function GestorQuadrasListPage() {
                     ).toLowerCase();
                     const estaAtiva = statusLower === "ativa";
 
-                    let labelStatus = "Status não informado";
-                    if (statusLower === "ativa") labelStatus = "Ativa";
-                    else if (statusLower === "inativa") labelStatus = "Inativa";
-                    else if (statusLower === "manutencao")
-                      labelStatus = "Em manutenção";
-
                     return (
                       <div key={quadra.id} className="card quadra-card">
                         <div className="quadra-card-header">
@@ -253,7 +248,7 @@ function GestorQuadrasListPage() {
                           <span
                             className={`quadra-status-badge quadra-status-${statusLower}`}
                           >
-                            {labelStatus}
+                            {statusLabelQuadra(quadra.status)}
                           </span>
                         </div>
 

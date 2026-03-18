@@ -2,9 +2,9 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useGestorEmpresas } from "../../hooks/api";
 import { useAuth } from "../../context/AuthContext";
-import { LoadingSpinner, ErrorMessage, EmptyState } from "../../components/ui";
+import { LoadingSpinner, ErrorMessage, EmptyState, ConfirmacaoModal } from "../../components/ui";
 
-function GestorEmpresasPage() {
+const GestorEmpresasPage = () => {
   const { usuario } = useAuth();
   const navigate = useNavigate();
   const {
@@ -19,6 +19,8 @@ function GestorEmpresasPage() {
   const [erroLista, setErroLista] = useState("");
 
   const [modalAberto, setModalAberto] = useState(false);
+  const [confirmacaoAberta, setConfirmacaoAberta] = useState(false);
+  const [acaoPendente, setAcaoPendente] = useState(null);
   const [enviando, setEnviando] = useState(false);
   const [mensagemSucesso, setMensagemSucesso] = useState("");
   const [mensagemErro, setMensagemErro] = useState("");
@@ -111,15 +113,19 @@ function GestorEmpresasPage() {
     }
   }
 
+  function pedirConfirmacaoDesativar(empresaId) {
+    if (!usuario?.id) return;
+    setAcaoPendente({
+      titulo: "Desativar complexo",
+      mensagem: "Tem certeza que deseja desativar este complexo? Ele deixará de aparecer para os clientes no WhatsApp, mas você poderá reativá-lo depois.",
+      textoConfirmar: "Desativar",
+      executar: () => handleDesativar(empresaId),
+    });
+    setConfirmacaoAberta(true);
+  }
+
   async function handleDesativar(empresaId) {
     if (!usuario?.id) return;
-    const confirmacao = window.confirm(
-      "Tem certeza que deseja desativar este complexo?\n\n" +
-      "Ele deixará de aparecer para os clientes no WhatsApp, " +
-      "mas você poderá reativá-lo depois."
-    );
-    if (!confirmacao) return;
-
     try {
       setEnviando(true);
       await desativarEmpresa(empresaId);
@@ -135,14 +141,19 @@ function GestorEmpresasPage() {
     }
   }
 
+  function pedirConfirmacaoReativar(empresaId) {
+    if (!usuario?.id) return;
+    setAcaoPendente({
+      titulo: "Reativar complexo",
+      mensagem: "Deseja reativar este complexo? Ele voltará a aparecer para os clientes no WhatsApp.",
+      textoConfirmar: "Reativar",
+      executar: () => handleReativar(empresaId),
+    });
+    setConfirmacaoAberta(true);
+  }
+
   async function handleReativar(empresaId) {
     if (!usuario?.id) return;
-    const confirmacao = window.confirm(
-      "Deseja reativar este complexo?\n\n" +
-      "Ele voltará a aparecer para os clientes no WhatsApp."
-    );
-    if (!confirmacao) return;
-
     try {
       setEnviando(true);
       await reativarEmpresa(empresaId);
@@ -156,6 +167,12 @@ function GestorEmpresasPage() {
     } finally {
       setEnviando(false);
     }
+  }
+
+  async function handleConfirmarAcao() {
+    if (acaoPendente?.executar) await acaoPendente.executar();
+    setConfirmacaoAberta(false);
+    setAcaoPendente(null);
   }
 
   return (
@@ -277,7 +294,7 @@ function GestorEmpresasPage() {
                   {estaAtivo ? (
                     <button
                       className="cfg-btn-delete"
-                      onClick={() => handleDesativar(empresa.id)}
+                      onClick={() => pedirConfirmacaoDesativar(empresa.id)}
                       disabled={enviando}
                     >
                       Desativar
@@ -285,7 +302,7 @@ function GestorEmpresasPage() {
                   ) : (
                     <button
                       className="emp-btn-activate"
-                      onClick={() => handleReativar(empresa.id)}
+                      onClick={() => pedirConfirmacaoReativar(empresa.id)}
                       disabled={enviando}
                     >
                       Reativar
@@ -402,6 +419,15 @@ function GestorEmpresasPage() {
           </div>
         </div>
       )}
+
+      <ConfirmacaoModal
+        aberto={confirmacaoAberta}
+        titulo={acaoPendente?.titulo || "Confirmar"}
+        mensagem={acaoPendente?.mensagem || ""}
+        onFechar={() => { setConfirmacaoAberta(false); setAcaoPendente(null); }}
+        onConfirmar={handleConfirmarAcao}
+        textoConfirmar={acaoPendente?.textoConfirmar || "Confirmar"}
+      />
     </div>
   );
 }

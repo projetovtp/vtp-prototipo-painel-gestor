@@ -1,4 +1,4 @@
-const TOKEN_KEY = "vaiterplay_token";
+import { TOKEN_KEY } from "../utils/constants";
 
 let navigateFn = null;
 let logoutCallbackFn = null;

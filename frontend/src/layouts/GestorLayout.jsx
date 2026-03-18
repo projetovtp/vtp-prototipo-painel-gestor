@@ -1,8 +1,9 @@
 import React from "react";
+import PropTypes from "prop-types";
 import { Outlet, NavLink, useLocation, useNavigate } from "react-router-dom";
 import PainelHeader from "../components/PainelHeader";
 import logoVaiTerPlay from "../assets/Design sem nome (4).png";
-import { mockContatos, mockNovaReserva, contarNotificacoesPendentes } from "../data/mockContatos";
+import { mockContatos, mockNovaReserva, contarNotificacoesPendentes } from "../mocks/mockNotificacoes";
 
 
 const chevronIcon = (
@@ -20,7 +21,7 @@ const chevronIcon = (
   </svg>
 );
 
-function SubMenu({ icon, label, aberto, onToggle, children }) {
+const SubMenu = ({ icon, label, aberto, onToggle, children }) => {
   return (
     <div>
       <div onClick={onToggle} className="menu-link" role="button" tabIndex={0}>
@@ -38,7 +39,15 @@ function SubMenu({ icon, label, aberto, onToggle, children }) {
   );
 }
 
-function SidebarLink({ to, icon, children, end }) {
+SubMenu.propTypes = {
+  icon: PropTypes.node,
+  label: PropTypes.string.isRequired,
+  aberto: PropTypes.bool,
+  onToggle: PropTypes.func,
+  children: PropTypes.node,
+};
+
+const SidebarLink = ({ to, icon, children, end }) => {
   return (
     <NavLink
       to={to}
@@ -51,7 +60,14 @@ function SidebarLink({ to, icon, children, end }) {
   );
 }
 
-function SubMenuLink({ to, children }) {
+SidebarLink.propTypes = {
+  to: PropTypes.string.isRequired,
+  icon: PropTypes.node,
+  children: PropTypes.node,
+  end: PropTypes.bool,
+};
+
+const SubMenuLink = ({ to, children }) => {
   return (
     <NavLink
       to={to}
@@ -61,6 +77,11 @@ function SubMenuLink({ to, children }) {
     </NavLink>
   );
 }
+
+SubMenuLink.propTypes = {
+  to: PropTypes.string.isRequired,
+  children: PropTypes.node,
+};
 
 const icons = {
   dashboard: (
@@ -107,7 +128,7 @@ const icons = {
   )
 };
 
-function GestorLayout() {
+const GestorLayout = () => {
   const location = useLocation();
   const navigate = useNavigate();
 

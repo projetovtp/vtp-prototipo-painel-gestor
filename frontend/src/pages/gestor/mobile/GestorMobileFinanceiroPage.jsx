@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from "react";
 import { useGestorFinanceiro } from "../../../hooks/api";
 import { LoadingSpinner, EmptyState } from "../../../components/ui";
+import { formatarMoeda as formatBRL, formatarDataBR as formatDateBR } from "../../../utils/formatters";
 
 const MOCK_OVERVIEW = {
   kpis: {
@@ -27,7 +28,7 @@ const MOCK_REPASSES = [
   { id: 3, valor_total_liquido: 12500.0, status: "pago", data_pagamento: "2023-12-21" },
 ];
 
-export default function GestorMobileFinanceiroPage() {
+const GestorMobileFinanceiroPage = () => {
   const {
     overview,
     repasses,
@@ -59,17 +60,6 @@ export default function GestorMobileFinanceiroPage() {
 
   const totalAReceber = overviewPendente?.kpis?.valor_liquido || 0;
   const totalRecebido = overviewRecebido?.kpis?.valor_liquido || 0;
-
-  function formatBRL(v) {
-    return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
-  }
-
-  function formatDateBR(dateStr) {
-    if (!dateStr) return "—";
-    const date = new Date(dateStr);
-    if (isNaN(date.getTime())) return dateStr;
-    return date.toLocaleDateString("pt-BR");
-  }
 
   return (
     <div style={{
@@ -209,3 +199,5 @@ export default function GestorMobileFinanceiroPage() {
     </div>
   );
 }
+
+export default GestorMobileFinanceiroPage;

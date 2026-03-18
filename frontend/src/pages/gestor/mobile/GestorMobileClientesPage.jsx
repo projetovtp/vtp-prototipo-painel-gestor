@@ -3,28 +3,12 @@ import { useGestorClientes } from "../../../hooks/api";
 import { gestorReservasApi } from "../../../api/endpoints/gestorReservasApi";
 import { LoadingSpinner, EmptyState } from "../../../components/ui";
 
-function formatBRL(v) {
-  const n = Number(v || 0);
-  return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-}
-
-function formatDateBR(yyyyMmDd) {
-  if (!yyyyMmDd) return "—";
-  const s = String(yyyyMmDd).slice(0, 10);
-  const [y, m, d] = s.split("-");
-  if (!y || !m || !d) return s;
-  return `${d}/${m}/${y}`;
-}
-
-function formatHora(hora) {
-  if (!hora) return "—";
-  return String(hora).slice(0, 5);
-}
-
-function formatStatus(status) {
-  const map = { paid: "Pago", pending: "Pendente", canceled: "Cancelado" };
-  return map[status] || status;
-}
+import {
+  formatarMoeda as formatBRL,
+  formatarDataBR as formatDateBR,
+  formatarHoraStr as formatHora,
+  formatarStatus as formatStatus,
+} from "../../../utils/formatters";
 
 function calcularStatusCliente(cliente) {
   if (cliente.status === "inativo" || cliente.status === "ativo") return cliente.status;
@@ -48,35 +32,6 @@ function tempoRelativo(dataStr) {
   return formatDateBR(dataStr);
 }
 
-function gerarMockClientes() {
-  const hoje = new Date();
-  const d = (dias) => new Date(hoje.getTime() - dias * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
-  return [
-    { id: 1, nome: "João Silva", cpf: "123.456.789-00", telefone: "(11) 98765-4321", email: "joao.silva@email.com", totalReservas: 15, totalGasto: 2250.0, ultimaReserva: d(2), dataCadastro: "2023-12-01" },
-    { id: 2, nome: "Maria Santos", cpf: "987.654.321-00", telefone: "(11) 91234-5678", email: "maria.santos@email.com", totalReservas: 8, totalGasto: 1200.0, ultimaReserva: d(0), dataCadastro: "2024-01-05" },
-    { id: 3, nome: "Pedro Costa", cpf: "456.789.123-00", telefone: "(11) 99876-5432", email: "pedro.costa@email.com", totalReservas: 22, totalGasto: 3300.0, ultimaReserva: d(40), dataCadastro: "2023-11-20" },
-    { id: 5, nome: "Carlos Mendes", cpf: "321.654.987-00", telefone: "(11) 94567-8901", email: "carlos.mendes@email.com", totalReservas: 5, totalGasto: 750.0, ultimaReserva: d(25), dataCadastro: "2023-12-15" },
-    { id: 6, nome: "Fernanda Lima", cpf: "111.222.333-44", telefone: "(11) 91111-2222", email: "fernanda.lima@email.com", totalReservas: 12, totalGasto: 1800.0, ultimaReserva: d(0), dataCadastro: "2024-01-10" },
-    { id: 7, nome: "Roberto Alves", cpf: "222.333.444-55", telefone: "(11) 92222-3333", email: "roberto.alves@email.com", totalReservas: 18, totalGasto: 2700.0, ultimaReserva: d(5), dataCadastro: "2023-11-25" },
-    { id: 8, nome: "Juliana Ferreira", cpf: "333.444.555-66", telefone: "(11) 93333-4444", email: "juliana.ferreira@email.com", totalReservas: 6, totalGasto: 900.0, ultimaReserva: d(25), dataCadastro: "2024-01-08" },
-    { id: 9, nome: "Lucas Souza", cpf: "444.555.666-77", telefone: "(11) 94444-5555", email: "lucas.souza@email.com", totalReservas: 20, totalGasto: 3000.0, ultimaReserva: d(40), dataCadastro: "2023-10-15" },
-    { id: 10, nome: "Patricia Rocha", cpf: "555.666.777-88", telefone: "(11) 95555-6666", email: "patricia.rocha@email.com", totalReservas: 9, totalGasto: 1350.0, ultimaReserva: d(0), dataCadastro: "2024-01-12" },
-    { id: 11, nome: "Ricardo Martins", cpf: "666.777.888-99", telefone: "(11) 96666-7777", email: "ricardo.martins@email.com", totalReservas: 14, totalGasto: 2100.0, ultimaReserva: d(15), dataCadastro: "2023-12-20" },
-    { id: 12, nome: "Amanda Costa", cpf: "777.888.999-00", telefone: "(11) 97777-8888", email: "amanda.costa@email.com", totalReservas: 7, totalGasto: 1050.0, ultimaReserva: d(25), dataCadastro: "2024-01-03" },
-  ];
-}
-
-function gerarMockHistorico() {
-  const agora = new Date();
-  const d2h = new Date(agora.getTime() - 2 * 3600000);
-  const d25h = new Date(agora.getTime() - 25 * 3600000);
-  return [
-    { id: 1, data: agora.toISOString().split("T")[0], hora: "18:00", tipoQuadra: "Futebol Society", valor: 150.0, status: "paid", created_at: d2h.toISOString() },
-    { id: 2, data: agora.toISOString().split("T")[0], hora: "20:00", tipoQuadra: "Futebol Society", valor: 150.0, status: "pending", created_at: d2h.toISOString() },
-    { id: 3, data: "2024-01-05", hora: "19:00", tipoQuadra: "Beach Tennis", valor: 120.0, status: "paid", created_at: d25h.toISOString() },
-    { id: 4, data: "2024-01-02", hora: "17:00", tipoQuadra: "Pádel", valor: 180.0, status: "canceled", created_at: d25h.toISOString() },
-  ];
-}
 
 const CORES_AVATAR = [
   "#37648c", "#1c7c54", "#7c3aed", "#c2410c", "#0891b2", "#4f46e5", "#059669", "#b91c1c",
@@ -94,7 +49,7 @@ function iniciais(nome) {
   return nome.slice(0, 2).toUpperCase();
 }
 
-export default function GestorMobileClientesPage() {
+const GestorMobileClientesPage = () => {
   const { listar, obterHistorico } = useGestorClientes();
 
   const [clientes, setClientes] = useState([]);
@@ -132,8 +87,6 @@ export default function GestorMobileClientesPage() {
       setCarregando(true);
       const data = await listar({ busca: "" });
       setClientes(data || []);
-    } catch {
-      setClientes(gerarMockClientes());
     } finally {
       setCarregando(false);
     }
@@ -157,8 +110,6 @@ export default function GestorMobileClientesPage() {
     try {
       const data = await obterHistorico(cliente.id);
       setHistoricoReservas(data || []);
-    } catch {
-      setHistoricoReservas(gerarMockHistorico());
     } finally {
       setCarregandoHistorico(false);
     }
@@ -408,3 +359,5 @@ export default function GestorMobileClientesPage() {
     </div>
   );
 }
+
+export default GestorMobileClientesPage;

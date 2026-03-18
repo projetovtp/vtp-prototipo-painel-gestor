@@ -4,18 +4,18 @@ import { Link } from "react-router-dom";
 import { useAdminEmpresas, useAdminQuadras, useAdminAgenda } from "../../hooks/api";
 import { useAuth } from "../../context/AuthContext";
 
-// ⚠️ IMPORTS DA AGENDA – todos vindos de src/components/agenda
-import { AgendaFilters } from "../../components/agenda/AgendaFilters";
-import { AgendaLegend } from "../../components/agenda/AgendaLegend";
-import { AgendaGrid } from "../../components/agenda/AgendaGrid";
-import AgendaCinemaView from "../../components/gestor/AgendaCinemaView";
+import {
+  AgendaFilters,
+  AgendaGrid,
+  AgendaLegend,
+  AgendaToolbar,
+  AgendaCinemaView,
+} from "../../components/agenda";
+import { formatarNomeQuadra } from "../../utils/formatters";
+import { ConfirmacaoModal } from "../../components/ui";
 
 
-
-import { AgendaToolbar } from "../../components/agenda/AgendaToolbar";
-
-
-function AdminAgendaPage() {
+const AdminAgendaPage = () => {
   const { usuario } = useAuth();
 
   const { listar: listarEmpresas } = useAdminEmpresas();
@@ -30,6 +30,8 @@ function AdminAgendaPage() {
 
   const [regras, setRegras] = useState([]);
   const [bloqueios, setBloqueios] = useState([]);
+  const [confirmacaoAberta, setConfirmacaoAberta] = useState(false);
+  const [acaoPendente, setAcaoPendente] = useState(null);
 
   const [carregandoEmpresas, setCarregandoEmpresas] = useState(false);
   const [carregandoQuadras, setCarregandoQuadras] = useState(false);
@@ -422,13 +424,18 @@ function AdminAgendaPage() {
     setErroAgenda("");
   }
 
+  function pedirConfirmacaoExcluirRegra(regraId) {
+    setAcaoPendente({
+      titulo: "Desativar regra",
+      mensagem: "Tem certeza que deseja desativar esta regra?",
+      textoConfirmar: "Desativar",
+      executar: () => handleExcluirRegra(regraId),
+    });
+    setConfirmacaoAberta(true);
+  }
+
   async function handleExcluirRegra(regraId) {
     if (!quadraSelecionadaId) return;
-
-    const confirmar = window.confirm(
-      "Tem certeza que deseja desativar esta regra?"
-    );
-    if (!confirmar) return;
 
     try {
       setExcluindoRegraId(regraId);
@@ -527,13 +534,24 @@ function AdminAgendaPage() {
     }
   }
 
+  function pedirConfirmacaoExcluirBloqueio(bloqueioId) {
+    setAcaoPendente({
+      titulo: "Remover bloqueio",
+      mensagem: "Tem certeza que deseja remover este bloqueio?",
+      textoConfirmar: "Remover",
+      executar: () => handleExcluirBloqueio(bloqueioId),
+    });
+    setConfirmacaoAberta(true);
+  }
+
+  async function handleConfirmarAcao() {
+    if (acaoPendente?.executar) await acaoPendente.executar();
+    setConfirmacaoAberta(false);
+    setAcaoPendente(null);
+  }
+
   async function handleExcluirBloqueio(bloqueioId) {
     if (!quadraSelecionadaId) return;
-
-    const confirmar = window.confirm(
-      "Tem certeza que deseja remover este bloqueio?"
-    );
-    if (!confirmar) return;
 
     try {
       setExcluindoBloqueioId(bloqueioId);
@@ -565,13 +583,6 @@ function AdminAgendaPage() {
       return `${nome} — ${desc}`;
     }
     return nome;
-  }
-
-  function formatarNomeQuadra(quadra) {
-    const tipo = quadra.tipo || "Tipo";
-    const material = quadra.material || "Material";
-    const modalidade = quadra.modalidade || "Modalidade";
-    return `${modalidade} - ${material} (${tipo})`;
   }
 
   function labelDiaSemana(numero) {
@@ -1015,7 +1026,7 @@ function AdminAgendaPage() {
                           <button
                             type="button"
                             className="btn-primary"
-                            onClick={() => handleExcluirRegra(regra.id)}
+                            onClick={() => pedirConfirmacaoExcluirRegra(regra.id)}
                             disabled={excluindoRegraId === regra.id}
                           >
                             {excluindoRegraId === regra.id
@@ -1167,7 +1178,7 @@ function AdminAgendaPage() {
                           <button
                             type="button"
                             className="btn-primary"
-                            onClick={() => handleExcluirBloqueio(b.id)}
+                            onClick={() => pedirConfirmacaoExcluirBloqueio(b.id)}
                             disabled={excluindoBloqueioId === b.id}
                           >
                             {excluindoBloqueioId === b.id
@@ -1205,6 +1216,15 @@ function AdminAgendaPage() {
           Selecione um complexo/empresa acima para começar.
         </p>
       )}
+
+      <ConfirmacaoModal
+        aberto={confirmacaoAberta}
+        titulo={acaoPendente?.titulo || "Confirmar"}
+        mensagem={acaoPendente?.mensagem || ""}
+        onFechar={() => { setConfirmacaoAberta(false); setAcaoPendente(null); }}
+        onConfirmar={handleConfirmarAcao}
+        textoConfirmar={acaoPendente?.textoConfirmar || "Confirmar"}
+      />
     </div>
   );
 }

@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { useAdminEmpresas, useAdminQuadras, useAdminAgenda } from "../../hooks/api";
 import { useAuth } from "../../context/AuthContext";
+import { formatarNomeQuadra } from "../../utils/formatters";
 
-export default function AdminAgendaEditPage() {
+const AdminAgendaEditPage = () => {
   const { usuario } = useAuth();
 
   const { listar: listarEmpresas } = useAdminEmpresas();
@@ -39,13 +40,6 @@ export default function AdminAgendaEditPage() {
     const nome = empresa.nome || "Empresa";
     const end = empresa.endereco_resumo ? ` — ${empresa.endereco_resumo}` : "";
     return `${nome}${end}`;
-  }
-
-  function formatarNomeQuadra(q) {
-    if (!q) return "—";
-    if (q.nome_dinamico) return q.nome_dinamico;
-    const parts = [q.tipo, q.material, q.modalidade].filter(Boolean);
-    return parts.join(" / ") || q.id;
   }
 
   // 1) Carregar empresas (ADMIN)
@@ -350,3 +344,5 @@ export default function AdminAgendaEditPage() {
     </div>
   );
 }
+
+export default AdminAgendaEditPage;

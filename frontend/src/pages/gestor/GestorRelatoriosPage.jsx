@@ -1,6 +1,11 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import html2canvas from "html2canvas";
 import { jsPDF } from "jspdf";
+import { gerarMockRelatorios, gerarMockReservasPorDiaDoMes } from "../../mocks/mockRelatorios";
+import {
+  formatarMoeda as formatBRL,
+  formatarDataBR as formatDateBR,
+} from "../../utils/formatters";
 
 async function exportarParaPDF(contentRef, tituloRelatorio, textoData, setExportando) {
   if (!contentRef.current) return;
@@ -47,25 +52,12 @@ async function exportarParaPDF(contentRef, tituloRelatorio, textoData, setExport
   }
 }
 
-function formatBRL(v) {
-  const n = Number(v || 0);
-  return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-}
-
-function formatDateBR(yyyyMmDd) {
-  if (!yyyyMmDd) return "—";
-  const s = String(yyyyMmDd).slice(0, 10);
-  const [y, m, d] = s.split("-");
-  if (!y || !m || !d) return s;
-  return `${d}/${m}/${y}`;
-}
-
 function fmtDate(ano, mes, dia) {
   return `${ano}-${String(mes + 1).padStart(2, "0")}-${String(dia).padStart(2, "0")}`;
 }
 
 const MESES = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
-const DIAS_SEMANA = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+import { DIAS_SEMANA_ABREVIADOS } from "../../utils/constants";
 
 
 // ─── Ícones SVG ──────────────────────────────────────────────────────────────
@@ -124,7 +116,7 @@ const IconeExportar = () => (
 
 // ─── Sub-componentes ─────────────────────────────────────────────────────────
 
-function TopQuadras({ quadras }) {
+const TopQuadras = ({ quadras }) => {
   return (
     <div className="card rp-section">
       <div className="rp-section-header">
@@ -159,7 +151,7 @@ function TopQuadras({ quadras }) {
   );
 }
 
-function CalendarioPopup({ mesCalendario, anoCalendario, dataInicio, dataFim, onClickDia, onSelecionarMes, onAvancar, onRetroceder, onLimpar, onAplicar, onFechar }) {
+const CalendarioPopup = ({ mesCalendario, anoCalendario, dataInicio, dataFim, onClickDia, onSelecionarMes, onAvancar, onRetroceder, onLimpar, onAplicar, onFechar }) => {
   function getDiasDoMes(mes, ano) {
     const primeiroDia = new Date(ano, mes, 1);
     const ultimoDia = new Date(ano, mes + 1, 0);
@@ -194,7 +186,7 @@ function CalendarioPopup({ mesCalendario, anoCalendario, dataInicio, dataFim, on
         </div>
 
         <div className="rp-calendar-weekdays">
-          {DIAS_SEMANA.map((dia) => (
+          {DIAS_SEMANA_ABREVIADOS.map((dia) => (
             <div key={dia} className="rp-calendar-weekday">{dia}</div>
           ))}
         </div>
@@ -257,7 +249,7 @@ function calcularDatasParaPeriodo(p) {
   }
 }
 
-export default function GestorRelatoriosPage() {
+const GestorRelatoriosPage = () => {
   const hoje = new Date();
   const datasIniciais = calcularDatasParaPeriodo("mes");
   const [periodo, setPeriodo] = useState("mes");
@@ -330,39 +322,14 @@ export default function GestorRelatoriosPage() {
     if (periodo !== "mes") return {};
     const mes = periodo === "mes" ? new Date().getMonth() : mesCalendario;
     const ano = periodo === "mes" ? new Date().getFullYear() : anoCalendario;
-    const diasNoMes = new Date(ano, mes + 1, 0).getDate();
-    const reservasPorDia = {};
-    const seed = ano * 12 + mes;
-    for (let dia = 1; dia <= diasNoMes; dia++) {
-      reservasPorDia[fmtDate(ano, mes, dia)] = ((seed * 31 + dia) * 17) % 9;
-    }
-    return reservasPorDia;
+    return gerarMockReservasPorDiaDoMes(ano, mes);
   }, [periodo, mesCalendario, anoCalendario]);
 
-  const dadosRelatorio = {
-    totalReservas: periodo === "hoje" ? 8 : periodo === "semana" ? 45 : periodo === "mes" ? 145 : 200,
-    totalReceita: periodo === "hoje" ? 1200 : periodo === "semana" ? 6750 : periodo === "mes" ? 21750 : 30000,
-    reservasCanceladas: periodo === "hoje" ? 1 : periodo === "semana" ? 3 : periodo === "mes" ? 8 : 12,
-    taxaOcupacao: periodo === "hoje" ? 45 : periodo === "semana" ? 58 : periodo === "mes" ? 68 : 72,
-    reservasPorDia: periodo === "hoje" ? [] : [
-      { dia: "Seg", reservas: 12 }, { dia: "Ter", reservas: 15 }, { dia: "Qua", reservas: 18 },
-      { dia: "Qui", reservas: 20 }, { dia: "Sex", reservas: 25 }, { dia: "Sáb", reservas: 30 }, { dia: "Dom", reservas: 25 },
-    ],
-    reservasPorHora: periodo === "hoje" ? (() => {
-      const horarios = [];
-      const seed = hoje.getFullYear() * 365 + hoje.getMonth() * 30 + hoje.getDate();
-      for (let h = 8; h <= 22; h++) {
-        horarios.push({ hora: String(h).padStart(2, "0") + ":00", reservas: ((seed * 31 + h) * 17) % 6 });
-      }
-      return horarios;
-    })() : [],
-    topQuadras: [
-      { nome: "Quadra 1", reservas: periodo === "hoje" ? 3 : periodo === "semana" ? 12 : 45, receita: periodo === "hoje" ? 450 : periodo === "semana" ? 1800 : 6750 },
-      { nome: "Quadra 2", reservas: periodo === "hoje" ? 2 : periodo === "semana" ? 10 : 38, receita: periodo === "hoje" ? 300 : periodo === "semana" ? 1500 : 5700 },
-      { nome: "Quadra 3", reservas: periodo === "hoje" ? 2 : periodo === "semana" ? 9 : 35, receita: periodo === "hoje" ? 300 : periodo === "semana" ? 1350 : 5250 },
-      { nome: "Quadra 4", reservas: periodo === "hoje" ? 1 : periodo === "semana" ? 5 : 27, receita: periodo === "hoje" ? 150 : periodo === "semana" ? 750 : 4050 },
-    ],
-  };
+  const dadosRelatorio = useMemo(
+    () => gerarMockRelatorios(periodo, hoje),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- hoje é new Date() a cada render; recalc apenas quando periodo muda
+    [periodo]
+  );
 
   const periodos = [
     { key: "hoje", label: "Hoje" },
@@ -558,7 +525,7 @@ export default function GestorRelatoriosPage() {
             </div>
 
             <div className="rp-month-weekdays">
-              {DIAS_SEMANA.map((dia, i) => (
+              {DIAS_SEMANA_ABREVIADOS.map((dia, i) => (
                 <div key={i} className="rp-month-weekday">{dia}</div>
               ))}
             </div>
@@ -608,3 +575,5 @@ export default function GestorRelatoriosPage() {
     </div>
   );
 }
+
+export default GestorRelatoriosPage;

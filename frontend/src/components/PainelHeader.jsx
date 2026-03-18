@@ -1,9 +1,9 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 import logoVaiTerPlay from "../assets/Design sem nome (4).png";
-import { gerarNotificacoes } from "../data/mockContatos";
+import { gerarNotificacoes } from "../mocks/mockNotificacoes";
 
-function PainelHeader({ notificacoesPendentes = 0, contatos = [], novaReserva = null }) {
+const PainelHeader = ({ notificacoesPendentes = 0, contatos = [], novaReserva = null }) => {
   const { usuario, logout } = useAuth();
   const [mostrarNotificacoes, setMostrarNotificacoes] = useState(false);
   const popupRef = useRef(null);

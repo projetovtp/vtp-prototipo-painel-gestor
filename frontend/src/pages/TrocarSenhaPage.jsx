@@ -1,276 +1,160 @@
 // src/pages/TrocarSenhaPage.jsx
-import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import api from "../services/api";
+import { useEffect, useRef, useState } from "react"
+import { useNavigate } from "react-router-dom"
+import { authApi } from "../api/endpoints/authApi"
+import { useApiRequest } from "../hooks/useApiRequest"
+import { useAuth } from "../context/AuthContext"
+import { validarSenha } from "../utils/validacoes"
+import "./auth.css"
 
-export default function TrocarSenhaPage() {
-  const navigate = useNavigate();
+const CampoSenha = ({
+  id,
+  label,
+  value,
+  onChange,
+  mostrar,
+  setMostrar,
+  placeholder,
+  inputRef,
+  disabled,
+  autoComplete,
+}) => (
+  <div className="auth-campo">
+    <label htmlFor={id} className="auth-label">{label}</label>
+    <div className="auth-campo-senha">
+      <input
+        ref={inputRef}
+        id={id}
+        type={mostrar ? "text" : "password"}
+        required
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="auth-input"
+        placeholder={placeholder}
+        disabled={disabled}
+        autoComplete={autoComplete}
+      />
+      <button
+        type="button"
+        onClick={() => setMostrar((v) => !v)}
+        className="auth-btn-toggle-senha"
+        disabled={disabled}
+        title={mostrar ? "Ocultar senha" : "Mostrar senha"}
+        aria-label={mostrar ? "Ocultar senha" : "Mostrar senha"}
+      >
+        {mostrar ? "Ocultar" : "Mostrar"}
+      </button>
+    </div>
+  </div>
+)
 
-  const [senhaAtual, setSenhaAtual] = useState("");
-  const [novaSenha, setNovaSenha] = useState("");
-  const [confirmarSenha, setConfirmarSenha] = useState("");
+const TrocarSenhaPage = () => {
+  const navigate = useNavigate()
+  const { usuario, logout } = useAuth()
+  const { loading: carregando, executar } = useApiRequest()
 
-  const [mostrarAtual, setMostrarAtual] = useState(false);
-  const [mostrarNova, setMostrarNova] = useState(false);
-  const [mostrarConfirmar, setMostrarConfirmar] = useState(false);
+  const rotaDashboard = usuario?.tipo === "admin" ? "/admin" : "/gestor"
 
-  const [mensagem, setMensagem] = useState("");
-  const [tipoMsg, setTipoMsg] = useState("info"); // "erro" | "aviso" | "info" | "sucesso"
-  const [carregando, setCarregando] = useState(false);
+  const [senhaAtual, setSenhaAtual] = useState("")
+  const [novaSenha, setNovaSenha] = useState("")
+  const [confirmarSenha, setConfirmarSenha] = useState("")
 
-  const inputAtualRef = useRef(null);
+  const [mostrarAtual, setMostrarAtual] = useState(false)
+  const [mostrarNova, setMostrarNova] = useState(false)
+  const [mostrarConfirmar, setMostrarConfirmar] = useState(false)
+
+  const [mensagem, setMensagem] = useState("")
+  const [tipoMsg, setTipoMsg] = useState("info")
+
+  const inputAtualRef = useRef(null)
 
   useEffect(() => {
-    inputAtualRef.current?.focus?.();
-  }, []);
+    inputAtualRef.current?.focus?.()
+  }, [])
 
-  function setErro(msg) {
-    setTipoMsg("erro");
-    setMensagem(msg);
+  const setErro = (msg) => {
+    setTipoMsg("erro")
+    setMensagem(msg)
   }
 
-  function validarNovaSenha(s) {
-    const senha = String(s || "");
-    if (senha.length < 8) return "A nova senha deve ter pelo menos 8 caracteres.";
-    if (!/[A-Z]/.test(senha)) return "A nova senha deve ter pelo menos 1 letra maiúscula.";
-    if (!/[a-z]/.test(senha)) return "A nova senha deve ter pelo menos 1 letra minúscula.";
-    if (!/[0-9]/.test(senha)) return "A nova senha deve ter pelo menos 1 número.";
-    return "";
-  }
-
-  async function handleSubmit(e) {
-    e.preventDefault();
-    setMensagem("");
-    setTipoMsg("info");
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    setMensagem("")
+    setTipoMsg("info")
 
     if (!senhaAtual) {
-      setErro("Informe sua senha atual.");
-      inputAtualRef.current?.focus?.();
-      return;
+      setErro("Informe sua senha atual.")
+      inputAtualRef.current?.focus?.()
+      return
     }
 
     if (!novaSenha) {
-      setErro("Informe a nova senha.");
-      return;
+      setErro("Informe a nova senha.")
+      return
     }
 
-    const erroNova = validarNovaSenha(novaSenha);
+    const erroNova = validarSenha(novaSenha)
     if (erroNova) {
-      setErro(erroNova);
-      return;
+      setErro(erroNova)
+      return
     }
 
     if (novaSenha !== confirmarSenha) {
-      setErro("As senhas não conferem. Verifique a confirmação.");
-      return;
+      setErro("As senhas não conferem. Verifique a confirmação.")
+      return
     }
 
     if (novaSenha === senhaAtual) {
-      setErro("A nova senha precisa ser diferente da senha atual.");
-      return;
+      setErro("A nova senha precisa ser diferente da senha atual.")
+      return
     }
-
-    setCarregando(true);
 
     try {
-      // ✅ ajuste aqui se seu backend usar outro endpoint
-      const { data } = await api.put("/auth/trocar-senha", {
-        senha_atual: senhaAtual,
-        nova_senha: novaSenha,
-      });
+      await executar(() =>
+        authApi.trocarSenha({ senha_atual: senhaAtual, nova_senha: novaSenha })
+      )
 
-      console.log("[TROCAR-SENHA] OK:", data);
+      setTipoMsg("sucesso")
+      setMensagem("Senha alterada com sucesso! Você será redirecionado para o login.")
 
-      setTipoMsg("sucesso");
-      setMensagem("Senha alterada com sucesso! Você será redirecionado para o login.");
-
-      // limpa campos
-      setSenhaAtual("");
-      setNovaSenha("");
-      setConfirmarSenha("");
+      setSenhaAtual("")
+      setNovaSenha("")
+      setConfirmarSenha("")
 
       setTimeout(() => {
-        navigate("/login");
-      }, 900);
+        logout()
+        navigate("/login")
+      }, 900)
     } catch (err) {
-      console.error("[TROCAR-SENHA] Erro:", err);
+      console.error("[TROCAR-SENHA] Erro:", err)
 
-      const msgBackend = err?.response?.data?.error;
-
-      // mensagens mais claras
-      const raw = String(msgBackend || err?.message || "").toLowerCase();
+      const msgBackend = err?.response?.data?.error
+      const raw = String(msgBackend || err?.message || "").toLowerCase()
 
       if (raw.includes("atual") && (raw.includes("incorre") || raw.includes("invál") || raw.includes("inval"))) {
-        setErro("Senha atual incorreta. Tente novamente.");
+        setErro("Senha atual incorreta. Tente novamente.")
       } else if (raw.includes("token") || raw.includes("unauthor") || err?.response?.status === 401) {
-        setErro("Sua sessão expirou. Faça login novamente.");
+        setErro("Sua sessão expirou. Faça login novamente.")
       } else {
-        setErro(msgBackend || "Não foi possível alterar a senha. Tente novamente.");
+        setErro(msgBackend || "Não foi possível alterar a senha. Tente novamente.")
       }
-    } finally {
-      setCarregando(false);
     }
-  }
-
-  const alertStyle = (() => {
-    if (!mensagem) return {};
-    if (tipoMsg === "sucesso") {
-      return {
-        background: "rgba(34,197,94,0.1)",
-        border: "1px solid rgba(34,197,94,0.3)",
-        color: "#166534",
-      };
-    }
-    if (tipoMsg === "aviso") {
-      return {
-        background: "rgba(245,158,11,0.1)",
-        border: "1px solid rgba(245,158,11,0.3)",
-        color: "#92400e",
-      };
-    }
-    if (tipoMsg === "info") {
-      return {
-        background: "rgba(55,100,140,0.1)",
-        border: "1px solid rgba(55,100,140,0.3)",
-        color: "#1e3a5f",
-      };
-    }
-    return {
-      background: "rgba(239,68,68,0.1)",
-      border: "1px solid rgba(239,68,68,0.3)",
-      color: "#991b1b",
-    };
-  })();
-
-  function CampoSenha({
-    id,
-    label,
-    value,
-    onChange,
-    mostrar,
-    setMostrar,
-    placeholder,
-    inputRef,
-    disabled,
-    autoComplete,
-  }) {
-    return (
-      <div style={{ marginBottom: 12 }}>
-        <label htmlFor={id} style={{ display: "block", marginBottom: 4, fontSize: 14 }}>
-          {label}
-        </label>
-
-        <div style={{ display: "flex", gap: 8 }}>
-          <input
-            ref={inputRef}
-            id={id}
-            type={mostrar ? "text" : "password"}
-            required
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            style={{
-              flex: 1,
-              padding: "10px 12px",
-              borderRadius: 8,
-              border: "1px solid #d1d5db",
-              backgroundColor: "#ffffff",
-              color: "#111827",
-              fontSize: 14,
-              outline: "none",
-              opacity: disabled ? 0.75 : 1,
-            }}
-            onFocus={(e) => {
-              e.target.style.borderColor = "#37648c";
-            }}
-            onBlur={(e) => {
-              e.target.style.borderColor = "#d1d5db";
-            }}
-            placeholder={placeholder}
-            disabled={disabled}
-            autoComplete={autoComplete}
-          />
-
-          <button
-            type="button"
-            onClick={() => setMostrar((v) => !v)}
-            style={{
-              padding: "10px 12px",
-              borderRadius: 8,
-              border: "1px solid #d1d5db",
-              backgroundColor: "#ffffff",
-              color: "#37648c",
-              cursor: disabled ? "not-allowed" : "pointer",
-              fontSize: 13,
-              whiteSpace: "nowrap",
-              opacity: disabled ? 0.7 : 1,
-            }}
-            disabled={disabled}
-            title={mostrar ? "Ocultar senha" : "Mostrar senha"}
-          >
-            {mostrar ? "Ocultar" : "Mostrar"}
-          </button>
-        </div>
-      </div>
-    );
   }
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
-        backgroundColor: "#ffffff",
-        color: "#111827",
-        padding: 16,
-      }}
-    >
-      <div
-        style={{
-          width: "100%",
-          maxWidth: 440,
-          padding: 24,
-          borderRadius: 16,
-          backgroundColor: "#ffffff",
-          boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
-          border: "1px solid #e5e7eb",
-        }}
-      >
-        <h1 style={{ fontSize: 22, marginBottom: 8, textAlign: "center", color: "#37648c" }}>
-          Trocar senha
-        </h1>
-        <p style={{ fontSize: 14, marginBottom: 18, textAlign: "center", color: "#6b7280" }}>
+    <div className="auth-wrapper">
+      <div className="auth-card">
+        <h1 className="auth-titulo">Trocar senha</h1>
+        <p className="auth-subtitulo">
           Defina uma nova senha para continuar usando o sistema.
         </p>
 
         {mensagem ? (
-          <div
-            role="alert"
-            style={{
-              marginBottom: 14,
-              padding: "10px 12px",
-              borderRadius: 12,
-              fontSize: 13,
-              lineHeight: 1.35,
-              ...alertStyle,
-            }}
-          >
+          <div role="alert" className={`auth-alerta auth-alerta--${tipoMsg}`}>
             {mensagem}
           </div>
         ) : (
-          <div
-            style={{
-              marginBottom: 14,
-              padding: "10px 12px",
-              borderRadius: 12,
-              fontSize: 13,
-              lineHeight: 1.35,
-              background: "rgba(55,100,140,0.1)",
-              border: "1px solid rgba(55,100,140,0.3)",
-              color: "#1e3a5f",
-            }}
-          >
+          <div className="auth-alerta auth-alerta--info">
             Regras: mínimo 8 caracteres, com maiúscula, minúscula e número.
           </div>
         )}
@@ -313,23 +197,12 @@ export default function TrocarSenhaPage() {
             autoComplete="new-password"
           />
 
-          <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
+          <div className="auth-botoes">
             <button
               type="button"
-              onClick={() => navigate("/login")}
+              onClick={() => navigate(rotaDashboard)}
               disabled={carregando}
-              style={{
-                flex: 1,
-                padding: "10px 12px",
-                borderRadius: 999,
-                border: "1px solid #d1d5db",
-                fontSize: 14,
-                fontWeight: 600,
-                cursor: carregando ? "not-allowed" : "pointer",
-                background: "transparent",
-                color: "#6b7280",
-                opacity: carregando ? 0.7 : 1,
-              }}
+              className="auth-btn-secundario"
             >
               Voltar
             </button>
@@ -337,24 +210,7 @@ export default function TrocarSenhaPage() {
             <button
               type="submit"
               disabled={carregando}
-              style={{
-                flex: 1,
-                padding: "10px 12px",
-                borderRadius: 999,
-                border: "none",
-                fontSize: 14,
-                fontWeight: 700,
-                cursor: carregando ? "not-allowed" : "pointer",
-                background: "#37648c",
-                color: "#ffffff",
-                opacity: carregando ? 0.7 : 1,
-              }}
-              onMouseEnter={(e) => {
-                if (!carregando) e.target.style.background = "#2d5070";
-              }}
-              onMouseLeave={(e) => {
-                if (!carregando) e.target.style.background = "#37648c";
-              }}
+              className="auth-btn-primario"
             >
               {carregando ? "Salvando..." : "Salvar nova senha"}
             </button>
@@ -362,5 +218,7 @@ export default function TrocarSenhaPage() {
         </form>
       </div>
     </div>
-  );
+  )
 }
+
+export default TrocarSenhaPage

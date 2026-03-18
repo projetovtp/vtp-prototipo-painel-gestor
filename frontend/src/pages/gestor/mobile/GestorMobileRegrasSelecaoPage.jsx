@@ -1,7 +1,7 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
 
-export default function GestorMobileRegrasSelecaoPage() {
+const GestorMobileRegrasSelecaoPage = () => {
   const navigate = useNavigate();
 
   return (
@@ -32,3 +32,5 @@ export default function GestorMobileRegrasSelecaoPage() {
     </div>
   );
 }
+
+export default GestorMobileRegrasSelecaoPage;

@@ -3,7 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useGestorEmpresas } from "../../hooks/api";
 import { LoadingSpinner, ErrorMessage } from "../../components/ui";
 
-function GestorEmpresaEditarPage() {
+const GestorEmpresaEditarPage = () => {
   const { empresaId } = useParams();
   const navigate = useNavigate();
   const { obter: obterEmpresa, editar: editarEmpresa } = useGestorEmpresas();

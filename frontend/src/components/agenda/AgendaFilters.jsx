@@ -1,5 +1,6 @@
 // src/pages/components/agenda/AgendaFilters.jsx
 import React from "react";
+import PropTypes from "prop-types";
 
 /**
  * Componente de filtros da agenda.
@@ -105,3 +106,16 @@ export function AgendaFilters({
     </div>
   );
 }
+
+AgendaFilters.propTypes = {
+  periodo: PropTypes.string,
+  onPeriodoChange: PropTypes.func,
+  dataInicio: PropTypes.string,
+  onDataInicioChange: PropTypes.func,
+  dataFim: PropTypes.string,
+  onDataFimChange: PropTypes.func,
+  filtroStatus: PropTypes.string,
+  onFiltroStatusChange: PropTypes.func,
+  onAplicar: PropTypes.func,
+  onLimpar: PropTypes.func,
+};

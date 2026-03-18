@@ -1,0 +1,39 @@
+/* Slot status colors - usando tokens CSS */
+.slotDisponivel {
+  background-color: var(--color-primary);
+  color: var(--color-surface);
+}
+
+.slotReservado {
+  background-color: var(--color-danger);
+  color: var(--color-surface);
+}
+
+.slotBloqueado {
+  background-color: var(--color-text-muted);
+  color: var(--color-surface);
+}
+
+.slotCell {
+  min-width: 92px;
+  text-align: center;
+  padding: 6px 8px;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.slotCellBloqueado {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.slotHora {
+  font-weight: 700;
+}
+
+.slotDetalhe {
+  font-size: 11px;
+  opacity: 0.95;
+  margin-top: 2px;
+}

@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useGestorQuadras } from "../../hooks/api";
-import { LoadingSpinner, ErrorMessage } from "../../components/ui";
+import { LoadingSpinner, ErrorMessage, ConfirmacaoModal } from "../../components/ui";
 
-export default function GestorQuadraEditarPage() {
+const GestorQuadraEditarPage = () => {
   const { quadraId } = useParams();
   const navigate = useNavigate();
   const {
@@ -31,6 +31,8 @@ export default function GestorQuadraEditarPage() {
   const [foto3File, setFoto3File] = useState(null);
 
   const [fotoLoading, setFotoLoading] = useState({ 1: false, 2: false, 3: false });
+  const [confirmacaoRemoverFotoAberta, setConfirmacaoRemoverFotoAberta] = useState(false);
+  const [slotParaRemover, setSlotParaRemover] = useState(null);
 
   const [carregando, setCarregando] = useState(true);
   const [salvando, setSalvando] = useState(false);
@@ -136,10 +138,12 @@ export default function GestorQuadraEditarPage() {
     else if (slot === 3) { setFoto3File(file); setFoto3Url(preview); }
   }
 
-  async function handleRemoverFoto(slot) {
-    const confirmado = window.confirm("Tem certeza que deseja remover esta foto?");
-    if (!confirmado) return;
+  function pedirConfirmacaoRemoverFoto(slot) {
+    setSlotParaRemover(slot);
+    setConfirmacaoRemoverFotoAberta(true);
+  }
 
+  async function handleRemoverFoto(slot) {
     try {
       setErroForm("");
       setSucesso("");
@@ -165,6 +169,14 @@ export default function GestorQuadraEditarPage() {
     } finally {
       setFotoLoading((prev) => ({ ...prev, [slot]: false }));
     }
+  }
+
+  async function handleConfirmarRemoverFoto() {
+    if (slotParaRemover != null) {
+      await handleRemoverFoto(slotParaRemover);
+    }
+    setConfirmacaoRemoverFotoAberta(false);
+    setSlotParaRemover(null);
   }
 
   async function handleSubmit(e) {
@@ -390,7 +402,7 @@ export default function GestorQuadraEditarPage() {
                     <button
                       type="button"
                       className="btn-danger"
-                      onClick={() => handleRemoverFoto(slot)}
+                      onClick={() => pedirConfirmacaoRemoverFoto(slot)}
                       disabled={fotoLoading[slot]}
                     >
                       {fotoLoading[slot] ? "Removendo..." : "Remover"}
@@ -420,6 +432,17 @@ export default function GestorQuadraEditarPage() {
           </div>
         </form>
       </div>
+
+      <ConfirmacaoModal
+        aberto={confirmacaoRemoverFotoAberta}
+        titulo="Remover foto"
+        mensagem="Tem certeza que deseja remover esta foto?"
+        onFechar={() => { setConfirmacaoRemoverFotoAberta(false); setSlotParaRemover(null); }}
+        onConfirmar={handleConfirmarRemoverFoto}
+        textoConfirmar="Remover"
+      />
     </div>
   );
 }
+
+export default GestorQuadraEditarPage;

@@ -5,7 +5,7 @@ import GestorLayout from "../layouts/GestorLayout";
 import MobileLayout from "../layouts/MobileLayout";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 
-export default function DeviceRouter() {
+const DeviceRouter = () => {
   const { isMobile, isTablet } = useDevice();
   const usarMobileLayout = isMobile || isTablet;
   const location = useLocation();
@@ -34,3 +34,5 @@ export default function DeviceRouter() {
   }
   return <GestorLayout><Outlet /></GestorLayout>;
 }
+
+export default DeviceRouter;

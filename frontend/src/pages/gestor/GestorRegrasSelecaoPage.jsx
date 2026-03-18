@@ -32,7 +32,7 @@ const opcoes = [
   }
 ];
 
-export default function GestorRegrasSelecaoPage() {
+const GestorRegrasSelecaoPage = () => {
   const navigate = useNavigate();
 
   return (
@@ -79,3 +79,5 @@ export default function GestorRegrasSelecaoPage() {
     </div>
   );
 }
+
+export default GestorRegrasSelecaoPage;

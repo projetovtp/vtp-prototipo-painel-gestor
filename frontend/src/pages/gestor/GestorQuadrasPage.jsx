@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useGestorEmpresas, useGestorQuadras } from "../../hooks/api";
 
-function GestorQuadrasPage() {
+const GestorQuadrasPage = () => {
   const navigate = useNavigate();
   const { listar: listarEmpresas } = useGestorEmpresas();
   const { criar: criarQuadra } = useGestorQuadras();

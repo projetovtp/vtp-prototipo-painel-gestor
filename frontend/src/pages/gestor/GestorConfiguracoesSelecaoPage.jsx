@@ -29,7 +29,7 @@ const opcoes = [
   }
 ];
 
-export default function GestorConfiguracoesSelecaoPage() {
+const GestorConfiguracoesSelecaoPage = () => {
   const navigate = useNavigate();
 
   return (
@@ -67,3 +67,5 @@ export default function GestorConfiguracoesSelecaoPage() {
     </div>
   );
 }
+
+export default GestorConfiguracoesSelecaoPage;

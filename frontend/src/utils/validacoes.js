@@ -53,6 +53,22 @@ export function campoObrigatorio(valor) {
 }
 
 /**
+ * Valida força de senha.
+ * Regra: mínimo 8 caracteres, 1 maiúscula, 1 minúscula, 1 número.
+ * Retorna mensagem de erro descritiva, ou string vazia se válida.
+ * @param {string} senha
+ * @returns {string}
+ */
+export function validarSenha(senha) {
+  const s = String(senha || "")
+  if (s.length < 8) return "A senha deve ter pelo menos 8 caracteres."
+  if (!/[A-Z]/.test(s)) return "A senha deve ter pelo menos 1 letra maiúscula."
+  if (!/[a-z]/.test(s)) return "A senha deve ter pelo menos 1 letra minúscula."
+  if (!/[0-9]/.test(s)) return "A senha deve ter pelo menos 1 número."
+  return ""
+}
+
+/**
  * Valida formato de CNPJ (apenas dígitos, com ou sem máscara).
  * @param {string} cnpj
  * @returns {boolean}
