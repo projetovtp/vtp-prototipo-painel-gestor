@@ -1,3 +1,10 @@
+import { DIAS_SEMANA } from "./constants";
+
+export function labelDiaSemana(numero) {
+  return DIAS_SEMANA.find(d => d.valor === numero)?.nome_curto ?? numero;
+}
+
+
 /**
  * Formata número como moeda brasileira (R$).
  * @param {number|string} valor
@@ -139,10 +146,19 @@ export function formatarTelefone(telefone) {
  */
 export function formatarNomeQuadra(quadra) {
   if (!quadra) return "Quadra não encontrada";
+  if (quadra.apelido) return quadra.apelido;
   if (quadra.nome_dinamico) return quadra.nome_dinamico;
   if (quadra.nome) return quadra.nome;
-  const parts = [quadra.tipo || "Quadra", quadra.material, quadra.modalidade].filter(Boolean);
+  const parts = [quadra.tipo || quadra.estrutura || "Quadra", quadra.material, quadra.modalidade || quadra.modalidades?.[0]].filter(Boolean);
   return parts.join(" • ") || "Quadra";
+}
+
+
+export function formatarNomeEmpresa(empresa) {
+  if (!empresa) return "—";
+  const nome = empresa.nome || "Empresa";
+  const end = empresa.endereco_resumo ? ` — ${empresa.endereco_resumo}` : "";
+  return `${nome}${end}`;
 }
 
 /**
@@ -196,4 +212,102 @@ export function agregarSlotsGrupo(quadrasGrupo, slotsPorQuadra) {
     });
   });
   return Object.values(agg).sort((a, b) => a.hora.localeCompare(b.hora));
+}
+
+export function corrigirHora(valor) {
+  if (!valor) return valor;
+  const [hora, minuto] = valor.split(":");
+  return minuto && minuto !== "00" ? `${hora}:00` : valor;
+}
+
+
+export function parsePrecoBRL(valor) {
+  return Number(String(valor).replace(",", ".").trim());
+}
+
+/**
+ * Formata CNPJ para o padrão XX.XXX.XXX/XXXX-XX.
+ * @param {string} value
+ * @returns {string}
+ */
+export function formatarCNPJ(value) {
+  const cnpj = value.replace(/\D/g, "");
+  return cnpj
+    .replace(/^(\d{2})(\d)/, "$1.$2")
+    .replace(/^(\d{2})\.(\d{3})(\d)/, "$1.$2.$3")
+    .replace(/\.(\d{3})(\d)/, ".$1/$2")
+    .replace(/(\d{4})(\d)/, "$1-$2");
+}
+
+/**
+ * Formata CEP para o padrão XXXXX-XXX.
+ * @param {string} value
+ * @returns {string}
+ */
+export function formatarCEP(value) {
+  const cep = value.replace(/\D/g, "");
+  return cep.replace(/^(\d{5})(\d)/, "$1-$2");
+}
+/**
+ * Formata string de dígitos brutos como valor BRL com 2 casas decimais.
+ * Ex: "12345" → "123,45" | "1000000" → "10.000,00"
+ * @param {string} valor - string com qualquer caractere (apenas dígitos são usados)
+ * @returns {string}
+ */
+export function formatarValorMascarado(valor) {
+  const apenasNumeros = String(valor).replace(/\D/g, "");
+  if (!apenasNumeros) return "";
+  const valorNumerico = Number(apenasNumeros) / 100;
+  return valorNumerico.toLocaleString("pt-BR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
+/**
+ * Extrai valor numérico de string BRL mascarada (com pontos de milhar e vírgula decimal).
+ * Ex: "1.234,56" → 1234.56 | "R$ 100,00" → 100
+ * @param {string} valorFormatado
+ * @returns {number}
+ */
+export function extrairValorNumerico(valorFormatado) {
+  if (!valorFormatado) return 0;
+  const apenasNumeros = String(valorFormatado).replace(/\D/g, "");
+  return Number(apenasNumeros) / 100;
+}
+
+export function formatarDataISO(ano, mes, dia) {
+  return `${ano}-${String(mes + 1).padStart(2, "0")}-${String(dia).padStart(2, "0")}`;
+}
+
+
+export function calcularDatasParaPeriodo(p) {
+  const h = new Date();
+  h.setHours(0, 0, 0, 0);
+  switch (p) {
+    case "hoje": {
+      const s = formatarDataISO(h.getFullYear(), h.getMonth(), h.getDate());
+      return { inicio: s, fim: s };
+    }
+    case "semana": {
+      const inicioSemana = new Date(h);
+      inicioSemana.setDate(h.getDate() - h.getDay());
+      const fimSemana = new Date(inicioSemana);
+      fimSemana.setDate(inicioSemana.getDate() + 6);
+      return {
+        inicio: formatarDataISO(inicioSemana.getFullYear(), inicioSemana.getMonth(), inicioSemana.getDate()),
+        fim: formatarDataISO(fimSemana.getFullYear(), fimSemana.getMonth(), fimSemana.getDate()),
+      };
+    }
+    case "mes": {
+      const inicioMes = new Date(h.getFullYear(), h.getMonth(), 1);
+      const fimMes = new Date(h.getFullYear(), h.getMonth() + 1, 0);
+      return {
+        inicio: formatarDataISO(inicioMes.getFullYear(), inicioMes.getMonth(), inicioMes.getDate()),
+        fim: formatarDataISO(fimMes.getFullYear(), fimMes.getMonth(), fimMes.getDate()),
+      };
+    }
+    default:
+      return null;
+  }
 }

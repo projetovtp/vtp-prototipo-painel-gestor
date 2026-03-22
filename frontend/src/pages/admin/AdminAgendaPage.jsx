@@ -11,7 +11,7 @@ import {
   AgendaToolbar,
   AgendaCinemaView,
 } from "../../components/agenda";
-import { formatarNomeQuadra } from "../../utils/formatters";
+import { formatarNomeQuadra, formatarNomeEmpresa, labelDiaSemana } from "../../utils/formatters";
 import { ConfirmacaoModal } from "../../components/ui";
 
 
@@ -573,30 +573,6 @@ const AdminAgendaPage = () => {
     }
   }
 
-  // -----------------------------------
-  // Helpers de exibição
-  // -----------------------------------
-  function formatarNomeEmpresa(empresa) {
-    const nome = empresa.nome || "Sem nome";
-    const desc = empresa.descricao_complexo;
-    if (desc) {
-      return `${nome} — ${desc}`;
-    }
-    return nome;
-  }
-
-  function labelDiaSemana(numero) {
-    const mapa = {
-      0: "Domingo",
-      1: "Segunda",
-      2: "Terça",
-      3: "Quarta",
-      4: "Quinta",
-      5: "Sexta",
-      6: "Sábado",
-    };
-    return mapa[numero] ?? numero;
-  }
 
   // -----------------------------------
   // RENDER

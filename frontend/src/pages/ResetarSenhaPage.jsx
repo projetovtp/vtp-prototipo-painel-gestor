@@ -4,38 +4,13 @@ import { useLocation, useNavigate } from "react-router-dom"
 import { authApi } from "../api/endpoints/authApi"
 import { useApiRequest } from "../hooks/useApiRequest"
 import { validarSenha } from "../utils/validacoes"
+import CampoSenha from "../components/ui/CampoSenha"
 import "./auth.css"
 
 const useQuery = () => {
   const { search } = useLocation()
   return useMemo(() => new URLSearchParams(search), [search])
 }
-
-const CampoSenha = ({ label, value, setValue, mostrar, setMostrar, inputRef, disabled }) => (
-  <div className="auth-campo">
-    <label className="auth-label">{label}</label>
-    <div className="auth-campo-senha">
-      <input
-        ref={inputRef}
-        type={mostrar ? "text" : "password"}
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        required
-        disabled={disabled}
-        className="auth-input"
-      />
-      <button
-        type="button"
-        onClick={() => setMostrar((v) => !v)}
-        className="auth-btn-toggle-senha"
-        disabled={disabled}
-        aria-label={mostrar ? "Ocultar senha" : "Mostrar senha"}
-      >
-        {mostrar ? "Ocultar" : "Ver"}
-      </button>
-    </div>
-  </div>
-)
 
 const ResetarSenhaPage = () => {
   const query = useQuery()
@@ -150,7 +125,7 @@ const ResetarSenhaPage = () => {
           <CampoSenha
             label="Nova senha"
             value={novaSenha}
-            setValue={setNovaSenha}
+            onChange={setNovaSenha}
             mostrar={mostrar1}
             setMostrar={setMostrar1}
             inputRef={inputNovaRef}
@@ -160,7 +135,7 @@ const ResetarSenhaPage = () => {
           <CampoSenha
             label="Confirmar senha"
             value={confirmarSenha}
-            setValue={setConfirmarSenha}
+            onChange={setConfirmarSenha}
             mostrar={mostrar2}
             setMostrar={setMostrar2}
             disabled={carregando}

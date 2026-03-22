@@ -1,3 +1,5 @@
+import { parsePrecoBRL } from "./formatters";
+
 /**
  * Valida formato de email.
  * @param {string} email
@@ -93,4 +95,73 @@ export function validarCNPJ(cnpj) {
   resto = soma % 11;
   const d2 = resto < 2 ? 0 : 11 - resto;
   return parseInt(digits[13]) === d2;
+}
+
+/**
+ * Valida dados de uma regra de horário.
+ * @returns {string} mensagem de erro ou "" se válido
+ */
+export function validarRegraHorario({ horaInicio, horaFim, precoHora }) {
+  if (!horaInicio || !horaFim) {
+    return "Preencha os horários inicial e final.";
+  }
+
+  const horaInicioMatch = horaInicio.match(/^(\d{2}):(\d{2})$/);
+  const horaFimMatch = horaFim.match(/^(\d{2}):(\d{2})$/);
+  if (!horaInicioMatch || !horaFimMatch) {
+    return "Formato de horário inválido. Use o formato HH:MM (ex: 08:00).";
+  }
+
+  const horaInicioNum = parseInt(horaInicio.split(":")[0]);
+  const horaFimNum = parseInt(horaFim.split(":")[0]);
+  const minutoInicio = parseInt(horaInicio.split(":")[1]);
+  const minutoFim = parseInt(horaFim.split(":")[1]);
+
+  if (minutoInicio !== 0 || minutoFim !== 0) {
+    return "Os horários devem ser de hora em hora (ex: 08:00, 09:00).";
+  }
+  if (horaInicioNum >= horaFimNum) {
+    return "A hora final deve ser maior que a hora inicial.";
+  }
+  if (horaInicioNum < 0 || horaInicioNum > 23 || horaFimNum < 0 || horaFimNum > 23) {
+    return "Os horários devem estar entre 00:00 e 23:00.";
+  }
+  if (!precoHora || String(precoHora).trim() === "") {
+    return "O preço por hora é obrigatório.";
+  }
+
+  const preco = parsePrecoBRL(precoHora);
+  if (isNaN(preco) || preco <= 0) {
+    return "Preço por hora inválido. Informe um valor maior que zero (ex: 100 ou 100.50).";
+  }
+
+  return "";
+}
+
+/**
+ * Verifica se uma reserva pode ser cancelada (status e janela de 24h).
+ * @param {object} reserva
+ * @returns {boolean}
+ */
+export function podeCancelar(reserva) {
+  if (reserva.status !== "pending" && reserva.status !== "paid") return false;
+  if (!reserva.created_at) return false;
+  const horasDesdeCriacao = (new Date() - new Date(reserva.created_at)) / (1000 * 60 * 60);
+  return horasDesdeCriacao <= 24;
+}
+
+/**
+ * Valida os dados do formulário de criação/edição de quadra.
+ * @param {object} formData
+ * @returns {string} mensagem de erro ou "" se válido
+ */
+export function validarFormQuadra(formData) {
+  if (!formData.estrutura || !formData.material || !formData.modalidades?.length || !formData.quantidadeQuadras) {
+    return "Estrutura, Material, Modalidade e Quantidade são obrigatórios.";
+  }
+  const quantidade = parseInt(formData.quantidadeQuadras);
+  if (isNaN(quantidade) || quantidade <= 0) {
+    return "A quantidade de quadras deve ser um número maior que zero.";
+  }
+  return "";
 }

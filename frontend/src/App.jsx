@@ -22,11 +22,6 @@ const AdminRepassesPage = lazy(() => import("./pages/admin/AdminRepassesPage"));
 
 // Lazy pages - Gestor
 const GestorDashboardPage = lazy(() => import("./pages/gestor/GestorDashboardPage"));
-const GestorEmpresasPage = lazy(() => import("./pages/gestor/GestorEmpresasPage"));
-const GestorQuadrasPage = lazy(() => import("./pages/gestor/GestorQuadrasPage"));
-const GestorQuadrasListPage = lazy(() => import("./pages/gestor/GestorQuadrasListPage"));
-const GestorQuadraEditarPage = lazy(() => import("./pages/gestor/GestorQuadraEditarPage"));
-const GestorEmpresaEditarPage = lazy(() => import("./pages/gestor/GestorEmpresaEditarPage"));
 const GestorReservasPage = lazy(() => import("./pages/gestor/GestorReservasPage"));
 const GestorFinanceiroPage = lazy(() => import("./pages/gestor/GestorFinanceiroPage"));
 const GestorClientesPage = lazy(() => import("./pages/gestor/GestorClientesPage"));
@@ -119,22 +114,6 @@ const App = () => {
           <Route path="mensagens" element={<GestorMobileMensagensPage />} />
           <Route path="mensagens/chat/:chatId" element={<GestorMobileChatPage />} />
 
-          {/* Empresas / Complexos */}
-          <Route path="empresas" element={<GestorEmpresasPage />} />
-          <Route
-            path="empresas/editar/:empresaId"
-            element={<GestorEmpresaEditarPage />}
-          />
-
-          {/* Lista de quadras */}
-          <Route path="quadras" element={<GestorQuadrasListPage />} />
-
-          {/* Cadastro/edição de quadra */}
-          <Route path="quadras/nova" element={<GestorQuadrasPage />} />
-          <Route
-            path="quadras/editar/:quadraId"
-            element={<GestorQuadraEditarPage />}
-          />
 
           {/* Agenda do Gestor (visualização tipo cinema + filtros) */}
           <Route path="regras-de-horarios" element={<ResponsivePage desktop={GestorRegrasSelecaoPage} mobile={GestorMobileRegrasSelecaoPage} />} />

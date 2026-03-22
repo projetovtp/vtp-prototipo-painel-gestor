@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { useAuth } from "../context/AuthContext"
+import CampoSenha from "../components/ui/CampoSenha"
 import loginImage from "../assets/23d74f35-26f6-49bd-9d7a-06996653420f (1).png"
 import "./auth.css"
 
@@ -214,43 +215,17 @@ const LoginPage = () => {
             </div>
 
             <div className="login-campo">
-              <label htmlFor="senha" className="auth-label">Senha</label>
-
-              <div className="login-campo-senha-wrapper">
-                <input
-                  id="senha"
-                  type={mostrarSenha ? "text" : "password"}
-                  required
-                  value={senha}
-                  onChange={(e) => setSenha(e.target.value)}
-                  className="auth-input login-input-senha"
-                  placeholder="Digite sua senha"
-                  autoComplete="current-password"
-                  disabled={carregando}
-                />
-
-                <button
-                  type="button"
-                  onClick={() => setMostrarSenha((v) => !v)}
-                  className="login-btn-toggle-senha"
-                  disabled={carregando}
-                  title={mostrarSenha ? "Ocultar senha" : "Mostrar senha"}
-                  aria-label={mostrarSenha ? "Ocultar senha" : "Mostrar senha"}
-                >
-                  {mostrarSenha ? (
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
-                      <line x1="1" y1="1" x2="23" y2="23"></line>
-                    </svg>
-                  ) : (
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                      <circle cx="12" cy="12" r="3"></circle>
-                    </svg>
-                  )}
-                </button>
-              </div>
-
+              <CampoSenha
+                id="senha"
+                label="Senha"
+                value={senha}
+                onChange={setSenha}
+                mostrar={mostrarSenha}
+                setMostrar={setMostrarSenha}
+                placeholder="Digite sua senha"
+                autoComplete="current-password"
+                disabled={carregando}
+              />
               <div className="login-esqueceu">
                 <button
                   type="button"

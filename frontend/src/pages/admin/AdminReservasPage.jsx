@@ -1,23 +1,3 @@
-// ✅ SUBSTITUA O ARQUIVO INTEIRO
-// Arquivo: src/pages/admin/AdminReservasPage.jsx
-//
-// O que este arquivo faz:
-// - Mantém a tela principal 100% CLONE do Gestor (Cinema)
-// - Adiciona um botão discreto "Avançado" abaixo do botão Aplicar
-// - "Avançado" abre um MODAL (fecha clicando fora) com a TABELA GLOBAL
-// - Tabela global usa GET /admin/reservas (filtros avançados)
-// - Ações por linha: Editar / Cancelar (reaproveitando o modal existente)
-//
-// Endpoints usados:
-//   - GET  /admin/gestores-resumo
-//   - GET  /admin/empresas
-//   - GET  /admin/quadras
-//   - GET  /admin/reservas/grade
-//   - GET  /admin/reservas
-//   - POST /admin/reservas
-//   - PUT  /admin/reservas/:id
-//   - DELETE /admin/reservas/:id
-
 import React, { useEffect, useMemo, useState } from "react";
 import { useAdminGestores, useAdminEmpresas, useAdminQuadras, useAdminReservas } from "../../hooks/api";
 import { adminReservasApi } from "../../api/endpoints/adminReservasApi";

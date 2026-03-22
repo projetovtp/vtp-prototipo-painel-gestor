@@ -68,6 +68,7 @@ const AdminGestoresPage = () => {
   const { gestores, listar, criar, editar, promover, reenviarAtivacao: enviarAtivacao } = useAdminGestores()
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState("")
+  const [mensagem, setMensagem] = useState("")
 
   const [busca, setBusca] = useState("")
   const [filtroStatus, setFiltroStatus] = useState("TODOS")
@@ -264,10 +265,11 @@ const AdminGestoresPage = () => {
       const data = await enviarAtivacao(gestorId)
       if (data?.link_dev) {
         await copiarTexto(data.link_dev)
-        alert("Link de ativação (DEV) copiado!")
+        setMensagem("Link de ativação (DEV) copiado!")
       } else {
-        alert("Ativação reenviada (se email estiver configurado).")
+        setMensagem("Ativação reenviada (se email estiver configurado).")
       }
+      setTimeout(() => setMensagem(""), 4000)
     } catch (err) {
       console.error(err)
       setErro(err?.response?.data?.error || "Erro ao reenviar ativação. Verifique o backend.")
@@ -366,6 +368,7 @@ const AdminGestoresPage = () => {
       </div>
 
       <ErrorMessage mensagem={erro} onDismiss={() => setErro(null)} />
+      {mensagem && <div className="alert-sucesso">{mensagem}</div>}
 
       <div className="card">
         {carregando ? (

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useAdminEmpresas, useAdminQuadras, useAdminAgenda } from "../../hooks/api";
 import { useAuth } from "../../context/AuthContext";
-import { formatarNomeQuadra } from "../../utils/formatters";
+import { formatarNomeQuadra, formatarNomeEmpresa } from "../../utils/formatters";
 
 const AdminAgendaEditPage = () => {
   const { usuario } = useAuth();
@@ -35,12 +35,6 @@ const AdminAgendaEditPage = () => {
     preco_hora: "",
   });
 
-  function formatarNomeEmpresa(empresa) {
-    if (!empresa) return "—";
-    const nome = empresa.nome || "Empresa";
-    const end = empresa.endereco_resumo ? ` — ${empresa.endereco_resumo}` : "";
-    return `${nome}${end}`;
-  }
 
   // 1) Carregar empresas (ADMIN)
   useEffect(() => {

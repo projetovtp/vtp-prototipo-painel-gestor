@@ -2,11 +2,8 @@ import React, { useEffect, useState } from "react";
 import { useGestorQuadras, useGestorAgenda } from "../../../hooks/api";
 import { useAuth } from "../../../context/AuthContext";
 import { ErrorMessage } from "../../../components/ui";
-
-function fmtDateBR(d) { if (!d) return "���"; const [y, m, dd] = String(d).slice(0, 10).split("-"); return `${dd}/${m}/${y}`; }
-
-const DIAS_ABREV = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "S?b"];
-const MESES = ["Janeiro", "Fevereiro", "Mar?o", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+import { formatarDataBR, formatarNomeQuadra } from "../../../utils/formatters"
+import { DIAS_SEMANA_ABREVIADOS, MESES } from "../../../utils/constants"
 
 const GestorMobileBloqueiosPage = () => {
   const { usuario } = useAuth();
@@ -44,14 +41,12 @@ const GestorMobileBloqueiosPage = () => {
     try { setCarregando(true); const d = await listarBloqueios({ quadraId }); setBloqueios(d?.bloqueios || []); } catch { setErro("Erro ao carregar bloqueios."); } finally { setCarregando(false); }
   }
 
-  function fmtNomeQuadra(q) { return q.modalidade ? `${q.tipo || "Quadra"} - ${q.modalidade}` : q.tipo || "Quadra"; }
-
   function getGrupo() {
     if (!quadraId || !quadras.length) return null;
     const sel = quadras.find((q) => q.id === quadraId);
     if (!sel) return null;
-    const nome = fmtNomeQuadra(sel);
-    return quadras.filter((q) => fmtNomeQuadra(q) === nome);
+    const nome = formatarNomeQuadra(sel);
+    return quadras.filter((q) => formatarNomeQuadra(q) === nome);
   }
 
   function getQuadrasParaBloquear() {
@@ -91,12 +86,12 @@ const GestorMobileBloqueiosPage = () => {
   async function executarConfirm() { if (confirmData.acao) await confirmData.acao(); fecharConfirm(); }
 
   async function salvarBloqueios() {
-    if (!dataSel || !horasSel.length) { setErro("Selecione data e hor?rios."); return; }
+    if (!dataSel || !horasSel.length) { setErro("Selecione data e horários."); return; }
     try {
       setSalvando(true); setErro("");
       const hi = Math.min(...horasSel.map((h) => parseInt(h))), hf = Math.max(...horasSel.map((h) => parseInt(h))) + 1;
       await criarBloqueiosLote({ quadraIds: getQuadrasParaBloquear(), data: dataSel, horaInicio: String(hi).padStart(2, "0") + ":00", horaFim: String(hf).padStart(2, "0") + ":00", motivo: "Bloqueio manual" });
-      setMensagem("Hor?rios bloqueados!"); setDataSel(""); setHorasSel([]); setBloquearTodas(false); setQtdQuadras(1);
+      setMensagem("Horários bloqueados!"); setDataSel(""); setHorasSel([]); setBloquearTodas(false); setQtdQuadras(1);
       await carregarBloqueios(); setTimeout(() => setMensagem(""), 3000);
     } catch (e) { setErro(e.response?.data?.error || "Erro ao bloquear."); } finally { setSalvando(false); }
   }
@@ -112,7 +107,7 @@ const GestorMobileBloqueiosPage = () => {
   }
 
   async function desbloquearHoras() {
-    if (!dataSel || !horasSel.length) { setErro("Selecione hor?rios para desbloquear."); return; }
+    if (!dataSel || !horasSel.length) { setErro("Selecione horários para desbloquear."); return; }
     try {
       setRemovendo(true); setErro("");
       const bDia = bloqueios.filter((b) => b.data === dataSel);
@@ -123,7 +118,7 @@ const GestorMobileBloqueiosPage = () => {
         if (b) ids.add(b.id);
       });
       await Promise.all([...ids].map((id) => excluirBloqueio(id)));
-      setMensagem("Hor?rios desbloqueados!"); setDataSel(""); setHorasSel([]);
+      setMensagem("Horários desbloqueados!"); setDataSel(""); setHorasSel([]);
       await carregarBloqueios(); setTimeout(() => setMensagem(""), 3000);
     } catch (e) { setErro(e.response?.data?.error || "Erro ao desbloquear."); } finally { setRemovendo(false); }
   }
@@ -155,7 +150,7 @@ const GestorMobileBloqueiosPage = () => {
       <div className="mhr-court-bar">
         <select className="mhr-court-select" value={quadraId} onChange={(e) => { setQuadraId(e.target.value); setDataSel(""); setHorasSel([]); }}>
           <option value="">Selecione uma quadra</option>
-          {quadras.map((q) => <option key={q.id} value={q.id}>{fmtNomeQuadra(q)}</option>)}
+          {quadras.map((q) => <option key={q.id} value={q.id}>{formatarNomeQuadra(q)}</option>)}
         </select>
       </div>
 
@@ -179,7 +174,7 @@ const GestorMobileBloqueiosPage = () => {
             </div>
 
             <div className="mbl-cal-grid">
-              {DIAS_ABREV.map((d) => <div key={d} className="mbl-cal-hdr">{d}</div>)}
+              {DIAS_SEMANA_ABREVIADOS.map((d) => <div key={d} className="mbl-cal-hdr">{d}</div>)}
               {diasDoMes().map((d, i) =>
                 !d ? <div key={`e${i}`} /> : (
                   <button key={d.dia} className={`mbl-cal-day${dataSel === d.data ? " mbl-cal-day--sel" : d.bloqueado ? " mbl-cal-day--blk" : ""}`} onClick={() => { setDataSel(d.data); setHorasSel([]); }}>
@@ -205,7 +200,7 @@ const GestorMobileBloqueiosPage = () => {
           <div className="mbl-sheet" onTouchMove={(e) => e.stopPropagation()}>
             <div className="mbl-sheet-handle" />
             <div className="mbl-sheet-hdr">
-              <span className="mbl-sheet-title">{fmtDateBR(dataSel)}</span>
+              <span className="mbl-sheet-title">{formatarDataBR(dataSel)}</span>
               <button className="mhr-sheet-close" onClick={() => { setDataSel(""); setHorasSel([]); }}>
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
               </button>
@@ -230,13 +225,13 @@ const GestorMobileBloqueiosPage = () => {
               {diaBloqueado && (
                 <div className="mbl-alert-blocked">
                   <span>Este dia possui bloqueios</span>
-                  <button className="mbl-btn-unblock-sm" onClick={() => pedirConfirmacao("Desbloquear dia inteiro?", `Desbloquear todos os hor?rios de ${fmtDateBR(dataSel)}?`, desbloquearDia)} disabled={removendo}>
+                  <button className="mbl-btn-unblock-sm" onClick={() => pedirConfirmacao("Desbloquear dia inteiro?", `Desbloquear todos os horários de ${formatarDataBR(dataSel)}?`, desbloquearDia)} disabled={removendo}>
                     {removendo ? "..." : "Desbloquear Dia"}
                   </button>
                 </div>
               )}
 
-              <div className="mbl-hours-label">Selecione os hor?rios:</div>
+              <div className="mbl-hours-label">Selecione os horários:</div>
               <div className="mbl-hours-grid">
                 {Array.from({ length: 18 }, (_, i) => {
                   const h = i + 6;
@@ -255,17 +250,17 @@ const GestorMobileBloqueiosPage = () => {
               <div className="mbl-sheet-actions">
                 {horasSel.length > 0 && (
                   horasSel.some((h) => horasBloq.includes(h)) ? (
-                    <button className="mhr-btn-danger-full" onClick={() => pedirConfirmacao("Desbloquear?", `Desbloquear ${horasSel.length} hor?rio(s)?`, desbloquearHoras)} disabled={isOp}>
-                      {removendo ? "Desbloqueando..." : `Desbloquear ${horasSel.length} hor?rio(s)`}
+                    <button className="mhr-btn-danger-full" onClick={() => pedirConfirmacao("Desbloquear?", `Desbloquear ${horasSel.length} horário(s)?`, desbloquearHoras)} disabled={isOp}>
+                      {removendo ? "Desbloqueando..." : `Desbloquear ${horasSel.length} horário(s)`}
                     </button>
                   ) : (
                     <button className="mhr-btn-brand-full" onClick={salvarBloqueios} disabled={isOp}>
-                      {salvando ? "Bloqueando..." : `Bloquear ${horasSel.length} hor?rio(s)`}
+                      {salvando ? "Bloqueando..." : `Bloquear ${horasSel.length} horário(s)`}
                     </button>
                   )
                 )}
                 {!diaBloqueado && (
-                  <button className="mhr-btn-danger-full" onClick={() => pedirConfirmacao("Bloquear dia inteiro?", `Bloquear todos os hor?rios de ${fmtDateBR(dataSel)}?`, bloquearDia)} disabled={isOp}>
+                  <button className="mhr-btn-danger-full" onClick={() => pedirConfirmacao("Bloquear dia inteiro?", `Bloquear todos os horários de ${formatarDataBR(dataSel)}?`, bloquearDia)} disabled={isOp}>
                     {salvando ? "Bloqueando..." : "Bloquear Dia Inteiro"}
                   </button>
                 )}

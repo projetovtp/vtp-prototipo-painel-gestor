@@ -1,173 +1,24 @@
-import React, { useState, useEffect } from "react";
-import { useGestorClientes } from "../../hooks/api";
-import { gestorReservasApi } from "../../api/endpoints/gestorReservasApi";
+import React from "react";
 import { LoadingSpinner, ErrorMessage, EmptyState, ConfirmacaoModal } from "../../components/ui";
 import { HistoricoModal } from "../../components/modals";
-
-import {
-  formatarMoeda as formatBRL,
-  formatarDataBR as formatDateBR,
-} from "../../utils/formatters";
-
-function calcularStatusCliente(cliente) {
-  if (cliente.status === "inativo" || cliente.status === "ativo") {
-    return cliente.status;
-  }
-  if (!cliente.ultimaReserva || cliente.totalReservas === 0) {
-    return "inativo";
-  }
-  const hoje = new Date();
-  const ultimaReserva = new Date(cliente.ultimaReserva);
-  const diasSemReserva = Math.floor((hoje - ultimaReserva) / (1000 * 60 * 60 * 24));
-  return diasSemReserva <= 30 ? "ativo" : "inativo";
-}
-
-// ─── Ícones SVG ──────────────────────────────────────────────────────────────
-
-const IconeDocumento = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-    <polyline points="14 2 14 8 20 8" />
-    <line x1="16" y1="13" x2="8" y2="13" />
-    <line x1="16" y1="17" x2="8" y2="17" />
-    <polyline points="10 9 9 9 8 9" />
-  </svg>
-);
-
-const IconeSeta = ({ direcao = "esquerda" }) => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    {direcao === "esquerda"
-      ? <polyline points="15 18 9 12 15 6" />
-      : <polyline points="9 18 15 12 9 6" />}
-  </svg>
-);
-
-// ─── Componente Principal ────────────────────────────────────────────────────
+import { podeCancelar } from "../../utils/validacoes";
+import { formatarMoeda as formatBRL, formatarDataBR as formatDateBR } from "../../utils/formatters";
+import IconDocument from "../../components/icons/IconDocument";
+import IconChevronLeft from "../../components/icons/IconChevronLeft";
+import IconChevronRight from "../../components/icons/IconChevronRight";
+import { useGestorClientesPage } from "../../hooks/useGestorClientesPage";
 
 const GestorClientesPage = () => {
-  const { listar, obterHistorico } = useGestorClientes();
-
-  const [clientes, setClientes] = useState([]);
-  const [carregando, setCarregando] = useState(true);
-  const [erro, setErro] = useState("");
-  const [busca, setBusca] = useState("");
-  const [paginaAtual, setPaginaAtual] = useState(1);
-  const itensPorPagina = 10;
-
-  const [modalHistoricoAberto, setModalHistoricoAberto] = useState(false);
-  const [clienteSelecionado, setClienteSelecionado] = useState(null);
-  const [historicoReservas, setHistoricoReservas] = useState([]);
-  const [carregandoHistorico, setCarregandoHistorico] = useState(false);
-
-  const [modalConfirmacaoAberto, setModalConfirmacaoAberto] = useState(false);
-  const [reservaParaCancelar, setReservaParaCancelar] = useState(null);
-
-  useEffect(() => {
-    carregarClientes();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  async function carregarClientes() {
-    try {
-      setCarregando(true);
-      setErro("");
-      const data = await listar({ busca: "" });
-      setClientes(data || []);
-    } finally {
-      setCarregando(false);
-    }
-  }
-
-  const clientesComStatus = clientes.map((c) => ({
-    ...c,
-    status: calcularStatusCliente(c),
-  }));
-
-  const clientesFiltrados = clientesComStatus.filter(
-    (c) =>
-      busca === "" ||
-      c.nome.toLowerCase().includes(busca.toLowerCase()) ||
-      c.cpf.includes(busca) ||
-      c.telefone.includes(busca),
-  );
-
-  const totalPaginas = Math.ceil(clientesFiltrados.length / itensPorPagina);
-  const indiceInicio = (paginaAtual - 1) * itensPorPagina;
-  const indiceFim = indiceInicio + itensPorPagina;
-  const clientesPaginados = clientesFiltrados.slice(indiceInicio, indiceFim);
-
-  useEffect(() => {
-    setPaginaAtual(1);
-  }, [busca]);
-
-  const novosClientesMes = 4;
-
-  // ─── Histórico ─────────────────────────────────────────────────────────────
-
-  async function abrirHistoricoCliente(cliente) {
-    setClienteSelecionado(cliente);
-    setModalHistoricoAberto(true);
-    setCarregandoHistorico(true);
-    setErro("");
-    try {
-      const data = await obterHistorico(cliente.id);
-      setHistoricoReservas(data || []);
-    } finally {
-      setCarregandoHistorico(false);
-    }
-  }
-
-  function fecharModalHistorico() {
-    setModalHistoricoAberto(false);
-    setClienteSelecionado(null);
-    setHistoricoReservas([]);
-  }
-
-  // ─── Cancelamento ──────────────────────────────────────────────────────────
-
-  function podeCancelar(reserva) {
-    if (reserva.status !== "pending" && reserva.status !== "paid") return false;
-    if (!reserva.created_at) return false;
-    const horasDesdeCriacao = (new Date() - new Date(reserva.created_at)) / (1000 * 60 * 60);
-    return horasDesdeCriacao <= 24;
-  }
-
-  function abrirModalConfirmacao(reserva) {
-    setReservaParaCancelar(reserva);
-    setModalConfirmacaoAberto(true);
-  }
-
-  function fecharModalConfirmacao() {
-    setModalConfirmacaoAberto(false);
-    setReservaParaCancelar(null);
-  }
-
-  async function confirmarCancelamento() {
-    if (!reservaParaCancelar) return;
-    try {
-      setErro("");
-      try {
-        await gestorReservasApi.cancelar(reservaParaCancelar.id);
-      } catch {
-        // Backend indisponível — apenas atualiza localmente
-      }
-      setHistoricoReservas((prev) =>
-        prev.map((r) => (r.id === reservaParaCancelar.id ? { ...r, status: "canceled" } : r)),
-      );
-      if (clienteSelecionado) {
-        setClienteSelecionado((prev) => ({
-          ...prev,
-          totalReservas: Math.max(0, prev.totalReservas - 1),
-          totalGasto: Math.max(0, prev.totalGasto - reservaParaCancelar.valor),
-        }));
-      }
-      fecharModalConfirmacao();
-    } catch (error) {
-      console.error("[CANCELAR RESERVA] Erro:", error);
-      setErro("Erro ao cancelar reserva. Tente novamente.");
-    }
-  }
-
-  // ─── Render ────────────────────────────────────────────────────────────────
+  const {
+    carregando, erro, setErro,
+    busca, setBusca, paginaAtual, setPaginaAtual,
+    clientesComStatus, clientesFiltrados,
+    totalPaginas, indiceInicio, indiceFim, clientesPaginados,
+    modalHistoricoAberto, clienteSelecionado, historicoReservas, carregandoHistorico,
+    abrirHistoricoCliente, fecharModalHistorico,
+    modalConfirmacaoAberto, reservaParaCancelar,
+    abrirModalConfirmacao, fecharModalConfirmacao, confirmarCancelamento,
+  } = useGestorClientesPage();
 
   return (
     <div className="page">
@@ -198,10 +49,6 @@ const GestorClientesPage = () => {
           <div className="cl-stat-value">
             {clientesComStatus.filter((c) => c.status === "inativo").length}
           </div>
-        </div>
-        <div className="card cl-stat-card">
-          <div className="cl-stat-label">Novos Clientes (este mês)</div>
-          <div className="cl-stat-value">{novosClientesMes}</div>
         </div>
       </div>
 
@@ -264,7 +111,7 @@ const GestorClientesPage = () => {
                         onClick={() => abrirHistoricoCliente(cliente)}
                         title="Ver Histórico"
                       >
-                        <IconeDocumento />
+                        <IconDocument />
                       </button>
                     </td>
                   </tr>
@@ -286,7 +133,7 @@ const GestorClientesPage = () => {
                   onClick={() => setPaginaAtual((p) => Math.max(1, p - 1))}
                   disabled={paginaAtual === 1}
                 >
-                  <IconeSeta direcao="esquerda" />
+                  <IconChevronLeft />
                   Anterior
                 </button>
                 <div className="cl-pagination-counter">
@@ -301,7 +148,7 @@ const GestorClientesPage = () => {
                   disabled={paginaAtual === totalPaginas}
                 >
                   Próxima
-                  <IconeSeta direcao="direita" />
+                  <IconChevronRight />
                 </button>
               </div>
             </div>
@@ -331,6 +178,6 @@ const GestorClientesPage = () => {
       />
     </div>
   );
-}
+};
 
 export default GestorClientesPage;

@@ -1,79 +1,13 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import DetalhesReservaModalDashboard from "../modals/DetalhesReservaModalDashboard";
-import { formatarMoeda, formatarDataBR } from "../../utils/formatters";
+import { formatarDataBR } from "../../utils/formatters";
 import { mockQuadrasConfig } from "../../mocks/mockDashboard";
+import SlotCard from "../ui/SlotCard";
 
-// ─── Slot Item ───────────────────────────────────────────────
 
-const SlotItem = ({ slotAgregado, grupo, onSlotClick }) => {
-  const pagas = slotAgregado.reservadasPagas || 0;
-  const pendentes = slotAgregado.reservadasPendentes || 0;
-  const disponiveis = slotAgregado.disponiveis || 0;
-  const totalReservadas = pagas + pendentes;
-  const isBloqueado = slotAgregado.bloqueadas === grupo.totalQuadras;
 
-  let status = "DISPONIVEL";
-  if (isBloqueado) status = "BLOQUEADO";
-  else if (totalReservadas > 0) status = "RESERVADO";
 
-  const handleClick = () => {
-    if (!isBloqueado) onSlotClick(status, slotAgregado, grupo);
-  };
-
-  let cardClass = "dash-slot-card";
-  if (isBloqueado) cardClass += " dash-slot-card--bloqueado";
-  else if (totalReservadas > 0 && disponiveis === 0) cardClass += " dash-slot-card--ocupado";
-  else if (totalReservadas > 0) cardClass += " dash-slot-card--misto";
-
-  return (
-    <div className={cardClass} onClick={handleClick}>
-      <div className="dash-slot-card-hora">{slotAgregado.hora} - {slotAgregado.hora_fim}</div>
-      {isBloqueado ? (
-        <div className="dash-slot-card-status-text">Bloqueado</div>
-      ) : (
-        <>
-          <div className="dash-slot-card-disp">
-            {grupo.totalQuadras > 1
-              ? `${disponiveis} de ${grupo.totalQuadras} disponíveis`
-              : disponiveis > 0 ? "Disponível" : "Sem vagas"}
-          </div>
-          {pagas > 0 && (
-            <div className="dash-slot-card-row dash-slot-card-row--pago">
-              <span className="dash-slot-card-dot dash-slot-card-dot--pago" />
-              <span>{pagas} pago{pagas > 1 ? "s" : ""}</span>
-            </div>
-          )}
-          {pendentes > 0 && (
-            <div className="dash-slot-card-row dash-slot-card-row--pendente">
-              <span className="dash-slot-card-dot dash-slot-card-dot--pendente" />
-              <span>{pendentes} pendente{pendentes > 1 ? "s" : ""}</span>
-            </div>
-          )}
-          {slotAgregado.preco_hora > 0 && (
-            <div className="dash-slot-card-preco">{formatarMoeda(slotAgregado.preco_hora)}</div>
-          )}
-        </>
-      )}
-    </div>
-  );
-};
-
-// ─── Dashboard Reservas ──────────────────────────────────────
-
-/**
- * Painel de reservas do Dashboard do Gestor.
- *
- * Props:
- *  - dataSelecionada: string (YYYY-MM-DD)
- *  - onDataChange: fn(novaData)
- *  - quadraSelecionadaId: string
- *  - onQuadraChange: fn(novoId)
- *  - gruposComSlots: array — resultado de agregarSlotsGrupo() calculado pelo pai
- *  - carregandoReservas: bool
- *  - quadras: array — lista de quadras carregadas (para lookups no modal)
- *  - onReservaChanged: fn() — chamado após criar ou cancelar reserva para o pai recarregar dados
- */
 const DashboardReservas = ({
   dataSelecionada,
   onDataChange,
@@ -189,7 +123,12 @@ const DashboardReservas = ({
                   </div>
                   <div className="dash-slot-list">
                     {grupo.slotsAgregados.map((slot, i) => (
-                      <SlotItem key={i} slotAgregado={slot} grupo={grupo} onSlotClick={handleSlotClick} />
+                     <SlotCard
+                     key={i}
+                     slotAgregado={slot}
+                     totalQuadras={grupo.totalQuadras}
+                     onSlotClick={(status, slot) => handleSlotClick(status, slot, grupo)}
+                   />
                     ))}
                   </div>
                 </div>

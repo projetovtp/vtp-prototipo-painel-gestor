@@ -5,48 +5,8 @@ import { authApi } from "../api/endpoints/authApi"
 import { useApiRequest } from "../hooks/useApiRequest"
 import { useAuth } from "../context/AuthContext"
 import { validarSenha } from "../utils/validacoes"
+import CampoSenha from "../components/ui/CampoSenha"
 import "./auth.css"
-
-const CampoSenha = ({
-  id,
-  label,
-  value,
-  onChange,
-  mostrar,
-  setMostrar,
-  placeholder,
-  inputRef,
-  disabled,
-  autoComplete,
-}) => (
-  <div className="auth-campo">
-    <label htmlFor={id} className="auth-label">{label}</label>
-    <div className="auth-campo-senha">
-      <input
-        ref={inputRef}
-        id={id}
-        type={mostrar ? "text" : "password"}
-        required
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="auth-input"
-        placeholder={placeholder}
-        disabled={disabled}
-        autoComplete={autoComplete}
-      />
-      <button
-        type="button"
-        onClick={() => setMostrar((v) => !v)}
-        className="auth-btn-toggle-senha"
-        disabled={disabled}
-        title={mostrar ? "Ocultar senha" : "Mostrar senha"}
-        aria-label={mostrar ? "Ocultar senha" : "Mostrar senha"}
-      >
-        {mostrar ? "Ocultar" : "Mostrar"}
-      </button>
-    </div>
-  </div>
-)
 
 const TrocarSenhaPage = () => {
   const navigate = useNavigate()

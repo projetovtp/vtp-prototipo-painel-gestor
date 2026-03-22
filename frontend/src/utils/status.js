@@ -52,3 +52,40 @@ export function statusLabelReserva(status) {
   if (v === "canceled" || v === "cancelado") return "Cancelado";
   return v || "—";
 }
+
+export function calcularStatusCliente(cliente) {
+  if (cliente.status === "inativo" || cliente.status === "ativo") {
+    return cliente.status;
+  }
+  if (!cliente.ultimaReserva || cliente.totalReservas === 0) {
+    return "inativo";
+  }
+  const hoje = new Date();
+  const ultimaReserva = new Date(cliente.ultimaReserva);
+  const diasSemReserva = Math.floor((hoje - ultimaReserva) / (1000 * 60 * 60 * 24));
+  return diasSemReserva <= 30 ? "ativo" : "inativo";
+}
+
+export function statusRepasseLabel(s) {
+  const v = String(s || "").toLowerCase();
+  if (v === "pago" || v === "concluido" || v === "concluído") return "Concluído";
+  if (v === "pendente") return "Pendente";
+  if (v === "recusado" || v === "rejeitado") return "Recusado";
+  return v || "Pendente";
+}
+
+export function statusRepasseClass(s) {
+  const v = String(s || "").toLowerCase();
+  if (v === "pago" || v === "concluido" || v === "concluído") return "green";
+  if (v === "pendente") return "yellow";
+  if (v === "recusado" || v === "rejeitado") return "red";
+  return "muted";
+}
+
+export function statusPaymentClass(s) {
+  const v = String(s || "").toLowerCase();
+  if (v === "paid") return "green";
+  if (v === "pending") return "yellow";
+  if (v === "canceled" || v === "cancelled") return "red";
+  return "muted";
+}

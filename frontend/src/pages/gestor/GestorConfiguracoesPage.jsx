@@ -1,230 +1,26 @@
-import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { useGestorConfiguracoes } from "../../hooks/api";
 import { LoadingSpinner } from "../../components/ui";
-
-const MOCK_DADOS_COMPLEXO = {
-  nome: "Complexo Esportivo ABC",
-  cnpj: "12.345.678/0001-90",
-  cep: "01310-100",
-  endereco: "Avenida Paulista",
-  numero: "1000",
-  complemento: "Sala 101",
-  bairro: "Bela Vista",
-  cidade: "São Paulo",
-  estado: "SP",
-  email: "contato@complexoabc.com.br",
-  telefone: "(11) 3456-7890",
-  descricao: "Complexo esportivo completo com diversas quadras e modalidades.",
-  logo: null,
-  logoPreview: null,
-};
-
-const MOCK_DADOS_FINANCEIROS = {
-  chavePix: "contato@complexoabc.com.br",
-  nomeTitular: "Complexo Esportivo ABC Ltda",
-};
-
-const ESTADOS_BR = [
-  "AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS",
-  "MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"
-];
-
-const ESTADOS_NOME = {
-  AC:"Acre",AL:"Alagoas",AP:"Amapá",AM:"Amazonas",BA:"Bahia",CE:"Ceará",
-  DF:"Distrito Federal",ES:"Espírito Santo",GO:"Goiás",MA:"Maranhão",
-  MT:"Mato Grosso",MS:"Mato Grosso do Sul",MG:"Minas Gerais",PA:"Pará",
-  PB:"Paraíba",PR:"Paraná",PE:"Pernambuco",PI:"Piauí",RJ:"Rio de Janeiro",
-  RN:"Rio Grande do Norte",RS:"Rio Grande do Sul",RO:"Rondônia",RR:"Roraima",
-  SC:"Santa Catarina",SP:"São Paulo",SE:"Sergipe",TO:"Tocantins"
-};
+import { formatarCNPJ, formatarCEP } from "../../utils/formatters";
+import { ESTADOS_BR, ESTADOS_NOME } from "../../utils/constants";
+import IconArrowLeft from "../../components/icons/IconArrowLeft";
+import { useGestorConfiguracoesPage } from "../../hooks/useGestorConfiguracoesPage";
 
 const GestorConfiguracoesPage = () => {
   const navigate = useNavigate();
   const {
-    obterComplexo,
-    salvarComplexo,
-    salvarEndereco,
-    salvarFinanceiro,
-    uploadLogo,
-  } = useGestorConfiguracoes();
-
-  const [salvando, setSalvando] = useState(false);
-  const [mensagemSucesso, setMensagemSucesso] = useState("");
-  const [mensagemErro, setMensagemErro] = useState("");
-  const [carregando, setCarregando] = useState(true);
-
-  const [dadosComplexo, setDadosComplexo] = useState({
-    nome: "", cnpj: "", cep: "", endereco: "", numero: "",
-    complemento: "", bairro: "", cidade: "", estado: "",
-    email: "", telefone: "", descricao: "", logo: null, logoPreview: null,
-  });
-
-  const [dadosFinanceiros, setDadosFinanceiros] = useState({
-    chavePix: "", nomeTitular: "",
-  });
-
-  useEffect(() => {
-    carregarDados();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  async function carregarDados() {
-    try {
-      setCarregando(true);
-      const data = await obterComplexo();
-      if (data) {
-        setDadosComplexo({
-          nome: data.nome || "", cnpj: data.cnpj || "",
-          cep: data.cep || "", endereco: data.endereco || "",
-          numero: data.numero || "", complemento: data.complemento || "",
-          bairro: data.bairro || "", cidade: data.cidade || "",
-          estado: data.estado || "", email: data.email || "",
-          telefone: data.telefone || "", descricao: data.descricao || "",
-          logo: null, logoPreview: data.logoUrl || null,
-        });
-        setDadosFinanceiros({
-          chavePix: data.chavePix || "",
-          nomeTitular: data.nomeTitular || "",
-        });
-      } else {
-        throw new Error("Dados vazios");
-      }
-    } catch {
-      setDadosComplexo(MOCK_DADOS_COMPLEXO);
-      setDadosFinanceiros(MOCK_DADOS_FINANCEIROS);
-    } finally {
-      setCarregando(false);
-    }
-  }
-
-  function handleLogoChange(e) {
-    const file = e.target.files[0];
-    if (!file) return;
-    if (file.size > 5 * 1024 * 1024) {
-      setMensagemErro("A imagem deve ter no máximo 5MB.");
-      return;
-    }
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setDadosComplexo((prev) => ({ ...prev, logo: file, logoPreview: reader.result }));
-    };
-    reader.readAsDataURL(file);
-  }
-
-  function formatarCNPJ(value) {
-    const cnpj = value.replace(/\D/g, "");
-    return cnpj
-      .replace(/^(\d{2})(\d)/, "$1.$2")
-      .replace(/^(\d{2})\.(\d{3})(\d)/, "$1.$2.$3")
-      .replace(/\.(\d{3})(\d)/, ".$1/$2")
-      .replace(/(\d{4})(\d)/, "$1-$2");
-  }
-
-  function formatarCEP(value) {
-    const cep = value.replace(/\D/g, "");
-    return cep.replace(/^(\d{5})(\d)/, "$1-$2");
-  }
-
-  function updateComplexo(field, value) {
-    setDadosComplexo((prev) => ({ ...prev, [field]: value }));
-  }
-
-  function showSuccess(msg) {
-    setMensagemSucesso(msg);
-    setTimeout(() => setMensagemSucesso(""), 3000);
-  }
-
-  async function handleSalvarDadosComplexo() {
-    try {
-      setSalvando(true);
-      setMensagemErro("");
-      setMensagemSucesso("");
-
-      if (!dadosComplexo.nome || !dadosComplexo.email || !dadosComplexo.telefone) {
-        setMensagemErro("Nome, Email e Telefone são obrigatórios.");
-        return;
-      }
-
-      try {
-        await salvarComplexo({
-          nome: dadosComplexo.nome, cnpj: dadosComplexo.cnpj,
-          email: dadosComplexo.email, telefone: dadosComplexo.telefone,
-          descricao: dadosComplexo.descricao,
-        });
-        if (dadosComplexo.logo) {
-          const formData = new FormData();
-          formData.append("logo", dadosComplexo.logo);
-          await uploadLogo(formData);
-        }
-      } catch {
-        await new Promise((r) => setTimeout(r, 1000));
-      }
-
-      showSuccess("Dados do complexo atualizados com sucesso!");
-    } catch (error) {
-      console.error("[CONFIGURAÇÕES] Erro ao salvar:", error);
-      setMensagemErro("Erro ao salvar dados do complexo. Tente novamente.");
-    } finally {
-      setSalvando(false);
-    }
-  }
-
-  async function handleSalvarEndereco() {
-    try {
-      setSalvando(true);
-      setMensagemErro("");
-      setMensagemSucesso("");
-
-      if (!dadosComplexo.cep || !dadosComplexo.cidade || !dadosComplexo.estado || !dadosComplexo.bairro || !dadosComplexo.endereco || !dadosComplexo.numero) {
-        setMensagemErro("CEP, Cidade, Estado, Bairro, Rua e Número são obrigatórios.");
-        return;
-      }
-
-      try {
-        await salvarEndereco({
-          cep: dadosComplexo.cep, cidade: dadosComplexo.cidade,
-          estado: dadosComplexo.estado, bairro: dadosComplexo.bairro,
-          endereco: dadosComplexo.endereco, numero: dadosComplexo.numero,
-          complemento: dadosComplexo.complemento,
-        });
-      } catch {
-        await new Promise((r) => setTimeout(r, 1000));
-      }
-
-      showSuccess("Endereço atualizado com sucesso!");
-    } catch (error) {
-      console.error("[CONFIGURAÇÕES] Erro ao salvar:", error);
-      setMensagemErro("Erro ao salvar endereço. Tente novamente.");
-    } finally {
-      setSalvando(false);
-    }
-  }
-
-  async function handleSalvarDadosFinanceiros() {
-    try {
-      setSalvando(true);
-      setMensagemErro("");
-      setMensagemSucesso("");
-
-      if (!dadosFinanceiros.chavePix || !dadosFinanceiros.nomeTitular) {
-        setMensagemErro("Chave PIX e Nome do Titular são obrigatórios.");
-        return;
-      }
-
-      try {
-        await salvarFinanceiro(dadosFinanceiros);
-      } catch {
-        await new Promise((r) => setTimeout(r, 1000));
-      }
-
-      showSuccess("Dados financeiros atualizados com sucesso!");
-    } catch (error) {
-      console.error("[CONFIGURAÇÕES] Erro ao salvar:", error);
-      setMensagemErro("Erro ao salvar dados financeiros. Tente novamente.");
-    } finally {
-      setSalvando(false);
-    }
-  }
+    salvando,
+    mensagemSucesso,
+    mensagemErro,
+    carregando,
+    dadosComplexo,
+    dadosFinanceiros,
+    setDadosFinanceiros,
+    updateComplexo,
+    handleLogoChange,
+    handleSalvarDadosComplexo,
+    handleSalvarEndereco,
+    handleSalvarDadosFinanceiros,
+  } = useGestorConfiguracoesPage();
 
   if (carregando) {
     return <LoadingSpinner mensagem="Carregando configurações..." fullPage />;
@@ -239,9 +35,7 @@ const GestorConfiguracoesPage = () => {
           onClick={() => navigate("/gestor/configuracoes")}
           title="Voltar para Configurações"
         >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M19 12H5M12 19l-7-7 7-7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
+          <IconArrowLeft size={20} />
         </button>
         <h1 className="cfg-title">Configurações do Complexo</h1>
       </div>
@@ -381,6 +175,6 @@ const GestorConfiguracoesPage = () => {
       </div>
     </div>
   );
-}
+};
 
 export default GestorConfiguracoesPage;
